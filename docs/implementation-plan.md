@@ -28,7 +28,7 @@ Status: draft 1, 15 Sep 2026. Owner: the maintainer. Source of truth for scope i
 Exit criteria, all observable:
 
 - `git clone && pnpm install && pnpm build && pnpm test` passes on a fresh machine in under five minutes, and the same four commands are green in CI on ubuntu, macos-14 and windows-2022.
-- `npm view staffroom version` prints `0.0.1`, so do `npm view @staffroom/core version`, `@staffroom/server`, `@staffroom/web` and `@staffroom/templates`, and `npx staffroom@0.0.1` prints one line saying the real release is coming. All five were hand-published with `--provenance=false`; provenance starts with the first CI release.
+- [x] Met 15 Sep 2026. All five published at `0.0.1` with `--provenance=false`, and `npx staffroom@0.0.1` prints the placeholder line. Publishing needed account 2FA plus an OTP per package: npm now refuses a plain publish, and the granular bypass-2FA token it suggests instead is deprecated from January 2027, so SR-005 should wire trusted publishing (OIDC from Actions) rather than a token. The four scoped packages were live on npmjs.com within minutes but the registry API served 404 for longer; that is replication lag on a new scope, not a failed publish.
 - `pnpm --filter @staffroom/core test providers` runs the seven-fixture conformance suite against the Anthropic adapter and `FixtureAdapter` and passes with no network.
 - `pnpm lint` fails if `@anthropic-ai/claude-agent-sdk` is added to any `package.json`, and fails on the string `Run staffroom `.
 - The repo has LICENSE, CONTRIBUTING (with the clean-room paragraph), CODE_OF_CONDUCT, SECURITY, ROADMAP, issue and PR templates, CODEOWNERS and Dependabot config.
