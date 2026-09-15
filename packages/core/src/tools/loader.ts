@@ -9,8 +9,7 @@
  */
 
 import { existsSync, readdirSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
@@ -32,9 +31,8 @@ export interface LoadResult {
 }
 
 /**
- * Our own entry, as an absolute file URL the bundled output can import. In the
- * published package this is dist/index.js; running from source under vitest it is
- * src/index.ts, so both are tried.
+ * Our own entry, as a file URL. Absolute so a bundled tool finds it wherever the
+ * cache sits, and a URL rather than a path so it works on Windows too.
  */
 const CORE_ENTRY = (() => {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -46,35 +44,27 @@ const CORE_ENTRY = (() => {
 })();
 
 /**
- * Keeps imports external but rewrites them to absolute URLs resolved from this
- * process.
+ * The default cache folder, inside this package.
  *
- * External alone is not enough. The bundle is written to a cache folder with no
- * node_modules above it, so a bare specifier there resolves to nothing. Resolving
- * from here means a tool gets the same zod, and the same `tool()`, that the
- * registry uses: a second copy of zod would produce schemas our registry cannot
- * introspect.
- *
- * Anything that cannot be resolved is left bare, so esbuild bundles it instead and
- * the tool still works.
+ * Location is load-bearing. Everything a tool imports stays external so it shares
+ * the office's own zod and `tool()` rather than getting a second copy the registry
+ * cannot introspect. External imports are bare specifiers, and a bare specifier
+ * only resolves if Node can walk up to a node_modules that has it. Writing the
+ * bundle here means that walk always succeeds, on every platform, with no path
+ * rewriting to get wrong.
  */
-const resolveFromServer = {
-  name: "staffroom-resolve-externals",
+const DEFAULT_CACHE = resolve(dirname(fileURLToPath(import.meta.url)), "../../.tools-cache");
+
+/** Only @staffroom/core needs rewriting: a package cannot reliably import itself. */
+const coreAlias = {
+  name: "staffroom-core-alias",
   setup(build: {
-    onResolve: (
-      o: { filter: RegExp },
-      cb: (a: { path: string }) => { path: string; external: boolean } | undefined,
-    ) => void;
+    onResolve: (o: { filter: RegExp }, cb: () => { path: string; external: boolean }) => void;
   }) {
-    build.onResolve({ filter: /^[^./]/ }, (args) => {
-      if (/^@staffroom\/core(\/.*)?$/.test(args.path)) return { path: CORE_ENTRY, external: true };
-      if (args.path.startsWith("node:")) return { path: args.path, external: true };
-      try {
-        return { path: import.meta.resolve(args.path), external: true };
-      } catch {
-        return undefined;
-      }
-    });
+    build.onResolve({ filter: /^@staffroom\/core(\/.*)?$/ }, () => ({
+      path: CORE_ENTRY,
+      external: true,
+    }));
   },
 };
 
@@ -91,7 +81,7 @@ async function loadOne(file: string, outDir: string): Promise<Tool> {
     // Anything else the tool imports resolves in the server's own process, so a
     // tool can use what the office already depends on.
     packages: "external",
-    plugins: [resolveFromServer as never],
+    plugins: [coreAlias as never],
     logLevel: "silent",
   });
 
@@ -131,7 +121,8 @@ export async function loadCustomTools(options: LoadToolsOptions): Promise<LoadRe
     return { tools, failures };
   }
 
-  const outDir = options.cacheDir ?? (await mkdtemp(join(tmpdir(), "staffroom-tools-")));
+  const outDir = options.cacheDir ?? DEFAULT_CACHE;
+  await mkdir(outDir, { recursive: true });
 
   for (const entry of entries.sort()) {
     const file = resolve(options.dir, entry);
@@ -150,7 +141,5 @@ export async function loadCustomTools(options: LoadToolsOptions): Promise<LoadRe
     }
   }
 
-  // Make sure the folder exists next time even if it was empty this time.
-  await writeFile(join(outDir, ".keep"), "", "utf8").catch(() => undefined);
   return { tools, failures };
 }

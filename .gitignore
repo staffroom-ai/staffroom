@@ -13,3 +13,4 @@ office/
 *.sqlite-journal
 test-results/
 playwright-report/
+.tools-cache/
