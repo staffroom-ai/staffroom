@@ -96,6 +96,23 @@ export {
   RunError,
   userMessage,
 } from "./runtime/errors.js";
+export type {
+  Deliverable,
+  PendingApproval,
+  Run,
+  RunEvent,
+  RunEventEnvelope,
+  RunEventType,
+  RunKind,
+  RunListFilter,
+  RunStatus,
+  RunStore,
+} from "./runtime/events.js";
+
+// Runs
+export { deliverableTitle } from "./runtime/events.js";
+export type { SqliteRunStoreOptions } from "./runtime/store.js";
+export { newApprovalId, newRunId, SqliteRunStore } from "./runtime/store.js";
 // Shared types
 export type {
   ApprovalBy,
