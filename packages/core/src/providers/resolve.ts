@@ -63,11 +63,20 @@ export interface ResolveOptions {
   config: OfficeConfig;
   /** From the task bar. Refused for agents whose own model is local. */
   override?: string;
+  /**
+   * Provider ids that have a working adapter, which is not always what config
+   * says: demo mode injects one with no providers block at all. When given, this
+   * is the authority on whether a provider is usable.
+   */
+  available?: Iterable<string>;
 }
 
 export function resolveModel(options: ResolveOptions): ResolvedModel {
   const { agent, agentsFile, config, override } = options;
   const providers = config.providers;
+  const available = options.available === undefined ? undefined : new Set(options.available);
+  const usable = (id: string): boolean =>
+    available === undefined ? configured(providers, id) : available.has(id);
 
   const agentOwn = agent.model === undefined ? undefined : parseModelId(agent.model);
   const agentIsLocal =
@@ -90,7 +99,7 @@ export function resolveModel(options: ResolveOptions): ResolvedModel {
   }
 
   if (agentOwn !== undefined) {
-    if (!configured(providers, agentOwn.provider)) {
+    if (!usable(agentOwn.provider)) {
       throw new RunError("PROVIDER_NOT_CONFIGURED", {
         agent: agent.name ?? agent.id,
         provider: agentOwn.provider,
@@ -101,7 +110,7 @@ export function resolveModel(options: ResolveOptions): ResolvedModel {
 
   const fromOffice =
     agentsFile.default_model === undefined ? undefined : parseModelId(agentsFile.default_model);
-  if (fromOffice !== undefined && configured(providers, fromOffice.provider)) {
+  if (fromOffice !== undefined && usable(fromOffice.provider)) {
     return {
       ...fromOffice,
       source: "office_default",
@@ -110,8 +119,10 @@ export function resolveModel(options: ResolveOptions): ResolvedModel {
   }
 
   // Last resort: the first provider that is actually usable, in file order.
-  for (const [id, provider] of Object.entries(providers)) {
-    if (!configured(providers, id)) continue;
+  const candidates = available === undefined ? Object.keys(providers) : [...available];
+  for (const id of candidates) {
+    if (!usable(id)) continue;
+    const provider = providers[id];
     return {
       provider: id,
       model: defaultModelFor(id, provider),
@@ -124,8 +135,8 @@ export function resolveModel(options: ResolveOptions): ResolvedModel {
 }
 
 /** Used only by the first_provider fallback; a real adapter's defaultModel() wins elsewhere. */
-function defaultModelFor(id: string, provider: ProviderConfig): string {
-  switch (provider.kind ?? id) {
+function defaultModelFor(id: string, provider: ProviderConfig | undefined): string {
+  switch (provider?.kind ?? id) {
     case "anthropic":
       return "claude-sonnet-5";
     case "ollama":

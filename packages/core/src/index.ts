@@ -134,8 +134,23 @@ export type {
 export { deliverableTitle } from "./runtime/events.js";
 export type { LoopContext, LoopRunnerConfig } from "./runtime/loop.js";
 export { costOf, messagesFromEvents, runAgentLoop } from "./runtime/loop.js";
+export type { CreateOfficeOptions, Office } from "./runtime/office.js";
+// The office
+export { buildAdapters, createOffice } from "./runtime/office.js";
 export type { BuildPromptOptions, BuiltPrompt, PinnedNote } from "./runtime/prompt.js";
 export { buildSystemPrompt } from "./runtime/prompt.js";
+export { buildReviseMessages, DEFAULT_REVISE_INSTRUCTION } from "./runtime/revise.js";
+export type { RouteDecision, RouteOptions } from "./runtime/routing.js";
+export {
+  ASSIGN_TASK,
+  askLead,
+  assignTaskSpec,
+  buildRoutingPrompt,
+  parseDecisionFromText,
+  resolveDecision,
+} from "./runtime/routing.js";
+export type { RunnerDeps, SubmitTaskInput } from "./runtime/runner.js";
+export { Runner } from "./runtime/runner.js";
 export type { SqliteRunStoreOptions } from "./runtime/store.js";
 export { newApprovalId, newRunId, SqliteRunStore } from "./runtime/store.js";
 // Shared types
@@ -158,6 +173,8 @@ export {
   webSearchConfigError,
   webSearchTool,
 } from "./tools/builtins/web-search.js";
+export type { LoadedTool, LoadFailure, LoadResult, LoadToolsOptions } from "./tools/loader.js";
+export { loadCustomTools } from "./tools/loader.js";
 // Tools
 export { buildPreview } from "./tools/preview.js";
 export type {
