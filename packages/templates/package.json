@@ -14,7 +14,10 @@
     "ecommerce",
     "clinic",
     "consultant",
-    "tools"
+    "tools",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
   ],
   "sideEffects": false,
   "exports": {

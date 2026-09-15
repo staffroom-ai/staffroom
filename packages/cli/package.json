@@ -11,7 +11,10 @@
     "staffroom": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
   ],
   "sideEffects": false,
   "keywords": [
