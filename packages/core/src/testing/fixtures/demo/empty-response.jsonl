@@ -1,0 +1,2 @@
+{"request":{"messages":[{"role":"user","content":""}],"tools":[],"model":"demo"}}
+{"type":"done","stopReason":"end","usage":{"inputTokens":3,"outputTokens":0}}

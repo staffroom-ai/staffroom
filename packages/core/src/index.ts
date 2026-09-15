@@ -6,9 +6,12 @@
 
 export const VERSION = "0.0.1";
 
-export type { BaseAdapterOptions } from "./providers/base.js";
 // Providers
+export { AnthropicAdapter } from "./providers/anthropic.js";
+export { mapAnthropicError } from "./providers/anthropic-errors.js";
+export type { BaseAdapterOptions } from "./providers/base.js";
 export { BaseAdapter, decodeToolName, encodeToolName, estimateTokens } from "./providers/base.js";
+export { ANTHROPIC_PRICING } from "./providers/pricing.js";
 export type {
   CompleteOptions,
   CompletionChunk,

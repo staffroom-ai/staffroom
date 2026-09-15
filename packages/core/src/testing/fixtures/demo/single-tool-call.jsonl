@@ -1,0 +1,4 @@
+{"request":{"messages":[{"role":"user","content":"What does the pricing note say?"}],"tools":[{"name":"brain_search","description":"Search the notes.","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}],"model":"demo"}}
+{"type":"text","text":"Let me look that up."}
+{"type":"tool_call","call":{"id":"call_1","name":"brain_search","input":{"query":"pricing"}}}
+{"type":"done","stopReason":"tool_calls","usage":{"inputTokens":48,"outputTokens":21}}

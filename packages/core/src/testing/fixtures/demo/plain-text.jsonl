@@ -1,0 +1,4 @@
+{"request":{"messages":[{"role":"user","content":"Say hello."}],"tools":[],"model":"demo"}}
+{"type":"text","text":"Hello"}
+{"type":"text","text":", there."}
+{"type":"done","stopReason":"end","usage":{"inputTokens":9,"outputTokens":4}}

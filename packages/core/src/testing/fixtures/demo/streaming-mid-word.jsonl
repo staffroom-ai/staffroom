@@ -1,0 +1,5 @@
+{"request":{"messages":[{"role":"user","content":"Name the company."}],"tools":[],"model":"demo"}}
+{"type":"text","text":"North"}
+{"type":"text","text":"light"}
+{"type":"text","text":" Studio"}
+{"type":"done","stopReason":"end","usage":{"inputTokens":8,"outputTokens":3}}

@@ -1,0 +1,2 @@
+{"request":{"messages":[{"role":"user","content":"Trigger a rate limit."}],"tools":[],"model":"demo"}}
+{"__error":{"code":"RATE_LIMITED","detail":{"provider":"Demo"},"retryAfterMs":1000,"status":429}}
