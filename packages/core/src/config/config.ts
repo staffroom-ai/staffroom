@@ -86,6 +86,8 @@ export const RunnerConfigSchema = z
     tool_timeout_ms: z.number().int().min(1000).max(600_000).default(60_000),
     temperature: z.number().min(0).max(2).optional(),
     max_retries: z.number().int().min(0).max(10).default(3),
+    /** A read tool that ships its input off the machine is capped at this. */
+    egress_input_max_chars: z.number().int().min(100).max(100_000).default(1000),
   })
   .strict();
 

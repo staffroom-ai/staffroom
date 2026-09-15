@@ -128,3 +128,22 @@ export type {
   BrainSearchOptions,
   ToolSource,
 } from "./shared/types.js";
+
+// Tools
+export { buildPreview } from "./tools/preview.js";
+export type {
+  ApprovalRequest,
+  RegisteredTool,
+  ToolErrorCode,
+  ToolRegistryOptions,
+  ToolResult,
+  Whitelist,
+} from "./tools/registry.js";
+export {
+  DENY_ALL,
+  IMPLIED_TOOLS,
+  ToolNameConflict,
+  ToolRegistry,
+} from "./tools/registry.js";
+export type { Tool, ToolContext, ToolDefinition, ToolScope } from "./tools/tool.js";
+export { MCP_TOOL_NAME, scopeWasAssumed, TOOL_NAME, ToolNameInvalid, tool } from "./tools/tool.js";
