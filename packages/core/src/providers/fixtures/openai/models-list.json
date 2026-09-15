@@ -1,0 +1,8 @@
+{
+  "object": "list",
+  "data": [
+    { "id": "gpt-5-nano", "object": "model", "created": 1767225600, "owned_by": "openai" },
+    { "id": "gpt-5", "object": "model", "created": 1772496000, "owned_by": "openai" },
+    { "id": "gpt-5-mini", "object": "model", "created": 1769904000, "owned_by": "openai" }
+  ]
+}

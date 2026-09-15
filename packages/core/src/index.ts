@@ -11,7 +11,10 @@ export { AnthropicAdapter } from "./providers/anthropic.js";
 export { mapAnthropicError } from "./providers/anthropic-errors.js";
 export type { BaseAdapterOptions } from "./providers/base.js";
 export { BaseAdapter, decodeToolName, encodeToolName, estimateTokens } from "./providers/base.js";
-export { ANTHROPIC_PRICING } from "./providers/pricing.js";
+export type { OpenAIAdapterOptions } from "./providers/openai.js";
+export { OpenAIAdapter } from "./providers/openai.js";
+export { mapOpenAIError } from "./providers/openai-errors.js";
+export { ANTHROPIC_PRICING, OPENAI_PRICING } from "./providers/pricing.js";
 export type {
   CompleteOptions,
   CompletionChunk,

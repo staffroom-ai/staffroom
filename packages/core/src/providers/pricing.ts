@@ -10,3 +10,10 @@ export const ANTHROPIC_PRICING: Record<string, ModelPricing> = {
   "claude-sonnet-5": { inputPer1k: 0.003, outputPer1k: 0.015, cachedInputPer1k: 0.0003 },
   "claude-haiku-4-5-20251001": { inputPer1k: 0.0008, outputPer1k: 0.004 },
 };
+
+/** OpenAI's own models. An OpenAI-compatible endpoint prices through config instead. */
+export const OPENAI_PRICING: Record<string, ModelPricing> = {
+  "gpt-5": { inputPer1k: 0.00125, outputPer1k: 0.01, cachedInputPer1k: 0.000125 },
+  "gpt-5-mini": { inputPer1k: 0.00025, outputPer1k: 0.002, cachedInputPer1k: 0.000025 },
+  "gpt-5-nano": { inputPer1k: 0.00005, outputPer1k: 0.0004 },
+};
