@@ -33,7 +33,8 @@ A commit-msg hook rejects commits without it. If you forget:
 
 ## Running it locally
 
-Requires Node 22 or newer and pnpm 10.
+Requires Node 22 or newer and pnpm 10. There is a `.nvmrc`, so `nvm use` picks
+the version this is developed against.
 
 ```bash
 pnpm install
