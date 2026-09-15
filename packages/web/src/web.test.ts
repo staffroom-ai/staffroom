@@ -440,3 +440,99 @@ describe("the connection", () => {
     expect(readToken(document, "http://localhost:4242/")).toBeUndefined();
   });
 });
+
+describe("attributing events to people", () => {
+  beforeEach(() => {
+    useOfficeStore.setState({
+      state: undefined,
+      activity: [],
+      animations: [],
+      chats: {},
+      runAgents: {},
+    });
+  });
+
+  it("names the agent on every line of a run, not only the first", () => {
+    const store = useOfficeStore.getState();
+    store.applyWelcome(state(), "demo", "0.1.0");
+
+    store.applyEvent(
+      envelope(
+        {
+          type: "started",
+          agentId: "priya",
+          kind: "task",
+          model: { provider: "demo", model: "demo" },
+          modelSource: "office_default",
+          prompt: "go",
+          parentRunId: null,
+          routineId: null,
+          systemPromptHash: "h",
+          toolNames: [],
+        },
+        1,
+      ),
+    );
+    // `done` carries no agentId of its own, which is what made the feed read
+    // " finished: ..." with nobody's name in front of it.
+    store.applyEvent(
+      envelope(
+        {
+          type: "done",
+          deliverable: { title: "Bakery tagline", text: "t", noteId: "n/1" },
+          usage: { inputTokens: 1, outputTokens: 1 },
+          costUsd: null,
+          toolsUsed: [],
+          turns: 1,
+        },
+        2,
+      ),
+    );
+
+    const lines = useOfficeStore.getState().activity.map((a) => a.text);
+    expect(lines[0]).toBe("priya started work.");
+    expect(lines[1]).toBe("priya finished: Bakery tagline");
+  });
+
+  it("keeps runs apart", () => {
+    const store = useOfficeStore.getState();
+    store.applyWelcome(state(), "demo", "0.1.0");
+
+    const started = (agentId: string, seq: number, runId: string): RunEventEnvelope =>
+      envelope(
+        {
+          type: "started",
+          agentId,
+          kind: "task",
+          model: { provider: "demo", model: "demo" },
+          modelSource: "office_default",
+          prompt: "go",
+          parentRunId: null,
+          routineId: null,
+          systemPromptHash: "h",
+          toolNames: [],
+        },
+        seq,
+        runId,
+      );
+
+    store.applyEvent(started("lead", 1, "run_a"));
+    store.applyEvent(started("priya", 2, "run_b"));
+    store.applyEvent(
+      envelope(
+        {
+          type: "done",
+          deliverable: { title: "X", text: "t", noteId: "n/2" },
+          usage: { inputTokens: 1, outputTokens: 1 },
+          costUsd: null,
+          toolsUsed: [],
+          turns: 1,
+        },
+        3,
+        "run_a",
+      ),
+    );
+
+    expect(useOfficeStore.getState().activity.at(-1)?.text).toBe("lead finished: X");
+  });
+});

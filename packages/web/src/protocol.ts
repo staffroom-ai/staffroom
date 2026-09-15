@@ -29,6 +29,8 @@ export type ClientMessage =
   | { type: "agent.rename"; reqId: string; agentId: string; name: string }
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
   | { type: "runs.replay"; reqId: string; runId: string }
+  | { type: "note.reveal"; reqId: string; noteId: string }
+  | { type: "tools.assign"; reqId: string; agentId: string; tool: string }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   | { type: "ping"; reqId: string };
 

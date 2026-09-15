@@ -36,6 +36,8 @@ export interface OfficeStore {
   activity: ActivityLine[];
   animations: AnimationCue[];
   chats: Record<string, ChatTurn[]>;
+  /** Who each run belongs to. Most events do not carry an agent id of their own. */
+  runAgents: Record<string, string>;
   /** Task requests we are waiting on, so a routed event can open the right chat. */
   pendingTaskReqIds: Set<string>;
   lastError: { code: string; message: string; hint: string } | undefined;
@@ -68,6 +70,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   activity: [],
   animations: [],
   chats: {},
+  runAgents: {},
   pendingTaskReqIds: new Set(),
   lastError: undefined,
 
@@ -80,9 +83,20 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   applyState: (state) => set({ state }),
 
   applyEvent: (envelope, reducedMotion) => {
-    const { activity, animations, chats, state } = get();
-    const nameOf = (agentId: string): string =>
-      state?.agents.find((a) => a.id === agentId)?.name ?? agentId;
+    const { activity, animations, chats, state, runAgents } = get();
+
+    // Only `started` names its agent, so the run is remembered and every later
+    // event about it can be attributed. Without this the feed says
+    // " finished: Bakery tagline" with nobody's name in front of it.
+    const event = envelope.event;
+    const nextRunAgents =
+      event.type === "started" ? { ...runAgents, [envelope.runId]: event.agentId } : runAgents;
+
+    const agentForRun = nextRunAgents[envelope.runId];
+    const nameOf = (agentId: string): string => {
+      const id = agentId.length > 0 ? agentId : (agentForRun ?? "");
+      return state?.agents.find((a) => a.id === id)?.name ?? id;
+    };
 
     const ingested = ingestEvent(envelope, {
       ...(reducedMotion === undefined ? {} : { reducedMotion }),
@@ -95,7 +109,6 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
 
     // Streamed text becomes the agent's side of the chat as it arrives.
     let nextChats = chats;
-    const event = envelope.event;
     if (event.type === "chunk" || event.type === "started") {
       const runId = envelope.runId;
       const existing = chats[runId] ?? [];
@@ -123,6 +136,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
       activity: [...activity, ...newActivity].slice(-MAX_ACTIVITY),
       animations: [...animations, ...fresh].slice(-MAX_CUES),
       chats: nextChats,
+      runAgents: nextRunAgents,
     });
   },
 
