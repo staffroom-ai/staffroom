@@ -13,7 +13,7 @@ import {
   ZOOM_MIN,
   zoom,
 } from "./camera.js";
-import { MATERIALS, statusColour } from "./materials.js";
+import { POD_PENCIL, podPencil, statusColour } from "./materials.js";
 import { PickRegistry, projectToScreen } from "./picking.js";
 import { AgentTimelines, timelineFor, WALK_MS } from "./timeline.js";
 
@@ -127,19 +127,6 @@ describe("picking", () => {
   });
 });
 
-describe("materials", () => {
-  it("uses three for the whole office, which is what holds the frame budget", () => {
-    expect(MATERIALS).toHaveLength(3);
-  });
-
-  it("gives every status its own colour", () => {
-    const colours = (["idle", "working", "waiting_approval", "error"] as const).map((s) =>
-      statusColour(s).getHexString(),
-    );
-    expect(new Set(colours).size).toBe(4);
-  });
-});
-
 describe("timelines", () => {
   const seat = { x: 4, z: 4 };
   const cue = (kind: AnimationCue["kind"]): AnimationCue => ({
@@ -203,3 +190,57 @@ describe("timelines", () => {
     expect(timelines.sample(10_000).position).toEqual(seat);
   });
 });
+
+describe("the palette", () => {
+  it("gives every status its own colour, in both themes", () => {
+    for (const dark of [false, true]) {
+      const colours = (["idle", "working", "waiting_approval", "error"] as const).map((s) =>
+        statusColour(s, dark).getHexString(),
+      );
+      expect(new Set(colours).size, `dark=${dark}`).toBe(4);
+    }
+  });
+
+  it("keeps the departments desaturated, which is what stops the office looking like a toy", () => {
+    for (const hex of POD_PENCIL) {
+      expect(saturationOf(hex), hex).toBeLessThan(0.4);
+    }
+  });
+
+  it("keeps the departments close in value, so none of them shouts", () => {
+    const lightness = POD_PENCIL.map(lightnessOf);
+    expect(Math.max(...lightness) - Math.min(...lightness)).toBeLessThan(0.15);
+  });
+
+  it("lifts the departments in dark, where the same value would disappear", () => {
+    for (let pod = 0; pod < 6; pod++) {
+      expect(lightnessOf(podPencil(pod, true))).toBeGreaterThan(lightnessOf(podPencil(pod, false)));
+    }
+  });
+
+  it("tells the six departments apart", () => {
+    expect(new Set([0, 1, 2, 3, 4, 5].map((p) => podPencil(p, false))).size).toBe(6);
+  });
+});
+
+/** So the palette rules can be asserted rather than eyeballed. */
+function channels(hex: string): [number, number, number] {
+  return [
+    Number.parseInt(hex.slice(1, 3), 16) / 255,
+    Number.parseInt(hex.slice(3, 5), 16) / 255,
+    Number.parseInt(hex.slice(5, 7), 16) / 255,
+  ];
+}
+
+function lightnessOf(hex: string): number {
+  const [r, g, b] = channels(hex);
+  return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+}
+
+function saturationOf(hex: string): number {
+  const [r, g, b] = channels(hex);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  return max - min === 0 ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
+}

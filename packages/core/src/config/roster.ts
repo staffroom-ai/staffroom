@@ -7,7 +7,7 @@
  * automatically would be a good reason never to trust the office with the file
  * again.
  */
-import { parseDocument } from "yaml";
+import { parseDocument, Scalar } from "yaml";
 import type { AgentConfig, AgentsFile } from "./agents.js";
 
 export interface Department {
@@ -119,18 +119,22 @@ export class RosterWriter {
     return undefined;
   }
 
-  /** Records who named them and when, because an owner opening the file will wonder. */
+  /**
+   * Records who named them and when, because an owner opening the file will
+   * wonder where the name came from.
+   *
+   * The value is built as a Scalar rather than passed as a plain string: set()
+   * with a string stores a bare value with nowhere to hang the comment, and the
+   * note is silently lost.
+   */
   setName(agentId: string, name: string, namedBy: string, on: string): boolean {
     const found = this.agentNode(agentId);
     if (!found) return false;
-    const node = found.node as {
-      get: (k: string) => unknown;
-      set: (k: string, v: unknown) => void;
-      items?: Array<{ key?: { value?: string }; value?: { comment?: string } }>;
-    };
-    node.set("name", name);
-    const pair = node.items?.find((p) => p.key?.value === "name");
-    if (pair?.value) pair.value.comment = ` named by ${namedBy} on ${on}`;
+    const node = found.node as { set: (k: string, v: unknown) => void };
+
+    const value = new Scalar(name);
+    value.comment = ` named by ${namedBy} on ${on}`;
+    node.set("name", value);
     return true;
   }
 

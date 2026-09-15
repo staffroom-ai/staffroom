@@ -1,63 +1,76 @@
 /**
- * The floor, the Brain and the six pods.
+ * The model: the table it sits on, the floor, the Brain and the six pods.
  *
- * Everything static, drawn once. The furniture is instanced so 36 desks cost about
- * what one does.
+ * Everything is matte card with soft shadows. The pods are annotated in coloured
+ * pencil rather than painted in, which is what keeps six departments legible
+ * without the office looking like a board game.
  */
-
 import { Html, Instance, Instances } from "@react-three/drei";
 import type { OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
 import {
   FLOOR_SIZE,
   POD_COUNT,
-  podColour,
   podFacing,
   podPosition,
   seatPosition,
   seatsInPod,
 } from "../layout.js";
-import { COLOURS } from "./materials.js";
+import { podPencil, SURFACE_METALNESS, SURFACE_ROUGHNESS, surfaces } from "./materials.js";
 
-const DIM_OPACITY = 0.4;
+const POD_RADIUS = 3.3;
 
-export function Floor(): ReactElement {
+/** The table the model sits on, and the card floor laid over it. */
+export function Ground({ dark }: { dark: boolean }): ReactElement {
+  const c = surfaces(dark);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-      <planeGeometry args={[FLOOR_SIZE, FLOOR_SIZE]} />
-      <meshToonMaterial color={COLOURS.floor} />
-    </mesh>
-  );
-}
-
-/** The Brain: a low cylinder with cards stood around it, one per area of the notes. */
-export function Brain({ noteCount }: { noteCount: number }): ReactElement {
-  const cards = Math.min(24, Math.max(6, noteCount));
-  return (
-    <group position={[0, 0, 0]}>
-      <mesh position={[0, 0.3, 0]} castShadow>
-        <cylinderGeometry args={[1.6, 1.8, 0.6, 24]} />
-        <meshToonMaterial color={COLOURS.brain} />
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.34, 0]} receiveShadow>
+        <planeGeometry args={[FLOOR_SIZE * 2.4, FLOOR_SIZE * 2.4]} />
+        <meshStandardMaterial color={c.table} roughness={1} metalness={0} />
       </mesh>
-      <Instances limit={24} range={cards}>
-        <boxGeometry args={[0.28, 0.4, 0.02]} />
-        <meshToonMaterial color={COLOURS.desk} />
-        {Array.from({ length: cards }, (_, i) => {
-          const angle = (i / cards) * Math.PI * 2;
-          return (
-            <Instance
-              key={`card-${angle.toFixed(4)}`}
-              position={[Math.sin(angle) * 1.3, 0.8, Math.cos(angle) * 1.3]}
-              rotation={[0, angle, 0]}
-            />
-          );
-        })}
-      </Instances>
+
+      {/* A slab with thickness, so the floor has an edge and casts a shadow. */}
+      <mesh position={[0, -0.16, 0]} receiveShadow castShadow>
+        <boxGeometry args={[FLOOR_SIZE, 0.3, FLOOR_SIZE]} />
+        <meshStandardMaterial
+          color={c.floor}
+          roughness={SURFACE_ROUGHNESS}
+          metalness={SURFACE_METALNESS}
+        />
+      </mesh>
     </group>
   );
 }
 
-export function Pods({ state }: { state: OfficeState }): ReactElement {
+/** The Brain: a stack of cards, lit warm from within. */
+export function Brain({ dark }: { dark: boolean }): ReactElement {
+  const c = surfaces(dark);
+  return (
+    <group>
+      <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1.5, 1.62, 0.32, 40]} />
+        <meshStandardMaterial color={c.brain} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </mesh>
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <cylinderGeometry args={[1.18, 1.3, 0.22, 40]} />
+        <meshStandardMaterial color={c.brain} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </mesh>
+      <mesh position={[0, 0.62, 0]} castShadow>
+        <cylinderGeometry args={[0.82, 0.96, 0.18, 40]} />
+        <meshStandardMaterial
+          color={c.brain}
+          roughness={0.7}
+          metalness={0}
+          emissive={dark ? "#6b6350" : "#ffffff"}
+          emissiveIntensity={dark ? 0.35 : 0.22}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+export function Pods({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
   const used = new Set<number>(state.departments.map((d) => d.pod));
 
   return (
@@ -66,33 +79,40 @@ export function Pods({ state }: { state: OfficeState }): ReactElement {
         const { x, z } = podPosition(pod);
         const department = state.departments.find((d) => (d.pod as number) === pod);
         const inUse = used.has(pod);
+        const pencil = podPencil(pod, dark);
 
         return (
           <group key={`pod-at-${x}-${z}`} position={[x, 0, z]} rotation={[0, podFacing(pod), 0]}>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 1]} receiveShadow>
-              <circleGeometry args={[3.4, 24]} />
-              <meshToonMaterial
-                color={podColour(pod)}
+            {/* A ring rather than a filled disc: an annotation on the floor, not paint. */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.011, 0.9]}>
+              <ringGeometry args={[POD_RADIUS - 0.045, POD_RADIUS, 64]} />
+              <meshBasicMaterial
+                color={pencil}
                 transparent
-                // An empty pod is dimmed rather than hidden: the office has six,
-                // and hiding them would make it look smaller than it is.
-                opacity={inUse ? 0.22 : DIM_OPACITY * 0.22}
+                opacity={inUse ? 0.85 : 0.22}
+                toneMapped={false}
               />
             </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, 0.9]}>
+              <circleGeometry args={[POD_RADIUS, 64]} />
+              <meshBasicMaterial
+                color={pencil}
+                transparent
+                opacity={inUse ? 0.07 : 0.02}
+                toneMapped={false}
+              />
+            </mesh>
+
             {department !== undefined && (
-              <Html position={[0, 0.05, 3.6]} center zIndexRange={[10, 0]} occlude={false}>
-                <div
-                  style={{
-                    font: "600 11px/1.2 system-ui, -apple-system, sans-serif",
-                    color: podColour(pod),
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    whiteSpace: "nowrap",
-                    userSelect: "none",
-                  }}
-                >
+              <Html
+                position={[0, 0.02, -POD_RADIUS + 0.4]}
+                center
+                zIndexRange={[8, 0]}
+                occlude={false}
+              >
+                <span className="pod-label" style={{ color: pencil }}>
                   {department.name}
-                </div>
+                </span>
               </Html>
             )}
           </group>
@@ -102,13 +122,15 @@ export function Pods({ state }: { state: OfficeState }): ReactElement {
   );
 }
 
-/** Every desk, chair and monitor in the office, in three instanced draws. */
-export function Desks({ state }: { state: OfficeState }): ReactElement {
-  const seats = [];
+/** Desks, chairs and monitors, instanced. */
+export function Desks({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
+  const c = surfaces(dark);
+  const seats: Array<{ key: string; x: number; z: number; facing: number }> = [];
+
   for (let pod = 0; pod < POD_COUNT; pod++) {
     for (let seat = 0; seat < seatsInPod(pod); seat++) {
       const { x, z } = seatPosition(pod, seat);
-      seats.push({ key: `${pod}-${seat}`, x, z, facing: podFacing(pod), pod });
+      seats.push({ key: `${pod}-${seat}`, x, z, facing: podFacing(pod) });
     }
   }
 
@@ -123,35 +145,51 @@ export function Desks({ state }: { state: OfficeState }): ReactElement {
 
   return (
     <>
-      <Instances limit={36} range={seats.length}>
-        <boxGeometry args={[1.4, 0.08, 0.8]} />
-        <meshToonMaterial color={COLOURS.desk} />
+      <Instances limit={36} range={seats.length} castShadow receiveShadow>
+        <boxGeometry args={[1.5, 0.07, 0.86]} />
+        <meshStandardMaterial color={c.desk} roughness={SURFACE_ROUGHNESS} metalness={0} />
         {seats.map((s) => (
-          <Instance key={s.key} position={[s.x, 0.72, s.z]} rotation={[0, s.facing, 0]} />
+          <Instance key={s.key} position={[s.x, 0.7, s.z]} rotation={[0, s.facing, 0]} />
         ))}
       </Instances>
 
-      <Instances limit={36} range={seats.length}>
-        <boxGeometry args={[0.5, 0.06, 0.5]} />
-        <meshToonMaterial color={COLOURS.dim} />
+      {/* Two legs per desk, so it stands on the floor instead of hovering. */}
+      <Instances limit={72} range={seats.length * 2} castShadow>
+        <boxGeometry args={[0.07, 0.68, 0.07]} />
+        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
+        {seats.flatMap((s) => [
+          <Instance
+            key={`${s.key}-l`}
+            position={[s.x - Math.cos(s.facing) * 0.62, 0.34, s.z - Math.sin(s.facing) * 0.62]}
+          />,
+          <Instance
+            key={`${s.key}-r`}
+            position={[s.x + Math.cos(s.facing) * 0.62, 0.34, s.z + Math.sin(s.facing) * 0.62]}
+          />,
+        ])}
+      </Instances>
+
+      <Instances limit={36} range={seats.length} castShadow>
+        <boxGeometry args={[0.46, 0.06, 0.46]} />
+        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
         {seats.map((s) => (
           <Instance
             key={s.key}
-            position={[s.x - Math.sin(s.facing) * 0.9, 0.45, s.z - Math.cos(s.facing) * 0.9]}
+            position={[s.x - Math.sin(s.facing) * 1.0, 0.42, s.z - Math.cos(s.facing) * 1.0]}
             rotation={[0, s.facing, 0]}
           />
         ))}
       </Instances>
 
-      <Instances limit={36} range={seats.length}>
-        <boxGeometry args={[0.6, 0.38, 0.04]} />
-        <meshBasicMaterial toneMapped={false} />
+      <Instances limit={36} range={seats.length} castShadow>
+        <boxGeometry args={[0.62, 0.36, 0.035]} />
+        <meshStandardMaterial roughness={0.45} metalness={0} />
         {seats.map((s) => (
           <Instance
             key={s.key}
-            position={[s.x, 0.98, s.z + 0.28]}
-            rotation={[0, s.facing, 0]}
-            color={occupied.has(s.key) ? "#cfe3ff" : "#4a4d55"}
+            position={[s.x + Math.sin(s.facing) * 0.3, 0.94, s.z + Math.cos(s.facing) * 0.3]}
+            rotation={[-0.12, s.facing, 0]}
+            color={occupied.has(s.key) ? c.screenOn : c.screenOff}
           />
         ))}
       </Instances>

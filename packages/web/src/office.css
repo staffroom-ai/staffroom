@@ -1,23 +1,52 @@
-/* The office's own styling. Light and dark both, because the browser decides. */
+/*
+ * The office's surface.
+ *
+ * An architect's model on a drafting table: warm paper, ink, hairlines, and one
+ * drafting-pencil blue doing all the interactive work. Type is Archivo, which has
+ * enough industrial character to sit beside a technical drawing, with IBM Plex
+ * Mono for anything that is a number or a label rather than a sentence.
+ */
+
 :root {
-  --ink: #1b1d22;
-  --ink-2: #5a5e68;
-  --paper: #f7f6f2;
-  --paper-2: #eeede6;
-  --line: rgba(27, 29, 34, 0.14);
-  --accent: #2457d6;
-  --warn: #b7791f;
+  color-scheme: light dark;
+
+  --paper: #e8e4db;
+  --surface: #f3f0e9;
+  --surface-2: #ddd8cd;
+  --ink: #22201c;
+  --ink-2: #6b6659;
+  --ink-3: #928c7d;
+  --hairline: rgba(34, 32, 28, 0.14);
+  --hairline-strong: rgba(34, 32, 28, 0.26);
+  --accent: #2b4b7c;
+  --accent-ink: #ffffff;
+  --warning: #9a6a2c;
+  --danger: #8f463e;
+
+  --ui: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --shadow-sm: 0 1px 2px rgba(34, 32, 28, 0.06);
+  --shadow-md: 0 6px 20px -8px rgba(34, 32, 28, 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #ecebe6;
-    --ink-2: #b8bbc4;
-    --paper: #14161a;
-    --paper-2: #1c1f25;
-    --line: rgba(236, 235, 230, 0.14);
-    --accent: #6a93ff;
-    --warn: #e0a64a;
+    --paper: #191a1d;
+    --surface: #212327;
+    --surface-2: #2b2e33;
+    --ink: #eae7e0;
+    --ink-2: #a8a396;
+    --ink-3: #7b7669;
+    --hairline: rgba(234, 231, 224, 0.13);
+    --hairline-strong: rgba(234, 231, 224, 0.24);
+    --accent: #7d9ecc;
+    --accent-ink: #14161a;
+    --warning: #d2a05c;
+    --danger: #cf7268;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.7);
   }
 }
 
@@ -35,11 +64,8 @@ body,
 body {
   background: var(--paper);
   color: var(--ink);
-  font:
-    14px / 1.5 system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  font: 400 14px / 1.55 var(--ui);
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
@@ -48,9 +74,25 @@ body {
   place-items: center;
   height: 100%;
   color: var(--ink-2);
+  font-size: 13px;
+  letter-spacing: 0.01em;
 }
 
-/* The HUD floats over the scene and only takes clicks where it has to. */
+/* Labels drawn onto the floor. Small, spaced, like an annotation. */
+.pod-label {
+  font: 500 9px / 1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  opacity: 0.72;
+  /* A sliver of the paper behind the text keeps it readable where two pods
+     overlap on screen, without drawing a box around it. */
+  padding: 3px 6px;
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  border-radius: 3px;
+}
+
 .hud {
   position: fixed;
   inset: 0;
@@ -59,88 +101,176 @@ body {
   flex-direction: column;
 }
 
+/* ── top bar ─────────────────────────────────────────────────────────────── */
+
 .topbar {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--line);
+  gap: 14px;
+  padding: 0 20px;
+  height: 52px;
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.1);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .topbar-name {
   font-weight: 600;
-  letter-spacing: 0.01em;
+  font-size: 14px;
+  letter-spacing: -0.006em;
 }
+
 .topbar-spacer {
   flex: 1;
 }
+
 .topbar-clock {
+  font: 400 12px / 1 var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+  letter-spacing: 0.02em;
 }
 
-.chip {
-  font-size: 12px;
-  color: var(--ink-2);
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  padding: 3px 10px;
+/*
+ * Metadata reads as a quiet caption, not a row of badges. A pill with a border
+ * around every fact is what makes an interface look like a dashboard template.
+ */
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font: 400 11px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
 }
-.chip-demo {
+
+/* A dot carries the state; the word carries the meaning. */
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.meta-live {
+  color: var(--ink-2);
+}
+.meta-demo {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.chip-warn {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+.meta-warn {
+  color: var(--warning);
 }
+
+/* ── task bar ────────────────────────────────────────────────────────────── */
 
 .taskbar {
   pointer-events: auto;
-  margin-top: auto;
   display: flex;
-  gap: 8px;
-  padding: 14px 16px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid var(--line);
+  align-items: stretch;
+  /* One margin declaration: a shorthand after margin-top silently resets it. */
+  margin: auto 20px 20px;
+  max-width: 760px;
+  width: calc(100% - 40px);
+  align-self: center;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  transition: border-color 160ms ease;
 }
 
-.taskbar-department,
-.taskbar-input,
-.taskbar-send {
-  font: inherit;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--paper-2);
-  color: var(--ink);
-  padding: 9px 12px;
+.taskbar:focus-within {
+  border-color: var(--hairline-strong);
+}
+
+.taskbar-department {
+  appearance: none;
+  font: 500 11px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--hairline);
+  padding: 0 32px 0 16px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) center,
+    calc(100% - 13px) center;
+  background-size:
+    4px 4px,
+    4px 4px;
+  background-repeat: no-repeat;
 }
 
 .taskbar-input {
   flex: 1;
+  font: 400 14px / 1 var(--ui);
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  padding: 15px 16px;
+  min-width: 0;
 }
+
 .taskbar-input::placeholder {
-  color: var(--ink-2);
+  color: var(--ink-3);
+}
+
+.taskbar-input:focus {
+  outline: none;
 }
 
 .taskbar-send {
-  background: var(--accent);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 500;
+  font: 500 12px / 1 var(--ui);
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  padding: 0 18px;
   cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+  white-space: nowrap;
 }
+
+.taskbar-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
 .taskbar-send:disabled {
-  opacity: 0.5;
+  color: var(--ink-3);
   cursor: default;
 }
+
+/* ── shared ──────────────────────────────────────────────────────────────── */
 
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
 }

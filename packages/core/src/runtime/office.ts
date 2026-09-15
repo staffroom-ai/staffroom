@@ -23,6 +23,7 @@ import { webSearchTool } from "../tools/builtins/web-search.js";
 import { type LoadFailure, loadCustomTools } from "../tools/loader.js";
 import { ToolRegistry } from "../tools/registry.js";
 import type { RunStore } from "./events.js";
+import { assignTool, renameAgent, revealNote, setProviderKey } from "./office-edits.js";
 import { Runner } from "./runner.js";
 import { SqliteRunStore } from "./store.js";
 
@@ -39,6 +40,11 @@ export interface Office {
   /** Problems that did not stop the office opening. */
   warnings: ConfigErrorLike[];
   toolFailures: LoadFailure[];
+  /** Edits to the owner's own files, made through the document API. */
+  renameAgent(agentId: string, name: string): boolean;
+  assignTool(agentId: string, tool: string): boolean;
+  setProviderKey(provider: string, key: string): boolean;
+  revealNote(noteId: string): boolean;
   close(): void;
 }
 
@@ -254,6 +260,10 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     store,
     providers: adapters,
     mode,
+    renameAgent: (agentId: string, name: string) => renameAgent(officeDir, agentId, name),
+    assignTool: (agentId: string, tool: string) => assignTool(officeDir, agentId, tool),
+    setProviderKey: (provider: string, key: string) => setProviderKey(officeDir, provider, key),
+    revealNote: (noteId: string) => revealNote(brainDir, noteId),
     warnings,
     toolFailures,
     close: () => {

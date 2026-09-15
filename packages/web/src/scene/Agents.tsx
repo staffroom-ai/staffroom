@@ -12,13 +12,13 @@ import { useFrame } from "@react-three/fiber";
 import type { OfficeState } from "@staffroom/core";
 import { type ReactElement, useMemo, useRef } from "react";
 import { Color } from "three";
-import { podColour, seatPosition } from "../layout.js";
+import { seatPosition } from "../layout.js";
 import { useOfficeStore } from "../store.js";
-import { statusColour } from "./materials.js";
+import { podPencil, SURFACE_ROUGHNESS, statusColour } from "./materials.js";
 import { AgentTimelines } from "./timeline.js";
 
-const HEAD_HEIGHT = 1.28;
-const BADGE_HEIGHT = 1.85;
+const HEAD_HEIGHT = 1.3;
+const BADGE_HEIGHT = 1.78;
 
 interface Placed {
   id: string;
@@ -31,9 +31,11 @@ interface Placed {
 export function Agents({
   state,
   reducedMotion,
+  dark,
 }: {
   state: OfficeState;
   reducedMotion: boolean;
+  dark: boolean;
 }): ReactElement {
   /**
    * One ref per body. drei's Instance forwards a node with its own position, which
@@ -80,15 +82,15 @@ export function Agents({
       const node = bodies.current[index];
       if (node === null || node === undefined) return;
       const at = motion?.position ?? seat;
-      node.position.set(at.x, motion?.slumped === true ? 0.52 : 0.6, at.z);
+      node.position.set(at.x, motion?.slumped === true ? 0.6 : 0.7, at.z);
     });
   });
 
   return (
     <>
-      <Instances limit={35} range={placed.length}>
-        <capsuleGeometry args={[0.26, 0.5, 4, 8]} />
-        <meshToonMaterial />
+      <Instances limit={35} range={placed.length} castShadow receiveShadow>
+        <capsuleGeometry args={[0.27, 0.56, 8, 18]} />
+        <meshStandardMaterial roughness={SURFACE_ROUGHNESS} metalness={0} />
         {placed.map((person, index) => {
           const seat = seatPosition(person.pod, person.seat);
           return (
@@ -97,8 +99,8 @@ export function Agents({
               ref={(node: never) => {
                 bodies.current[index] = node;
               }}
-              position={[seat.x, 0.6, seat.z]}
-              color={podColour(person.pod)}
+              position={[seat.x, 0.7, seat.z]}
+              color={podPencil(person.pod, dark)}
             />
           );
         })}
@@ -113,15 +115,16 @@ export function Agents({
             <Instance
               key={person.id}
               position={[seat.x, HEAD_HEIGHT, seat.z]}
-              color={podColour(person.pod)}
+              color={podPencil(person.pod, dark)}
             />
           );
         })}
       </Instances>
 
       {/* Status, straight from the office state. */}
+      {/* Status, read from the office every frame rather than from a cue. */}
       <Instances limit={35} range={placed.length}>
-        <sphereGeometry args={[0.11, 8, 8]} />
+        <sphereGeometry args={[0.1, 14, 12]} />
         <meshBasicMaterial toneMapped={false} />
         {placed.map((person) => {
           const seat = seatPosition(person.pod, person.seat);
@@ -129,7 +132,7 @@ export function Agents({
             <Instance
               key={person.id}
               position={[seat.x, BADGE_HEIGHT, seat.z]}
-              color={new Color(statusColour(person.status))}
+              color={new Color(statusColour(person.status, dark))}
             />
           );
         })}

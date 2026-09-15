@@ -1,10 +1,10 @@
 /**
- * Where the owner types what they want.
+ * Where the owner says what they want.
  *
- * A department and a sentence. No prefixes, no syntax: the point of the office is
- * that you say the thing and someone picks it up.
+ * One composed control rather than three sitting beside each other: a department,
+ * a sentence, and a way to send it. No prefixes and no syntax, because the whole
+ * point of the office is that you say the thing and someone picks it up.
  */
-
 import type { OfficeState } from "@staffroom/core";
 import { type FormEvent, type ReactElement, useState } from "react";
 
@@ -19,12 +19,12 @@ export function TaskBar({
 }): ReactElement {
   const [department, setDepartment] = useState(state.departments[0]?.id ?? "");
   const [text, setText] = useState("");
+  const empty = text.trim().length === 0;
 
   const submit = (event: FormEvent): void => {
     event.preventDefault();
-    const trimmed = text.trim();
-    if (trimmed.length === 0 || disabled) return;
-    onSubmit(department, trimmed);
+    if (empty || disabled) return;
+    onSubmit(department, text.trim());
     setText("");
   };
 
@@ -34,7 +34,7 @@ export function TaskBar({
         className="taskbar-department"
         value={department}
         onChange={(e) => setDepartment(e.target.value)}
-        aria-label="Which department"
+        aria-label="Which department should take this"
       >
         {state.departments.map((d) => (
           <option key={d.id} value={d.id}>
@@ -50,14 +50,11 @@ export function TaskBar({
         placeholder="Write a two-line tagline for a bakery"
         aria-label="What needs doing"
         data-testid="task-input"
+        autoComplete="off"
       />
 
-      <button
-        className="taskbar-send"
-        type="submit"
-        disabled={disabled || text.trim().length === 0}
-      >
-        Give it to them
+      <button className="taskbar-send" type="submit" disabled={disabled || empty}>
+        {disabled ? "Reconnecting" : "Send it"}
       </button>
     </form>
   );

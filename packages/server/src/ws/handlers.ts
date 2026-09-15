@@ -103,8 +103,72 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
         return { ok: true };
       }
 
-      case "agent.rename":
-        return { ok: true, result: { renamed: message.agentId } };
+      // SR-043: the office writes the name into agents.yaml through the document
+      // API, so the owner's comments and formatting survive being renamed.
+      case "agent.rename": {
+        const renamed = office.renameAgent?.(message.agentId, message.name);
+        if (renamed !== true) {
+          return {
+            ok: false,
+            error: {
+              code: "AGENT_FIELD_MISSING",
+              message: `There is nobody called ${message.agentId} in this office.`,
+              hint: "Check office/agents.yaml.",
+            },
+          };
+        }
+        return { ok: true, result: { agentId: message.agentId, name: message.name } };
+      }
+
+      // SR-043: a key typed into Settings goes to office/.env and never into
+      // config.yaml, never into a log, and never back down the socket.
+      case "provider.set_key": {
+        const stored = office.setProviderKey?.(message.provider, message.key);
+        if (stored !== true) {
+          return {
+            ok: false,
+            error: {
+              code: "PROVIDER_KIND_UNKNOWN",
+              message: `Staffroom does not know a provider called ${message.provider}.`,
+              hint: "Try anthropic, openai or ollama.",
+            },
+          };
+        }
+        // Deliberately no echo: the key must not travel back to the browser.
+        return { ok: true, result: { provider: message.provider, stored: true } };
+      }
+
+      // SR-058: which agents may use a tool, without editing YAML by hand.
+      case "tools.assign": {
+        const assigned = office.assignTool?.(message.agentId, message.tool);
+        if (assigned !== true) {
+          return {
+            ok: false,
+            error: {
+              code: "AGENT_TOOL_UNKNOWN",
+              message: `Could not give ${message.tool} to ${message.agentId}.`,
+              hint: "Check the tool name in office/tools/ or config.yaml mcp.servers.",
+            },
+          };
+        }
+        return { ok: true, result: { agentId: message.agentId, tool: message.tool } };
+      }
+
+      // SR-043: shows the note in Finder or Explorer, so the owner can see that
+      // their deliverables are ordinary files they own.
+      case "note.reveal": {
+        const revealed = office.revealNote?.(message.noteId);
+        return revealed === true
+          ? { ok: true, result: { noteId: message.noteId } }
+          : {
+              ok: false,
+              error: {
+                code: "INTERNAL",
+                message: "Could not open that note on this computer.",
+                hint: "Open office/brain in your file manager instead.",
+              },
+            };
+      }
 
       case "brain.search": {
         const hits = office.brain.search(message.query, {

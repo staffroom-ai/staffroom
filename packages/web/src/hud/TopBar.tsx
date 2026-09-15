@@ -1,17 +1,17 @@
 /**
- * The bar across the top: who this office is, what it is running on, and whether
- * anything is wrong.
+ * The bar across the top: whose office this is, what it is running on, and
+ * whether anything needs attention.
+ *
+ * Everything but the office name is set as quiet metadata rather than as badges.
+ * A border around every fact is what makes an interface look like a template.
  */
-
 import type { OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
 import type { Connection } from "../ws.js";
 
-const CONNECTION_TEXT: Record<Connection, string | undefined> = {
-  connecting: undefined,
-  open: undefined,
-  reconnecting: "Reconnecting to the office...",
-  stopped: "The office is not answering. Check the terminal where you started it.",
+const CONNECTION_TEXT: Partial<Record<Connection, string>> = {
+  reconnecting: "Reconnecting",
+  stopped: "Office not answering",
 };
 
 export function TopBar({
@@ -24,31 +24,39 @@ export function TopBar({
   connection: Connection;
 }): ReactElement {
   const warning = CONNECTION_TEXT[connection];
-  const healthy = state.connectors.filter((c) => c.health === "ok").length;
+  const waiting = state.approvals.length;
+  const working = state.agents.filter((a) => a.status === "working").length;
 
   return (
     <header className="topbar">
-      <div className="topbar-name">{state.officeName}</div>
+      <span className="topbar-name">{state.officeName}</span>
 
-      {mode === "demo" && (
-        <span className="chip chip-demo" title="No model is configured, so this is recorded work.">
-          Demo
+      <div className="meta">
+        <span className={`meta-item ${mode === "demo" ? "meta-demo" : "meta-live"}`}>
+          <span className="dot" />
+          {mode === "demo" ? "Demo" : "Live"}
         </span>
-      )}
 
-      <span className="chip" title="The model agents run on unless one of them says otherwise.">
-        {state.defaultModel ?? "no model set"}
-      </span>
+        <span className="meta-item">{state.defaultModel ?? "No model"}</span>
 
-      {healthy > 0 && (
-        <span className="chip">
-          {healthy} connector{healthy === 1 ? "" : "s"}
-        </span>
-      )}
+        {working > 0 && <span className="meta-item">{working} working</span>}
+
+        {waiting > 0 && (
+          <span className="meta-item meta-warn">
+            <span className="dot" />
+            {waiting} waiting on you
+          </span>
+        )}
+      </div>
 
       <div className="topbar-spacer" />
 
-      {warning !== undefined && <span className="chip chip-warn">{warning}</span>}
+      {warning !== undefined && (
+        <span className="meta-item meta-warn" role="status">
+          <span className="dot" />
+          {warning}
+        </span>
+      )}
 
       <time className="topbar-clock" dateTime={state.clock}>
         {new Date(state.clock).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

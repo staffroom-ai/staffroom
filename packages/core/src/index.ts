@@ -149,6 +149,14 @@ export { costOf, messagesFromEvents, runAgentLoop } from "./runtime/loop.js";
 export type { CreateOfficeOptions, Office } from "./runtime/office.js";
 // The office
 export { buildAdapters, createOffice } from "./runtime/office.js";
+// Edits to the owner's files
+export {
+  assignTool,
+  envKeyFor,
+  renameAgent,
+  revealNote,
+  setProviderKey,
+} from "./runtime/office-edits.js";
 export type { BuildPromptOptions, BuiltPrompt, PinnedNote } from "./runtime/prompt.js";
 export { buildSystemPrompt } from "./runtime/prompt.js";
 export { buildReviseMessages, DEFAULT_REVISE_INSTRUCTION } from "./runtime/revise.js";

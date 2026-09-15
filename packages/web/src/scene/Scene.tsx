@@ -21,7 +21,7 @@ import {
   OVERVIEW,
   podFrustumFor,
 } from "./camera.js";
-import { Brain, Desks, Floor, Pods } from "./Office.js";
+import { Brain, Desks, Ground, Pods } from "./Office.js";
 
 function CameraRig({ target }: { target: CameraTarget }): ReactElement {
   const camera = useRef<never>(null);
@@ -81,11 +81,22 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
   const selectedAgentId = useOfficeStore((s) => s.selectedAgentId);
   const focusedPod = useOfficeStore((s) => s.focusedPod);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReducedMotion(query.matches);
     const listener = (event: MediaQueryListEvent): void => setReducedMotion(event.matches);
+    query.addEventListener("change", listener);
+    return () => query.removeEventListener("change", listener);
+  }, []);
+
+  // The office follows the viewer's theme, and the model is lit differently in
+  // each: the same scene under warm paper light and under lamplight.
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    setDark(query.matches);
+    const listener = (event: MediaQueryListEvent): void => setDark(event.matches);
     query.addEventListener("change", listener);
     return () => query.removeEventListener("change", listener);
   }, []);
@@ -106,19 +117,45 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
 
   return (
     <Canvas
-      shadows={false}
+      shadows="soft"
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       style={{ position: "absolute", inset: 0 }}
     >
       <CameraRig target={target} />
-      <ambientLight intensity={0.85} />
-      <directionalLight position={[8, 14, 6]} intensity={1.1} />
-      <Floor />
-      <Brain noteCount={state.latestDeliverables.length * 4 + 8} />
-      <Pods state={state} />
-      <Desks state={state} />
-      <Agents state={state} reducedMotion={reducedMotion} />
+
+      {/*
+        Three lights, which is what stops a model looking flat: a warm key that
+        casts the shadows, a cool fill so the shadow side is not dead, and a dim
+        bounce from below standing in for light off the table.
+      */}
+      <hemisphereLight
+        args={[dark ? "#3a4250" : "#fffaf0", dark ? "#15171a" : "#cfc7b6", dark ? 0.5 : 0.85]}
+      />
+      <directionalLight
+        position={[9, 13, 7]}
+        intensity={dark ? 1.15 : 1.5}
+        color={dark ? "#cfd8e6" : "#fff4e2"}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-18}
+        shadow-camera-right={18}
+        shadow-camera-top={18}
+        shadow-camera-bottom={-18}
+        shadow-bias={-0.0006}
+        shadow-normalBias={0.02}
+      />
+      <directionalLight
+        position={[-8, 6, -6]}
+        intensity={dark ? 0.25 : 0.35}
+        color={dark ? "#5b6b84" : "#dce6f2"}
+      />
+
+      <Ground dark={dark} />
+      <Brain dark={dark} />
+      <Pods state={state} dark={dark} />
+      <Desks state={state} dark={dark} />
+      <Agents state={state} reducedMotion={reducedMotion} dark={dark} />
     </Canvas>
   );
 }
