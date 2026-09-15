@@ -19,8 +19,39 @@ function timeOf(at: number | string): string {
   return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function Empty({ children }: { children: string }): ReactElement {
-  return <p className="rail-empty">{children}</p>;
+function Empty({ children, hint }: { children: string; hint: string }): ReactElement {
+  return (
+    <>
+      <p className="rail-empty">{children}</p>
+      <p className="rail-empty-hint">{hint}</p>
+    </>
+  );
+}
+
+/**
+ * What the office has to show for itself, across the top of the rail.
+ *
+ * Three numbers rather than a 750-pixel column holding one sentence: how much is
+ * running, how much has been filed, and how much is stuck waiting for the owner.
+ */
+function Ledger({ state }: { state: OfficeState }): ReactElement {
+  const waiting = state.approvals.length;
+  return (
+    <div className="ledger">
+      <div className="ledger-cell">
+        <span className="ledger-value">{state.runs.length}</span>
+        <span className="ledger-label">In progress</span>
+      </div>
+      <div className="ledger-cell">
+        <span className="ledger-value">{state.latestDeliverables.length}</span>
+        <span className="ledger-label">Filed</span>
+      </div>
+      <div className={`ledger-cell${waiting > 0 ? " is-waiting" : ""}`}>
+        <span className="ledger-value">{waiting}</span>
+        <span className="ledger-label">Waiting on you</span>
+      </div>
+    </div>
+  );
 }
 
 export function Rail({
@@ -52,6 +83,8 @@ export function Rail({
 
   return (
     <aside className="rail" aria-label="What the office is doing">
+      <Ledger state={state} />
+
       {error !== undefined && (
         <div className="rail-error" role="alert">
           <p className="rail-error-message">{error.message}</p>
@@ -100,7 +133,9 @@ export function Rail({
       {tab === "activity" ? (
         <div className="rail-feed" ref={feed} aria-live="polite">
           {activity.length === 0 ? (
-            <Empty>Nothing yet. Give someone a task and you will see it here.</Empty>
+            <Empty hint="Pick a department in the bar below, say what you need in a sentence, and every step they take shows up here.">
+              Nothing has happened yet.
+            </Empty>
           ) : (
             activity.map((line) => (
               <p key={line.id} className={`feed-line feed-${line.tone}`}>
@@ -113,7 +148,9 @@ export function Rail({
       ) : (
         <div className="rail-feed">
           {state.latestDeliverables.length === 0 ? (
-            <Empty>Finished work lands here, and in your notes folder.</Empty>
+            <Empty hint="Every finished piece of work is saved as a file in your notes folder, and listed here so you can open it.">
+              No finished work yet.
+            </Empty>
           ) : (
             state.latestDeliverables.map((d: DeliverableSummary) => (
               <button

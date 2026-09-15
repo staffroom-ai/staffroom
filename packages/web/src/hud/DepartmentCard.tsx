@@ -1,10 +1,10 @@
 /**
- * A card per department, floating over its pod.
+ * One row per department, in the same order and the same colours as the floor.
  *
- * This is what turns the model from a picture into an instrument. Each card
- * answers one question first, in one number, and only then offers detail. A card
- * that needs the owner says so in amber and says it loudly, because that is the
- * one thing on this screen they have to act on.
+ * A row answers three things in the order they matter: which department, how many
+ * people, and whether any of them is doing anything right now. The department's
+ * pencil runs down the left edge as a full-height rule, which is what ties the row
+ * to its wedge on the plate without a legend.
  */
 import type { OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
@@ -20,7 +20,7 @@ export interface DepartmentSummary {
   doneToday: number;
 }
 
-export function summarise(state: OfficeState, dark: boolean): DepartmentSummary[] {
+export function summarise(state: OfficeState, _dark: boolean): DepartmentSummary[] {
   return state.departments.map((department) => {
     const agents = state.agents.filter((a) => a.departmentId === department.id);
     return {
@@ -32,7 +32,6 @@ export function summarise(state: OfficeState, dark: boolean): DepartmentSummary[
       waiting: state.approvals.filter((approval) => agents.some((a) => a.id === approval.agentId))
         .length,
       doneToday: state.latestDeliverables.filter((d) => d.departmentId === department.id).length,
-      ...(dark ? {} : {}),
     };
   });
 }
@@ -54,34 +53,27 @@ export function DepartmentCard({
     <button
       type="button"
       className={`dept-card${selected ? " is-selected" : ""}`}
+      style={{ ["--pencil" as string]: pencil }}
       onClick={onSelect}
-      aria-label={`${summary.name}: ${summary.agents} people, ${summary.working} working`}
+      aria-pressed={selected}
+      aria-label={`${summary.name}: ${summary.agents} people, ${summary.working} working, ${summary.doneToday} filed`}
     >
-      <span className="dept-card-head">
-        <span className="dept-dot" style={{ background: pencil }} />
+      <span className="dept-edge" aria-hidden="true" />
+
+      <span className="dept-body">
         <span className="dept-name">{summary.name}</span>
+        <span className="dept-line">
+          {summary.working > 0 ? <em>{summary.working} working</em> : "none working"}
+          {summary.doneToday > 0 ? ` · ${summary.doneToday} filed` : ""}
+        </span>
       </span>
 
-      {/* The one number the card is about. */}
       <span className="dept-figure">
         <span className="dept-figure-value">{summary.agents}</span>
         <span className="dept-figure-unit">{summary.agents === 1 ? "person" : "people"}</span>
       </span>
 
-      <span className="dept-stats">
-        <span className="dept-stat">
-          <span className="dept-stat-label">Working</span>
-          <span className="dept-stat-value">{summary.working}</span>
-        </span>
-        <span className="dept-stat">
-          <span className="dept-stat-label">Filed</span>
-          <span className="dept-stat-value">{summary.doneToday}</span>
-        </span>
-      </span>
-
-      {summary.waiting > 0 && (
-        <span className="dept-waiting">{summary.waiting} waiting on you</span>
-      )}
+      {summary.waiting > 0 && <span className="dept-flag">{summary.waiting} waiting on you</span>}
     </button>
   );
 }

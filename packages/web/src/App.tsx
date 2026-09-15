@@ -8,6 +8,7 @@
 import { type ReactElement, useEffect, useMemo, useState } from "react";
 import { DepartmentCard, summarise } from "./hud/DepartmentCard.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
+import { Roster } from "./hud/Roster.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
 import { Scene } from "./scene/Scene.js";
@@ -100,20 +101,42 @@ export function App(): ReactElement {
         <TopBar state={state} mode={store.mode} connection={store.connection} />
 
         <div className="hud-body">
-          <div className="cards">
-            {departments.map((summary) => (
-              <DepartmentCard
-                key={summary.id}
-                summary={summary}
-                dark={dark}
-                selected={store.focusedPod === summary.pod}
-                onSelect={() =>
-                  useOfficeStore
-                    .getState()
-                    .focusPod(store.focusedPod === summary.pod ? null : summary.pod)
-                }
-              />
-            ))}
+          <div className="left">
+            <section className="panel" aria-label="Departments">
+              <div className="panel-head">
+                <h2 className="panel-title">Departments</h2>
+                <span className="panel-note">{departments.length}</span>
+              </div>
+              <div className="cards">
+                {departments.map((summary) => (
+                  <DepartmentCard
+                    key={summary.id}
+                    summary={summary}
+                    dark={dark}
+                    selected={store.focusedPod === summary.pod}
+                    onSelect={() =>
+                      useOfficeStore
+                        .getState()
+                        .focusPod(store.focusedPod === summary.pod ? null : summary.pod)
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+
+            <Roster state={state} dark={dark} />
+          </div>
+
+          <div className="stage">
+            <TaskBar
+              state={state}
+              disabled={store.connection !== "open"}
+              onSubmit={(department, text) => {
+                const id = reqId();
+                useOfficeStore.getState().trackTask(id);
+                socket?.send({ type: "task.create", reqId: id, department, text });
+              }}
+            />
           </div>
 
           <Rail
@@ -134,16 +157,6 @@ export function App(): ReactElement {
             onOpenNote={(noteId) => socket?.send({ type: "note.reveal", reqId: reqId(), noteId })}
           />
         </div>
-
-        <TaskBar
-          state={state}
-          disabled={store.connection !== "open"}
-          onSubmit={(department, text) => {
-            const id = reqId();
-            useOfficeStore.getState().trackTask(id);
-            socket?.send({ type: "task.create", reqId: id, department, text });
-          }}
-        />
       </div>
     </>
   );

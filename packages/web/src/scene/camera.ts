@@ -9,9 +9,9 @@
 /** atan(1/sqrt(2)) in degrees: true isometric. */
 export const ISO_ELEVATION = 35.264;
 export const OVERVIEW_AZIMUTH = 45;
-export const OVERVIEW_FRUSTUM = 18;
-export const AGENT_FRUSTUM = 9;
-export const POD_FRUSTUM = 12;
+export const OVERVIEW_FRUSTUM = 13.2;
+export const AGENT_FRUSTUM = 6;
+export const POD_FRUSTUM = 8;
 export const ORBIT_STEP = 45;
 export const ORBIT_MS = 400;
 export const FOCUS_MS = 500;
@@ -23,9 +23,15 @@ export interface CameraTarget {
   azimuth: number;
 }
 
+/**
+ * The overview is deliberately off-centre: the interface holds a column of panels
+ * on the left and a rail on the right, so a plate centred in the viewport is not
+ * centred in the space the viewer can actually see. This offset puts the middle of
+ * the office in the middle of the gap between them.
+ */
 export const OVERVIEW: CameraTarget = {
-  x: 0,
-  z: 0,
+  x: -2.6,
+  z: -0.6,
   frustum: OVERVIEW_FRUSTUM,
   azimuth: OVERVIEW_AZIMUTH,
 };

@@ -125,30 +125,31 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
       <CameraRig target={target} />
 
       {/*
-        Three lights, which is what stops a model looking flat: a warm key that
-        casts the shadows, a cool fill so the shadow side is not dead, and a dim
-        bounce from below standing in for light off the table.
+        One key light that actually casts, a cool fill so the shadow side is not
+        dead, and a ground bounce. Dark is lit, not dimmed: the fill is stronger
+        there than in light, because a dark room where the furniture disappears is
+        an under-lit room, not a styled one.
       */}
       <hemisphereLight
-        args={[dark ? "#3a4250" : "#fffaf0", dark ? "#15171a" : "#cfc7b6", dark ? 0.5 : 0.85]}
+        args={[dark ? "#5a6a80" : "#ffffff", dark ? "#0d1013" : "#c3ccd7", dark ? 1.1 : 0.7]}
       />
       <directionalLight
-        position={[9, 13, 7]}
-        intensity={dark ? 1.15 : 1.5}
-        color={dark ? "#cfd8e6" : "#fff4e2"}
+        position={[11, 15, 8]}
+        intensity={dark ? 1.5 : 2.1}
+        color={dark ? "#dce6f5" : "#fffaf2"}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-18}
-        shadow-camera-right={18}
-        shadow-camera-top={18}
-        shadow-camera-bottom={-18}
+        shadow-camera-left={-16}
+        shadow-camera-right={16}
+        shadow-camera-top={16}
+        shadow-camera-bottom={-16}
         shadow-bias={-0.0006}
         shadow-normalBias={0.02}
       />
       <directionalLight
-        position={[-8, 6, -6]}
-        intensity={dark ? 0.25 : 0.35}
-        color={dark ? "#5b6b84" : "#dce6f2"}
+        position={[-9, 7, -8]}
+        intensity={dark ? 0.75 : 0.45}
+        color={dark ? "#7f93ad" : "#dbe6f4"}
       />
 
       <Ground dark={dark} />

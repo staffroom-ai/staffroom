@@ -13,7 +13,17 @@ import {
   ZOOM_MIN,
   zoom,
 } from "./camera.js";
-import { POD_PENCIL, podPencil, statusColour } from "./materials.js";
+import {
+  ACCENT,
+  ACCENT_DARK,
+  contrastOf,
+  DARK,
+  LIGHT,
+  luminanceOf,
+  POD_PENCIL,
+  podPencil,
+  statusColour,
+} from "./materials.js";
 import { PickRegistry, projectToScreen } from "./picking.js";
 import { AgentTimelines, timelineFor, WALK_MS } from "./timeline.js";
 
@@ -220,6 +230,69 @@ describe("the palette", () => {
 
   it("tells the six departments apart", () => {
     expect(new Set([0, 1, 2, 3, 4, 5].map((p) => podPencil(p, false))).size).toBe(6);
+  });
+});
+
+/**
+ * Figure and ground is the whole direction, so it is asserted rather than left to
+ * whoever next edits a hex. Every step of the model — the ground behind the plate,
+ * the plate, the furniture on it, the people at it — has to be a different value
+ * from the thing immediately behind it, in both themes.
+ */
+describe("figure and ground", () => {
+  const themes = [
+    { name: "light", c: LIGHT },
+    { name: "dark", c: DARK },
+  ] as const;
+
+  it("never lets the plate sit at the same value as the ground behind it", () => {
+    for (const { name, c } of themes) {
+      expect(contrastOf(c.ground, c.floor), name).toBeGreaterThan(1.3);
+    }
+  });
+
+  it("keeps the furniture off the floor it stands on", () => {
+    for (const { name, c } of themes) {
+      expect(contrastOf(c.floor, c.desk), name).toBeGreaterThan(1.5);
+      expect(contrastOf(c.desk, c.chair), name).toBeGreaterThan(1.25);
+    }
+  });
+
+  it("makes a person the strongest silhouette on the plate", () => {
+    for (const { name, c } of themes) {
+      expect(contrastOf(c.floor, c.figure), name).toBeGreaterThan(4.5);
+    }
+  });
+
+  it("inverts the furniture in dark rather than dimming it", () => {
+    // Light: dark furniture on a light floor. Dark: light furniture on a dark one.
+    expect(luminanceOf(LIGHT.desk)).toBeLessThan(luminanceOf(LIGHT.floor));
+    expect(luminanceOf(DARK.desk)).toBeGreaterThan(luminanceOf(DARK.floor));
+    expect(luminanceOf(LIGHT.figure)).toBeLessThan(luminanceOf(LIGHT.floor));
+    expect(luminanceOf(DARK.figure)).toBeGreaterThan(luminanceOf(DARK.floor));
+  });
+
+  it("gives the Brain its own value, so it is not an unexplained white puck", () => {
+    for (const { name, c } of themes) {
+      expect(contrastOf(c.floor, c.brain), name).toBeGreaterThan(1.2);
+    }
+  });
+
+  it("spends the accent on one thing, and never on a department or a status", () => {
+    const spent: string[] = [ACCENT, ACCENT_DARK];
+    for (const hex of POD_PENCIL) {
+      expect(spent).not.toContain(hex);
+    }
+    for (const dark of [false, true]) {
+      for (const status of ["idle", "working", "waiting_approval", "error"] as const) {
+        expect(spent).not.toContain(`#${statusColour(status, dark).getHexString()}`);
+      }
+    }
+  });
+
+  it("keeps the accent legible on the surface it is used on", () => {
+    expect(contrastOf(ACCENT, "#ffffff")).toBeGreaterThan(4.5);
+    expect(contrastOf(ACCENT_DARK, "#171c22")).toBeGreaterThan(4.5);
   });
 });
 
