@@ -6,7 +6,7 @@ This spec owns: the monorepo layout, package names and public exports, TypeScrip
 
 ## Decisions
 
-- pnpm workspaces plus Turborepo. Five publishable packages under `packages/`, one docs app under `apps/`. Node 20+, ESM only.
+- pnpm workspaces plus Turborepo. Five publishable packages under `packages/`, one docs app under `apps/`. Node 22+, ESM only.
 - npm scope: unscoped `staffroom` is the CLI and the name people type. Library packages publish as `@staffroom/core`, `@staffroom/server`, `@staffroom/web`, `@staffroom/templates`. All five share one version number. Custom tools import `@staffroom/core`; there is no `staffroom/core`.
 - TypeScript strict with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. One shared `tsconfig.base.json`.
 - Biome for lint and format. No ESLint, no Prettier.
@@ -120,7 +120,7 @@ The hooks it uses are the contract in `office-ui.md` §5. `packages/web/e2e/offi
 | `perf` | macos-14 | `office-perf.spec.ts` |
 | `install-timing` | macos-14 | `time npx ./packages/cli/staffroom-*.tgz demo --no-open`, fails over 60 s |
 
-Node 20 and 22 on ubuntu; 22 on macOS and Windows. Branch protection: all seven jobs, one CODEOWNER review, DCO check, linear history. Dependabot auto-merges patch and minor bumps when green. Security: Dependabot weekly for npm and Actions, secret scanning with push protection, `npm audit --audit-level=high` in `lint`.
+Node 22 and 22 on ubuntu; 22 on macOS and Windows. Branch protection: all seven jobs, one CODEOWNER review, DCO check, linear history. Dependabot auto-merges patch and minor bumps when green. Security: Dependabot weekly for npm and Actions, secret scanning with push protection, `npm audit --audit-level=high` in `lint`.
 
 ## 6. Release flow
 

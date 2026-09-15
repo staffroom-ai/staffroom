@@ -37,7 +37,7 @@ Exit criteria, all observable:
 
 Exit criteria:
 
-- On a Mac with Node 20 and nothing else, `npx staffroom` creates `~/Staffroom/office` from the `studio` template, prints the banner with `Office folder:` and a token-bearing URL, and opens a browser showing six pods (three populated, three at 40 percent opacity), four named agents at desks, and one deliverable already in "Latest results". This takes under 60 seconds and needs no key. The shipped roster names no tool that is not registered, so boot never fails on `AGENT_TOOL_UNKNOWN`.
+- On a Mac with Node 22 and nothing else, `npx staffroom` creates `~/Staffroom/office` from the `studio` template, prints the banner with `Office folder:` and a token-bearing URL, and opens a browser showing six pods (three populated, three at 40 percent opacity), four named agents at desks, and one deliverable already in "Latest results". This takes under 60 seconds and needs no key. The shipped roster names no tool that is not registered, so boot never fails on `AGENT_TOOL_UNKNOWN`.
 - In demo mode, choosing Marketing, typing `Write a two-line tagline for a bakery` and pressing Enter makes Dana's badge go amber, Priya walk to Dana's desk and back, `brain_search` pulse on the connector strip, text stream into Priya's chat, and a deliverable card appear with Approve. Clicking Approve turns the note's `status` to `approved` and the note is a real file under `office/brain/40-deliverables/marketing/`.
 - Pasting an Anthropic, OpenAI or Ollama base URL into Settings > Models flips the mode chip to Live without a restart, and the same task now runs on a real model. Each of the three adapters passes the conformance suite and, behind `STAFFROOM_LIVE_TESTS=1`, a live smoke.
 - `office/agents.yaml` with `model: ollama/llama4` on the bookkeeper shows the "local" pill, and the task bar's model override is refused for that agent with the `MODEL_OVERRIDE_LEAVES_MACHINE` hint.
@@ -243,7 +243,7 @@ Tests: none (docs ticket). A `scripts/lint/hygiene-files.mjs` check that the nin
 |---|---|---|---|---|
 | SR-004 | CI workflow | ci | SR-002 | 1 |
 
-`.github/workflows/ci.yml` with the `lint`, `typecheck`, `test` (ubuntu Node 20 and 22, macos-14, windows-2022) and `build` jobs from `repo-quality-launch.md` §5. The `e2e`, `perf` and `install-timing` jobs are added by SR-048, SR-072 and SR-047 as their tests exist. Coverage upload from ubuntu. `npm audit --audit-level=high` in `lint`. Branch protection on `main`: required jobs, one CODEOWNER review, DCO check app, linear history. Secret scanning with push protection turned on in repo settings.
+`.github/workflows/ci.yml` with the `lint`, `typecheck`, `test` (ubuntu Node 22 and 22, macos-14, windows-2022) and `build` jobs from `repo-quality-launch.md` §5. The `e2e`, `perf` and `install-timing` jobs are added by SR-048, SR-072 and SR-047 as their tests exist. Coverage upload from ubuntu. `npm audit --audit-level=high` in `lint`. Branch protection on `main`: required jobs, one CODEOWNER review, DCO check app, linear history. Secret scanning with push protection turned on in repo settings.
 
 `.github/workflows/dependabot-automerge.yml` per `repo-quality-launch.md` §5: on `pull_request` from `dependabot[bot]`, `dependabot/fetch-metadata@v2` reads `update-type`; when it is `version-update:semver-patch` or `version-update:semver-minor` the job runs `gh pr merge --auto --squash "$PR_URL"` with `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` and `permissions: { pull-requests: write, contents: write }`. `--auto` means the merge waits for branch protection, so a red `ci.yml` still blocks it; major bumps are left for a human.
 
@@ -1612,13 +1612,15 @@ After week 6: week 7 is SR-077 (tester fixes) plus SR-052 (MCP); weeks 7 to 10 c
 
 ## 4. First day
 
+> **Minimum Node is 22, not 20.** Changed 16 Sep 2026. `better-sqlite3@13` declares `engines.node >=22`; pnpm installed it under Node 20 anyway and it segfaulted only in CI, in the two SQLite test files. Node 20 left maintenance in April 2026, so the floor moved rather than the database. `.npmrc` now sets `engine-strict=true` so the next such mismatch fails at install rather than in a worker.
+
 Everything below happens before SR-001 is closed. Run from an empty directory. Versions are the current releases on 15 Sep 2026; pin whatever `pnpm add` resolves and let Dependabot move them.
 
 ```bash
 mkdir staffroom && cd staffroom
 git init -b main
 corepack enable && corepack prepare pnpm@10.0.0 --activate   # matches packageManager below
-# if corepack on Node 20 reports a keyid or signature error here, run: npm i -g corepack@latest && corepack prepare pnpm@10.0.0 --activate
+# if corepack on Node 22 reports a keyid or signature error here, run: npm i -g corepack@latest && corepack prepare pnpm@10.0.0 --activate
 pnpm init
 mkdir -p packages/{core,server,web,cli,templates}/src apps .changeset .github/workflows scripts/lint docs
 ```
@@ -1830,7 +1832,7 @@ Also on day one, outside the repo: buy `staffroom.so`, turn on secret scanning w
 
 ## 6. Definition of done for the v0.1 public release
 
-- [ ] `npx staffroom` on a fresh macOS machine with Node 20 and nothing else reaches a rendered office in under 60 seconds, with no key, and the same on Ubuntu and Windows.
+- [ ] `npx staffroom` on a fresh macOS machine with Node 22 and nothing else reaches a rendered office in under 60 seconds, with no key, and the same on Ubuntu and Windows.
 - [ ] The first screen shows one deliverable in "Latest results"; no blank screen at any point.
 - [ ] The bakery demo task produces a deliverable card and a real note under `office/brain/40-deliverables/marketing/`, and Approve flips its `status`.
 - [ ] Pasting a key into Settings > Models flips to live without a restart; the same task runs on Anthropic, OpenAI and Ollama.
@@ -1843,7 +1845,7 @@ Also on day one, outside the repo: buy `staffroom.so`, turn on secret scanning w
 - [ ] Every error a user can hit has a message and a hint, and every hint that names a command says `npx staffroom <sub>`.
 - [ ] `packages/core` coverage is 80 percent or more on all four measures; the loop tests cover resume and the injected-instruction note.
 - [ ] The smoke test passes on ubuntu; `size-limit` is under 1.5 MB gzipped; p95 frame time under 8 ms measured on the maintainer's machine.
-- [ ] CI is green on ubuntu (Node 20 and 22), macos-14 and windows-2022 for lint, typecheck, test, build, e2e and install-timing.
+- [ ] CI is green on ubuntu (Node 22 and 22), macos-14 and windows-2022 for lint, typecheck, test, build, e2e and install-timing.
 - [ ] `pnpm lint` fails on `@anthropic-ai/claude-agent-sdk` and on `Run staffroom `.
 - [ ] LICENSE, CONTRIBUTING (clean-room paragraph), CODE_OF_CONDUCT, SECURITY (real email), ROADMAP, issue and PR templates, CODEOWNERS, Dependabot present.
 - [ ] README under 900 words before the comparison table, hero GIF under 8 MB above the fold, the verbatim first sentence, step-0 install text, first five minutes.

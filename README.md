@@ -22,7 +22,7 @@ First public release (`v0.1.0`) is scheduled for 27 October 2026.
 
 ## Development
 
-Requires Node 20+ and pnpm 10.
+Requires Node 22+ and pnpm 10.
 
 ```bash
 pnpm install

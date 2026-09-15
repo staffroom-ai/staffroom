@@ -59,7 +59,7 @@ export function createServer(opts: ServerOptions): Promise<StaffroomServer>;
 
 Boot order, each step logged at `info` with a fixed prefix so `doctor` and bug reports line up:
 
-1. `boot.node` Check `process.versions.node >= 20.0.0`. Fail: `Staffroom needs Node 20 or newer. You have 18.19.0. Install from https://nodejs.org and run npx staffroom again.`
+1. `boot.node` Check `process.versions.node >= 20.0.0`. Fail: `Staffroom needs Node 22 or newer. You have 18.19.0. Install from https://nodejs.org and run npx staffroom again.`
 2. `boot.office` Resolve `officeDir` (§8). Print `Office folder: /Users/aman/Staffroom/office`.
 3. `boot.migrate` Read `config.yaml`, `agents.yaml`, `routines.yaml`; compare `version`; run migrations (§11).
 4. `boot.config` Parse and validate with zod. Collect every `ConfigError`, print all, exit 1. Never fix files silently. `office/.env` is loaded here.

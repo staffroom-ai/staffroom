@@ -33,7 +33,7 @@ A commit-msg hook rejects commits without it. If you forget:
 
 ## Running it locally
 
-Requires Node 20 or newer and pnpm 10.
+Requires Node 22 or newer and pnpm 10.
 
 ```bash
 pnpm install
