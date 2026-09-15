@@ -323,6 +323,7 @@ export class ToolRegistry extends EventEmitter {
     const elapsed = () => Date.now() - started;
 
     let timer: NodeJS.Timeout | undefined;
+    let onAbort: (() => void) | undefined;
     try {
       const output = await Promise.race([
         tool.run(input, ctx),
@@ -330,12 +331,30 @@ export class ToolRegistry extends EventEmitter {
           timer = setTimeout(() => reject(new ToolTimeout()), timeoutMs);
           timer.unref?.();
         }),
+        // Tools are handed the signal and are expected to honour it, but Stop has
+        // to stop even when one does not. Without this a cancelled run waits out
+        // the full tool timeout.
+        new Promise<never>((_, reject) => {
+          if (ctx.signal.aborted) {
+            reject(new ToolCancelled());
+            return;
+          }
+          onAbort = () => reject(new ToolCancelled());
+          ctx.signal.addEventListener("abort", onAbort, { once: true });
+        }),
       ]);
       const noteIds = extractNoteIds(output);
       return noteIds === undefined
         ? { ok: true, output, durationMs: elapsed() }
         : { ok: true, output, durationMs: elapsed(), noteIds };
     } catch (error) {
+      if (error instanceof ToolCancelled) {
+        return {
+          ok: false,
+          error: { code: "cancelled" as ToolErrorCode, message: "The run was stopped." },
+          durationMs: elapsed(),
+        };
+      }
       if (error instanceof ToolTimeout) {
         return {
           ok: false,
@@ -356,11 +375,13 @@ export class ToolRegistry extends EventEmitter {
       };
     } finally {
       if (timer !== undefined) clearTimeout(timer);
+      if (onAbort !== undefined) ctx.signal.removeEventListener("abort", onAbort);
     }
   }
 }
 
 class ToolTimeout extends Error {}
+class ToolCancelled extends Error {}
 
 /** The brain tools return note ids, which the loop copies onto the tool_result event. */
 function extractNoteIds(output: unknown): string[] | undefined {

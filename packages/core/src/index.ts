@@ -20,6 +20,8 @@ export type {
   NoteWarning,
   ParsedNote,
 } from "./brain/types.js";
+export type { WriteDeliverableInput, WrittenNote } from "./brain/write.js";
+export { DELIVERABLES_ROOT, markRejected, slugify, writeDeliverable } from "./brain/write.js";
 export type { AgentConfig, AgentsFile } from "./config/agents.js";
 // Config
 export {
@@ -57,6 +59,8 @@ export type { Department, Seat } from "./config/roster.js";
 export { Roster, RosterWriter } from "./config/roster.js";
 export type { ToolNameResolver, ValidateOptions } from "./config/validate.js";
 export { validateAgents } from "./config/validate.js";
+// Prompt and loop
+export { OUTPUT_CONTRACT, SAFETY_RULE } from "./prompt/safety-rule.js";
 // Providers
 export { AnthropicAdapter } from "./providers/anthropic.js";
 export { mapAnthropicError } from "./providers/anthropic-errors.js";
@@ -128,6 +132,10 @@ export type {
 } from "./runtime/events.js";
 // Runs
 export { deliverableTitle } from "./runtime/events.js";
+export type { LoopContext, LoopRunnerConfig } from "./runtime/loop.js";
+export { costOf, messagesFromEvents, runAgentLoop } from "./runtime/loop.js";
+export type { BuildPromptOptions, BuiltPrompt, PinnedNote } from "./runtime/prompt.js";
+export { buildSystemPrompt } from "./runtime/prompt.js";
 export type { SqliteRunStoreOptions } from "./runtime/store.js";
 export { newApprovalId, newRunId, SqliteRunStore } from "./runtime/store.js";
 // Shared types
@@ -142,6 +150,14 @@ export type {
   BrainSearchOptions,
   ToolSource,
 } from "./shared/types.js";
+export type { BrainToolsOptions } from "./tools/builtins/brain.js";
+// Built-in tools
+export { brainTools } from "./tools/builtins/brain.js";
+export {
+  WEB_SEARCH_UNCONFIGURED,
+  webSearchConfigError,
+  webSearchTool,
+} from "./tools/builtins/web-search.js";
 // Tools
 export { buildPreview } from "./tools/preview.js";
 export type {

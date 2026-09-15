@@ -91,7 +91,11 @@ describe("config.yaml schema", () => {
   it("fills every default from an empty file", () => {
     const c = ConfigSchema.parse({ version: 1 });
     expect(c.server.port).toBe(4242);
-    expect(c.runner.max_turns).toBe(12);
+    expect(c.runner.max_turns).toBe(25);
+    expect(c.runner.max_parallel_tools).toBe(4);
+    expect(c.runner.tool_output_max_chars).toBe(20_000);
+    expect(c.runner.retries).toEqual({ attempts: 3, base_ms: 1000, max_ms: 20_000 });
+    expect(c.brain.pinned_token_budget).toBe(2000);
     expect(c.runner.tool_timeout_ms).toBe(60_000);
     expect(c.approvals.expiry_hours).toBe(24);
     expect(c.brain.dir).toBe("brain");

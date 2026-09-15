@@ -79,15 +79,28 @@ export const ToolsConfigSchema = z
   })
   .strict();
 
+export const RetriesSchema = z
+  .object({
+    attempts: z.number().int().min(0).max(10).default(3),
+    base_ms: z.number().int().min(100).max(60_000).default(1000),
+    max_ms: z.number().int().min(100).max(300_000).default(20_000),
+  })
+  .strict();
+
 export const RunnerConfigSchema = z
   .object({
-    max_turns: z.number().int().min(1).max(50).default(12),
-    max_output_tokens: z.number().int().min(256).max(64_000).default(4096),
+    /** Model calls per run. */
+    max_turns: z.number().int().min(1).max(50).default(25),
+    /** Concurrent tool executions inside one batch. */
+    max_parallel_tools: z.number().int().min(1).max(16).default(4),
     tool_timeout_ms: z.number().int().min(1000).max(600_000).default(60_000),
-    temperature: z.number().min(0).max(2).optional(),
-    max_retries: z.number().int().min(0).max(10).default(3),
+    /** Longer tool results are truncated with a "[truncated]" tail. */
+    tool_output_max_chars: z.number().int().min(1000).max(500_000).default(20_000),
+    max_output_tokens: z.number().int().min(256).max(64_000).default(4096),
     /** A read tool that ships its input off the machine is capped at this. */
     egress_input_max_chars: z.number().int().min(100).max(100_000).default(1000),
+    temperature: z.number().min(0).max(2).optional(),
+    retries: RetriesSchema.prefault({}),
   })
   .strict();
 
@@ -105,7 +118,8 @@ export const BrainConfigSchema = z
       .refine((v) => !v.enabled || (v.model !== undefined && v.model.length > 0), {
         message: "brain.embeddings.model is required when embeddings are enabled",
       }),
-    max_pinned_chars: z.number().int().min(500).max(100_000).default(8000),
+    /** Pinned notes are dropped whole, in path order, once this is reached. */
+    pinned_token_budget: z.number().int().min(200).max(50_000).default(2000),
   })
   .strict();
 
