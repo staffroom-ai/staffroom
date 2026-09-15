@@ -6,6 +6,20 @@
 
 export const VERSION = "0.0.1";
 
+export type { BrainIndexOptions } from "./brain/index.js";
+// Brain
+export { BrainIndex } from "./brain/index.js";
+export type { Link, LinkKind, Resolver } from "./brain/links.js";
+export { buildResolver, linksFrom, resolveTarget } from "./brain/links.js";
+export type { ParseOptions } from "./brain/parse.js";
+export { isSkipped, noteIdFor, parseNote, weightFor } from "./brain/parse.js";
+export type {
+  BrainSearchHit,
+  NoteFrontMatter,
+  NoteTrust,
+  NoteWarning,
+  ParsedNote,
+} from "./brain/types.js";
 export type { AgentConfig, AgentsFile } from "./config/agents.js";
 // Config
 export {
@@ -128,7 +142,6 @@ export type {
   BrainSearchOptions,
   ToolSource,
 } from "./shared/types.js";
-
 // Tools
 export { buildPreview } from "./tools/preview.js";
 export type {
