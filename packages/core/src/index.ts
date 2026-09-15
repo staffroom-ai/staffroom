@@ -59,6 +59,18 @@ export type { Department, Seat } from "./config/roster.js";
 export { Roster, RosterWriter } from "./config/roster.js";
 export type { ToolNameResolver, ValidateOptions } from "./config/validate.js";
 export { validateAgents } from "./config/validate.js";
+// What the office looks like
+export type {
+  ActiveRun,
+  Agent,
+  AgentStatus,
+  Connector,
+  DeliverableSummary,
+  Department as DepartmentView,
+  OfficeState,
+  PendingApprovalView,
+  RoutineView,
+} from "./office-state.js";
 // Prompt and loop
 export { OUTPUT_CONTRACT, SAFETY_RULE } from "./prompt/safety-rule.js";
 // Providers

@@ -140,7 +140,49 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
   const brain = BrainIndex.open(brainDir, { indexFile: join(officeDir, "brain.index.sqlite") });
   const store = new SqliteRunStore(join(officeDir, "runs.sqlite"));
 
-  const tools = new ToolRegistry({ config: loaded.config });
+  // The registry blocks on approvals; the store is what makes them visible. Without
+  // this wiring an approval would pause a run that the office could never show.
+  const recordApproval = (
+    request: Parameters<
+      NonNullable<ConstructorParameters<typeof ToolRegistry>[0]["onApprovalNeeded"]>
+    >[0],
+  ): void => {
+    void store.append(request.runId, {
+      type: "approval_needed",
+      approvalId: request.approvalId,
+      toolCallId: request.toolCallId,
+      tool: { name: request.tool.name, source: request.tool.source, scope: "write" },
+      input: request.input,
+      preview: request.preview,
+      requestedAt: request.requestedAt,
+      expiresAt: request.expiresAt,
+    });
+  };
+
+  const tools = new ToolRegistry({
+    config: loaded.config,
+    onApprovalNeeded: recordApproval,
+    // A local write never blocks, but the pair is still recorded so the audit
+    // trail reads the same whether the owner was asked or not.
+    onLocalWrite: (request) => {
+      recordApproval(request);
+      void store.append(request.runId, {
+        type: "approval_resolved",
+        approvalId: request.approvalId,
+        decision: "approve",
+        by: "system",
+      });
+    },
+    onApprovalResolved: ({ approvalId, runId, decision, by, note }) => {
+      void store.append(runId, {
+        type: "approval_resolved",
+        approvalId,
+        decision,
+        by,
+        ...(note === undefined ? {} : { note }),
+      });
+    },
+  });
   for (const t of brainTools({
     brainDir,
     departmentFor: (id) => roster.agent(id)?.department ?? "",

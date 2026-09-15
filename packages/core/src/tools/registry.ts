@@ -76,6 +76,14 @@ export interface ToolRegistryOptions {
   onApprovalNeeded?: (request: ApprovalRequest) => void;
   /** Called for a local write, which is recorded but never blocks. */
   onLocalWrite?: (request: ApprovalRequest) => void;
+  /** Called whenever an approval is settled, however it was settled. */
+  onApprovalResolved?: (outcome: {
+    approvalId: string;
+    runId: string;
+    decision: ApprovalDecision;
+    by: ApprovalBy;
+    note?: string;
+  }) => void;
 }
 
 interface Waiting {
@@ -164,6 +172,13 @@ export class ToolRegistry extends EventEmitter {
     const pending = this.waiting.get(approvalId);
     if (pending === undefined) return false;
     this.waiting.delete(approvalId);
+    this.options.onApprovalResolved?.({
+      approvalId,
+      runId: pending.request.runId,
+      decision,
+      by,
+      ...(note === undefined ? {} : { note }),
+    });
     pending.resolve(note === undefined ? { decision, by } : { decision, by, note });
     return true;
   }

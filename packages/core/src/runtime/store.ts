@@ -10,7 +10,7 @@
  * run marked running forever.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
@@ -29,7 +29,20 @@ import type {
 const SCHEMA_VERSION = 1;
 const CHUNK_FLUSH_MS = 100;
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "migrations");
+/**
+ * Where the .sql lives depends on how core is being run. From source it sits
+ * beside this file; in the published bundle everything is flattened to dist/, so
+ * it sits one level up. Both are tried rather than assuming either.
+ */
+function findMigrations(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  for (const candidate of [join(here, "migrations"), join(here, "..", "migrations")]) {
+    if (existsSync(join(candidate, "001-initial.sql"))) return candidate;
+  }
+  throw new Error(
+    "Staffroom cannot find its database migrations. This is a packaging bug; please report it.",
+  );
+}
 
 interface RunRow {
   id: string;
@@ -114,7 +127,7 @@ export class SqliteRunStore implements RunStore {
       | undefined;
 
     if (row === undefined) {
-      this.db.exec(readFileSync(join(migrationsDir, "001-initial.sql"), "utf8"));
+      this.db.exec(readFileSync(join(findMigrations(), "001-initial.sql"), "utf8"));
       this.db.prepare("INSERT INTO schema_version (version) VALUES (?)").run(SCHEMA_VERSION);
       return;
     }
