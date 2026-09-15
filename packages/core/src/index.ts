@@ -48,6 +48,10 @@ export { AnthropicAdapter } from "./providers/anthropic.js";
 export { mapAnthropicError } from "./providers/anthropic-errors.js";
 export type { BaseAdapterOptions } from "./providers/base.js";
 export { BaseAdapter, decodeToolName, encodeToolName, estimateTokens } from "./providers/base.js";
+export type { OllamaAdapterOptions } from "./providers/ollama.js";
+// Ollama
+export { OllamaAdapter } from "./providers/ollama.js";
+export { mapOllamaError } from "./providers/ollama-errors.js";
 export type { OpenAIAdapterOptions } from "./providers/openai.js";
 export { OpenAIAdapter } from "./providers/openai.js";
 export { mapOpenAIError } from "./providers/openai-errors.js";
@@ -108,7 +112,6 @@ export type {
   RunStatus,
   RunStore,
 } from "./runtime/events.js";
-
 // Runs
 export { deliverableTitle } from "./runtime/events.js";
 export type { SqliteRunStoreOptions } from "./runtime/store.js";
