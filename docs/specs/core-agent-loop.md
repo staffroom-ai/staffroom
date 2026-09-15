@@ -169,6 +169,7 @@ export interface ProviderCapabilities {
 }
 
 export interface ModelPricing { inputPer1k: number; outputPer1k: number; cachedInputPer1k?: number }
+export interface ModelInfo { id: string; created?: string }
 
 export interface ProviderAdapter {
   readonly id: string;                 // config key: "anthropic", "groq", ...
@@ -178,7 +179,7 @@ export interface ProviderAdapter {
   complete(messages: Message[], tools: ToolSpec[], opts: CompleteOptions): AsyncIterable<CompletionChunk>;
   countTokens(messages: Message[], tools: ToolSpec[], model: string): Promise<number>;
   pricing(model: string): ModelPricing | null;
-  listModels(): Promise<string[]>;
+  listModels(): Promise<ModelInfo[]>;   // { id, created? } — Settings > Models sorts by created
   embed?(texts: string[], model: string): Promise<number[][]>;   // optional, used by brain.md embeddings
 }
 ```

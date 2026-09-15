@@ -36,7 +36,10 @@
         "noUnusedImports": "error",
         "noUnusedVariables": "error"
       },
-      "preset": "recommended"
+      "preset": "recommended",
+      "complexity": {
+        "useLiteralKeys": "off"
+      }
     }
   },
   "javascript": {

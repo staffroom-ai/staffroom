@@ -5,7 +5,11 @@ import { readFile } from "node:fs/promises";
 import { rel, report, walk } from "./_walk.mjs";
 
 const BAD = /\b(Run|run|Try|try)\s+`?staffroom\s/;
-const files = await walk(undefined, (p) => p.startsWith("packages/") && /\.(ts|tsx|mjs)$/.test(p));
+// Test files are skipped: they legitimately quote the bad string to assert against it.
+const files = await walk(
+  undefined,
+  (p) => p.startsWith("packages/") && /\.(ts|tsx|mjs)$/.test(p) && !/\.test\.[a-z]+$/.test(p),
+);
 const hits = [];
 
 for (const f of files) {

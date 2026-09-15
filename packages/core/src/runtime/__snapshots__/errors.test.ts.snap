@@ -1,0 +1,82 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`userMessage > matches the snapshot for every code 1`] = `
+{
+  "APPROVAL_REJECTED": {
+    "hint": "Open their chat and send revise: with what to do instead.",
+    "message": "You declined ?, so ? stopped.",
+  },
+  "AUTH_FAILED": {
+    "hint": "Paste a new key in Settings > Models, or create one on the provider's site.",
+    "message": "? rejected the API key.",
+  },
+  "BAD_ROUTING": {
+    "hint": "If that is wrong, open the right agent's chat and give the task there.",
+    "message": "? could not pick a team member, so the task went to ?.",
+  },
+  "CANCELLED": {
+    "hint": "Nothing was saved to the brain.",
+    "message": "Stopped.",
+  },
+  "CONTEXT_TOO_LONG": {
+    "hint": "Shorten the task, or move this agent to a model with a bigger context window.",
+    "message": "The task and notes are too long for ?.",
+  },
+  "INTERNAL": {
+    "hint": "Please report this with the run id ?.",
+    "message": "Something went wrong inside Staffroom.",
+  },
+  "MAX_TURNS": {
+    "hint": "The partial work is saved in the run. Break the task into smaller pieces.",
+    "message": "? did not finish within ? steps.",
+  },
+  "MODEL_NOT_FOUND": {
+    "hint": "Check the spelling in office/agents.yaml.",
+    "message": "? does not know the model "?".",
+  },
+  "MODEL_OVERRIDE_LEAVES_MACHINE": {
+    "hint": "Edit office/agents.yaml if you want to change that.",
+    "message": "? runs locally on purpose.",
+  },
+  "NOTHING_TO_REVISE": {
+    "hint": "Give them a task first.",
+    "message": "? has no deliverable to revise yet.",
+  },
+  "NO_MODEL_CONFIGURED": {
+    "hint": "Open Settings > Models in the office and paste a key, or run npx staffroom setup in Terminal.",
+    "message": "No model configured.",
+  },
+  "OUTPUT_TRUNCATED": {
+    "hint": "Ask for a shorter deliverable, or raise runner.max_output_tokens.",
+    "message": "? ran out of room before finishing.",
+  },
+  "PROVIDER_NOT_CONFIGURED": {
+    "hint": "Open Settings > Models and add a ? key, or change the agent's model in office/agents.yaml.",
+    "message": "? uses ?, but it has no API key.",
+  },
+  "PROVIDER_UNAVAILABLE": {
+    "hint": "Check your connection.",
+    "message": "Could not reach ?.",
+  },
+  "RATE_LIMITED": {
+    "hint": "The office retried three times. Wait a minute and try again, or move this agent to another model.",
+    "message": "? is rate-limiting requests.",
+  },
+  "TOOLS_UNSUPPORTED": {
+    "hint": "Pick a model that supports tools, or remove the tools from this agent in office/agents.yaml.",
+    "message": "? cannot use tools, but ? has tools listed.",
+  },
+  "TOOL_FAILED": {
+    "hint": "Check the connector in office/config.yaml. The error was: ?.",
+    "message": "? kept hitting errors with ?.",
+  },
+  "TOOL_NOT_ALLOWED": {
+    "hint": "Add it to that agent's tools in office/agents.yaml, or check the deny list in office/config.yaml.",
+    "message": "? is not allowed to use ?.",
+  },
+  "TOOL_TIMEOUT": {
+    "hint": "Try again, or raise runner.tool_timeout_ms.",
+    "message": "? did not respond in ? s.",
+  },
+}
+`;

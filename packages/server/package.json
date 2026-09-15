@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean && node scripts/copy-web.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "publishConfig": {
     "access": "public"

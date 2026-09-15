@@ -1,7 +1,51 @@
 /**
- * @staffroom/core — agent runtime, provider adapters, tool registry, brain index.
+ * @staffroom/core — the agent runtime.
  *
- * Placeholder entry point. The real surface is specified in
- * docs/specs/core-agent-loop.md and lands with SR-006b onward.
+ * Zero UI, zero HTTP, zero file watchers. Everything here can run in a test.
  */
+
 export const VERSION = "0.0.1";
+
+export type { BaseAdapterOptions } from "./providers/base.js";
+// Providers
+export { BaseAdapter, decodeToolName, encodeToolName, estimateTokens } from "./providers/base.js";
+export type {
+  CompleteOptions,
+  CompletionChunk,
+  Message,
+  ModelInfo,
+  ModelPricing,
+  ProviderAdapter,
+  ProviderCapabilities,
+  StopReason,
+  ToolCall,
+  ToolSpec,
+  Usage,
+} from "./providers/types.js";
+export { TOOL_NAME_PATTERN } from "./providers/types.js";
+export type {
+  ErrorDetail,
+  ProviderErrorOptions,
+  RunErrorCode,
+  RunErrorOptions,
+  UserFacingError,
+} from "./runtime/errors.js";
+// Errors
+export {
+  ProviderError,
+  RUN_ERROR_CODES,
+  RunError,
+  userMessage,
+} from "./runtime/errors.js";
+// Shared types
+export type {
+  ApprovalBy,
+  ApprovalDecision,
+  ApprovalPreview,
+  BrainListOptions,
+  BrainNote,
+  BrainNoteRef,
+  BrainReader,
+  BrainSearchOptions,
+  ToolSource,
+} from "./shared/types.js";

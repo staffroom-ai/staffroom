@@ -14,7 +14,7 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --environment jsdom",
+    "test": "vitest run --passWithNoTests --environment jsdom",
     "e2e": "playwright test"
   },
   "publishConfig": {
