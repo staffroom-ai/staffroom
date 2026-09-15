@@ -1,0 +1,44 @@
+# office/agents.yaml
+version: 1
+office:
+  name: Northlight Studio
+  timezone: Australia/Melbourne
+
+default_model: anthropic/claude-sonnet-5   # written by npx staffroom setup
+
+departments:                               # optional display names; ids come from the agents
+  marketing: Marketing
+  sales: Sales
+  finance: Finance
+  ops: Operations
+  product: Product
+  support: Support
+
+agents:
+  - id: marketing-lead
+    department: marketing
+    name: Dana
+    role: Marketing lead
+    does: Takes a marketing task and picks who on the team does it.
+    lead: true
+
+  - id: copywriter
+    department: marketing
+    name: Priya
+    role: Copywriter
+    does: Turns briefs into landing page copy and email sequences.
+    tools: [web]                         # brain tools are always available
+
+  - id: bookkeeper
+    department: finance
+    name: Sam
+    role: Bookkeeper
+    does: Categorises transactions and drafts the monthly summary.
+    # model: ollama/llama4               # keep this agent local
+
+  - id: researcher
+    department: sales
+    name: Lee
+    role: Lead researcher
+    does: Builds shortlists of prospects from a one-line description.
+    tools: [web, lookup_order]

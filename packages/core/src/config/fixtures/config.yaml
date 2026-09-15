@@ -1,0 +1,37 @@
+# office/config.yaml
+version: 1
+
+providers:
+  anthropic:
+    api_key: $ANTHROPIC_API_KEY
+  openai:
+    api_key: $OPENAI_API_KEY
+  ollama:
+    base_url: http://127.0.0.1:11434
+
+mcp:
+  servers: {}
+  deny: []
+  departments: {}
+
+tools:
+  web:
+    provider: none                       # brave | tavily | searxng | none
+    api_key: $BRAVE_API_KEY
+    max_results: 8
+  custom_dir: tools
+  hot_reload: true
+
+runner: {}                               # defaults in core-agent-loop.md
+brain: {}                                # defaults in brain.md
+
+approvals:
+  expiry_hours: 24
+  whitelist_days: 90
+
+telemetry:
+  enabled: false
+
+server:
+  port: 4242
+  log_level: info

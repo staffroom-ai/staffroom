@@ -6,6 +6,43 @@
 
 export const VERSION = "0.0.1";
 
+export type { AgentConfig, AgentsFile } from "./config/agents.js";
+// Config
+export {
+  AgentSchema,
+  AgentsFileSchema,
+  DepartmentId,
+  isIanaTimezone,
+  MAX_AGENTS,
+  MAX_DEPARTMENTS,
+} from "./config/agents.js";
+export type {
+  BrainConfig,
+  McpConfig,
+  OfficeConfig,
+  ProviderConfig,
+  RunnerConfig,
+} from "./config/config.js";
+export { ConfigSchema, MISPLACED_KEYS } from "./config/config.js";
+export { expandEnv, loadDotEnv, parseDotEnv, SECRET_LITERAL_HINT } from "./config/env.js";
+export type { ConfigError, ConfigErrorCode, ConfigFile } from "./config/errors.js";
+export {
+  ConfigInvalid,
+  didYouMean,
+  printConfigError,
+  printConfigErrors,
+} from "./config/errors.js";
+export type { LoadedConfig } from "./config/load.js";
+export {
+  loadAgentsFile,
+  loadConfig,
+  loadRoster,
+  readAgentsText,
+} from "./config/load.js";
+export type { Department, Seat } from "./config/roster.js";
+export { Roster, RosterWriter } from "./config/roster.js";
+export type { ToolNameResolver, ValidateOptions } from "./config/validate.js";
+export { validateAgents } from "./config/validate.js";
 // Providers
 export { AnthropicAdapter } from "./providers/anthropic.js";
 export { mapAnthropicError } from "./providers/anthropic-errors.js";
@@ -15,6 +52,14 @@ export type { OpenAIAdapterOptions } from "./providers/openai.js";
 export { OpenAIAdapter } from "./providers/openai.js";
 export { mapOpenAIError } from "./providers/openai-errors.js";
 export { ANTHROPIC_PRICING, OPENAI_PRICING } from "./providers/pricing.js";
+export type { ModelId, ModelSource, ModelStatus, ResolvedModel } from "./providers/resolve.js";
+// Model resolution
+export {
+  isLocalProvider,
+  modelStatusFor,
+  parseModelId,
+  resolveModel,
+} from "./providers/resolve.js";
 export type {
   CompleteOptions,
   CompletionChunk,
@@ -29,6 +74,14 @@ export type {
   Usage,
 } from "./providers/types.js";
 export { TOOL_NAME_PATTERN } from "./providers/types.js";
+// Redaction
+export {
+  clearRedaction,
+  configuredSecretCount,
+  configureRedaction,
+  redactSecrets,
+  redactSecretsCounted,
+} from "./redact.js";
 export type {
   ErrorDetail,
   ProviderErrorOptions,
