@@ -69,6 +69,11 @@ export interface ResolveOptions {
    * is the authority on whether a provider is usable.
    */
   available?: Iterable<string>;
+  /**
+   * The adapter's own default model. Without it the fallback has to guess from the
+   * provider id, which is wrong for any provider we do not ship a guess for.
+   */
+  defaultModelOf?: (provider: string) => string | undefined;
 }
 
 export function resolveModel(options: ResolveOptions): ResolvedModel {
@@ -125,7 +130,7 @@ export function resolveModel(options: ResolveOptions): ResolvedModel {
     const provider = providers[id];
     return {
       provider: id,
-      model: defaultModelFor(id, provider),
+      model: options.defaultModelOf?.(id) ?? defaultModelFor(id, provider),
       source: "first_provider",
       local: isLocalProvider(provider, id),
     };

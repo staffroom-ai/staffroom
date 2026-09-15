@@ -244,3 +244,27 @@ describe("modelStatusFor", () => {
     ).toBe("unreachable");
   });
 });
+
+describe("the adapter's own default", () => {
+  it("asks the adapter rather than guessing from the provider id", () => {
+    const resolved = resolveModel({
+      agent: agent(),
+      agentsFile: agentsFile(),
+      config: config({}),
+      available: ["demo"],
+      defaultModelOf: (provider) => (provider === "demo" ? "demo" : undefined),
+    });
+    // Without this the demo office records every run against a model it never used.
+    expect(resolved).toMatchObject({ provider: "demo", model: "demo", source: "first_provider" });
+  });
+
+  it("still has a guess when the adapter offers nothing", () => {
+    const resolved = resolveModel({
+      agent: agent(),
+      agentsFile: agentsFile(),
+      config: config(ANTHROPIC),
+      defaultModelOf: () => undefined,
+    });
+    expect(resolved.model).toBe("claude-sonnet-5");
+  });
+});

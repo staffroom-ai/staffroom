@@ -89,6 +89,7 @@ export class Runner {
       // The adapters that exist are the authority, not the config block: demo mode
       // injects one without any providers configured at all.
       available: this.deps.providers.keys(),
+      defaultModelOf: (provider) => this.deps.providers.get(provider)?.defaultModel(),
       ...(override === undefined ? {} : { override }),
     });
   }
