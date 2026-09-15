@@ -1,0 +1,25 @@
+name: Office template
+description: Propose a template for a kind of business we do not cover.
+labels: ["template", "good first issue"]
+body:
+  - type: input
+    id: business
+    attributes:
+      label: What kind of business
+      placeholder: "Dental practice"
+    validations:
+      required: true
+
+  - type: textarea
+    id: agents
+    attributes:
+      label: Who works there
+      description: The roles, one per line. What each of them does in a sentence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: brain
+    attributes:
+      label: What goes in their notes
+      description: The handful of documents this business would already have written down.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/staffroom-ai/staffroom/discussions
+    about: Ask a question, share what you built, or float an idea before it becomes an issue.
+  - name: Security vulnerability
+    url: https://github.com/staffroom-ai/staffroom/security/advisories/new
+    about: Report privately. Please do not open a public issue.

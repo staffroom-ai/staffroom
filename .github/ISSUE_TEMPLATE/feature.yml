@@ -1,0 +1,23 @@
+name: Feature request
+description: Something Staffroom should do and does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Please check [ROADMAP.md](https://github.com/staffroom-ai/staffroom/blob/main/ROADMAP.md)
+        first, including the "Not planned" list at the bottom.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that you cannot do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional. A rough idea is fine.

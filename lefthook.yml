@@ -5,9 +5,13 @@ pre-commit:
   parallel: true
   jobs:
     - name: format and lint
-      glob: "*.{ts,tsx,js,jsx,json,jsonc}"
+      glob: "*.{ts,tsx,js,jsx,mjs,json,jsonc}"
       run: pnpm exec biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
+
+    - name: typecheck
+      glob: "*.{ts,tsx}"
+      run: pnpm turbo typecheck
 
 commit-msg:
   jobs:

@@ -1,0 +1,35 @@
+name: Provider adapter
+description: Add support for another model provider.
+labels: ["adapter", "good first issue"]
+body:
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      placeholder: "Google Gemini"
+    validations:
+      required: true
+
+  - type: input
+    id: docs
+    attributes:
+      label: Link to their API docs
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: capabilities
+    attributes:
+      label: What it supports
+      options:
+        - label: Tool calling
+        - label: Streaming
+        - label: An OpenAI-compatible endpoint (if so, it may need no new adapter at all)
+
+  - type: input
+    id: licence
+    attributes:
+      label: Licence of the client library you would use
+      description: It has to be permissive. MIT, Apache-2.0, BSD and ISC are fine.
+    validations:
+      required: true

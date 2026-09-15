@@ -1,0 +1,38 @@
+name: Bug report
+description: Something does not work the way it says it does.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `npx staffroom doctor --bundle`
+      description: >
+        This tells us your versions, your providers and which checks fail. Secrets are
+        already replaced with placeholders, but please read it before you paste it.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: no-keys
+    attributes:
+      label: Before you post
+      options:
+        - label: I checked the paste for keys
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Staffroom version
+      placeholder: "0.1.0"
+    validations:
+      required: true
