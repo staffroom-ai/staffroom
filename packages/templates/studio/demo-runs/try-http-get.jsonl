@@ -1,0 +1,3 @@
+{"matches":["fetch","opening hours","our website"],"delayMs":40}
+{"type":"tool_call","call":{"id":"c1","name":"http_get","input":{"url":"https://example.com/hours"}}}
+{"type": "done", "stopReason": "tool_calls", "usage": {"inputTokens": 600, "outputTokens": 24}}

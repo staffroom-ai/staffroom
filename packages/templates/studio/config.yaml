@@ -1,0 +1,45 @@
+# office/config.yaml
+#
+# Keys live in office/.env, never here. Write $NAME and the office reads it.
+version: 1
+
+providers: {}
+  # anthropic:
+  #   api_key: $ANTHROPIC_API_KEY
+  # openai:
+  #   api_key: $OPENAI_API_KEY
+  # ollama:
+  #   base_url: http://127.0.0.1:11434
+
+mcp:
+  servers: {}
+  # notion:
+  #   command: npx
+  #   args: ["-y", "@notionhq/notion-mcp-server"]
+  #   env: { NOTION_TOKEN: $NOTION_TOKEN }
+  # gmail:
+  #   url: https://mcp.example.com/gmail
+  #   auth: oauth
+  deny: []
+  departments: {}
+
+tools:
+  web:
+    provider: none                  # brave | tavily | searxng | none
+    max_results: 8
+  custom_dir: tools
+  hot_reload: true
+
+runner: {}
+brain: {}
+
+approvals:
+  expiry_hours: 24
+  whitelist_days: 90
+
+telemetry:
+  enabled: false
+
+server:
+  port: 4242
+  log_level: info

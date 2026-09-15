@@ -7,7 +7,7 @@
  * minute is closed, because a laptop that went to sleep should not hold a
  * connection the office thinks is live.
  */
-import type { Office, RunEventEnvelope } from "@staffroom/core";
+import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
 import { handle } from "./handlers.js";
@@ -227,6 +227,22 @@ export class SocketHub {
         this.clients.delete(client);
       }
     }
+  }
+
+  /** Announced so an open tab reloads the roster rather than showing a stale one. */
+  broadcastConfigReloaded(file: "agents.yaml" | "config.yaml" | ".env" | "approvals.yaml"): void {
+    this.push({ type: "config.reloaded", seq: 0, file });
+    this.scheduleState();
+  }
+
+  /** The previous good roster stays live; this only tells the office what broke. */
+  broadcastConfigError(errors: ConfigError[]): void {
+    this.push({ type: "config.error", seq: 0, errors });
+  }
+
+  broadcastToolsReloaded(file: string, ok: boolean): void {
+    this.push({ type: "tools.reloaded", seq: 0, file, ok });
+    this.scheduleState();
   }
 
   close(): void {

@@ -375,3 +375,38 @@ describe("throughput", () => {
     index.close();
   });
 });
+
+describe("dates from YAML", () => {
+  it("accepts a timestamp YAML parsed into a Date, which is what a correct note gives", () => {
+    // `created: 2026-01-01T00:00:00+11:00` unquoted is a Date by the time we see it.
+    const parsed = parseNote({
+      id: "10-customers/acme",
+      path: "/tmp/acme.md",
+      text: "---\ntitle: Acme\ncreated: 2026-01-01T00:00:00+11:00\n---\n\nbody\n",
+      birthTime: new Date("2020-01-01T00:00:00Z"),
+    });
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.frontMatter.created).toBe("2025-12-31T13:00:00.000Z");
+  });
+
+  it("still accepts a quoted date string", () => {
+    const parsed = parseNote({
+      id: "x/y",
+      path: "/tmp/y.md",
+      text: '---\ntitle: Y\ncreated: "2026-01-01T00:00:00Z"\n---\n\nbody\n',
+      birthTime: new Date(),
+    });
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.frontMatter.created).toBe("2026-01-01T00:00:00Z");
+  });
+
+  it("still warns when there is genuinely no date", () => {
+    const parsed = parseNote({
+      id: "x/z",
+      path: "/tmp/z.md",
+      text: "# Z\n\nbody\n",
+      birthTime: new Date("2026-02-02T00:00:00Z"),
+    });
+    expect(parsed.warnings.map((w) => w.reason)).toContain("missing_created");
+  });
+});

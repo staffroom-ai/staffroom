@@ -48,6 +48,12 @@ export interface CreateOfficeOptions {
   adapters?: Map<string, ProviderAdapter>;
   /** Skips loading office/tools, for tests that do not need them. */
   skipCustomTools?: boolean;
+  /**
+   * Says outright whether this is a demo. Inferring it from the adapter count is
+   * wrong the moment demo mode injects one: a replaying office would report
+   * itself as live and the owner would believe recorded work was real.
+   */
+  mode?: "live" | "demo";
 }
 
 /** Builds an adapter per configured provider, skipping any that cannot work. */
@@ -134,7 +140,7 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     options.adapters === undefined
       ? buildAdapters(loaded.config)
       : { adapters: options.adapters, skipped: [] };
-  const mode: "live" | "demo" = adapters.size === 0 ? "demo" : "live";
+  const mode: "live" | "demo" = options.mode ?? (adapters.size === 0 ? "demo" : "live");
 
   const brainDir = join(officeDir, loaded.config.brain.dir);
   const brain = BrainIndex.open(brainDir, { indexFile: join(officeDir, "brain.index.sqlite") });

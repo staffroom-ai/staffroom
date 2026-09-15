@@ -14,7 +14,7 @@ import {
 } from "node:http";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createOffice, type Office } from "@staffroom/core";
+import type { Office } from "@staffroom/core";
 import { WebSocketServer } from "ws";
 import {
   type AuthConfig,
@@ -23,7 +23,11 @@ import {
   noAccountsWarning,
   TOKEN_META,
 } from "./auth.js";
+import { boot } from "./boot.js";
+import { DEMO_BANNER, setDemoSpeed } from "./demo/demo.js";
 import { resolveBrainPath } from "./http/paths.js";
+import { say } from "./log.js";
+import { OfficeWatchers } from "./watch/index.js";
 import { SocketHub } from "./ws/socket.js";
 
 export const VERSION = "0.0.1";
@@ -47,6 +51,8 @@ export interface StaffroomServer {
   token: string;
   office: Office;
   hub: SocketHub;
+  /** Demo playback speed, from the office's speed control. */
+  setDemoSpeed(factor: 1 | 2 | 4): boolean;
   close(): Promise<void>;
 }
 
@@ -91,7 +97,15 @@ function servePage(response: ServerResponse, token: string): void {
 
 export async function createServer(options: ServerOptions): Promise<StaffroomServer> {
   const host = options.host ?? "127.0.0.1";
-  const office = options.office ?? (await createOffice({ officeDir: options.officeDir }));
+  const booted =
+    options.office === undefined
+      ? await boot({
+          officeDir: options.officeDir,
+          ...(options.demo === undefined ? {} : { demo: options.demo }),
+          ...(options.demoRunsDir === undefined ? {} : { demoRunsDir: options.demoRunsDir }),
+        })
+      : { office: options.office, notices: [] };
+  const office = booted.office;
   const token = newSessionToken();
   const startedAt = Date.now();
 
@@ -182,8 +196,27 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   const port = await listen(http, options.port ?? 4242, host);
   authConfig = { token, host, port };
 
+  // Watching is on unless asked otherwise: an owner editing agents.yaml expects
+  // the office to notice without a restart.
+  let watchers: OfficeWatchers | undefined;
+  if (options.watch !== false && options.office === undefined) {
+    watchers = new OfficeWatchers({
+      officeDir: options.officeDir,
+      office,
+      onEvent: (event) => {
+        if (event.type === "config.reloaded") hub.broadcastConfigReloaded(event.file);
+        else if (event.type === "config.error") hub.broadcastConfigError(event.errors);
+        else if (event.type === "tools.reloaded") hub.broadcastToolsReloaded(event.file, event.ok);
+        else hub.scheduleState();
+      },
+    });
+    watchers.start();
+  }
+
+  if (office.mode === "demo") say(DEMO_BANNER);
+
   if (options.host !== undefined && options.host !== "127.0.0.1") {
-    console.warn(noAccountsWarning(host, port));
+    say(noAccountsWarning(host, port));
   }
 
   return {
@@ -192,7 +225,9 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
     token,
     office,
     hub,
+    setDemoSpeed: (factor: 1 | 2 | 4) => setDemoSpeed(office.providers, factor),
     close: async () => {
+      await watchers?.close();
       hub.close();
       wss.close();
       await new Promise<void>((done) => http.close(() => done()));
@@ -234,7 +269,20 @@ async function listen(server: Server, wanted: number, host: string): Promise<num
 }
 
 export { checkRequest, newSessionToken } from "./auth.js";
+export { boot, checkNodeVersion } from "./boot.js";
+export {
+  DEMO_BANNER,
+  demoAdapters,
+  findDemoRuns,
+  NO_TRANSCRIPTS,
+  officeDemoRuns,
+  shouldUseDemo,
+} from "./demo/demo.js";
 export { resolveBrainPath } from "./http/paths.js";
+export type { LogLine } from "./log.js";
+export { say, setLogSink } from "./log.js";
+export type { WatchEvent } from "./watch/index.js";
+export { OfficeWatchers } from "./watch/index.js";
 export { splitRevise } from "./ws/handlers.js";
 export type { ClientMessage, ServerMessage } from "./ws/protocol.js";
 export { SocketHub } from "./ws/socket.js";

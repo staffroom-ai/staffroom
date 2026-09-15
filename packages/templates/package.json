@@ -38,5 +38,12 @@
     "type": "git",
     "url": "git+https://github.com/staffroom-ai/staffroom.git",
     "directory": "packages/templates"
+  },
+  "devDependencies": {
+    "@staffroom/core": "workspace:*",
+    "@types/node": "^26.5.1",
+    "gray-matter": "^4.0.3",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   }
 }

@@ -164,8 +164,11 @@ export class FixtureAdapter implements ProviderAdapter {
 
     const keyworded = this.fixtures.filter((f) => f.header.matches && f.header.matches.length > 0);
     if (keyworded.length > 0) {
+      // Only what was actually asked. Scoring the system prompt too would let a
+      // pinned note about pricing pull every task towards the pricing transcript.
       const haystack = messages
-        .map((m) => ("content" in m ? m.content : ""))
+        .filter((m) => m.role === "user")
+        .map((m) => m.content)
         .join(" ")
         .toLowerCase();
       let best: Fixture | undefined;

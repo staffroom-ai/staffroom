@@ -1,0 +1,41 @@
+# office/agents.yaml
+#
+# This is your roster. Rename anyone, change what they do, or add someone new.
+# Ids must stay unique; everything else is yours.
+version: 1
+office:
+  name: Northlight Studio
+  timezone: Australia/Melbourne
+
+departments:
+  marketing: Marketing
+  finance: Finance
+  sales: Sales
+
+agents:
+  - id: marketing-lead
+    department: marketing
+    name: Dana
+    role: Marketing lead
+    does: Takes a marketing task and picks who on the team does it.
+    lead: true
+
+  - id: copywriter
+    department: marketing
+    name: Priya
+    role: Copywriter
+    does: Turns briefs into landing page copy and email sequences.
+
+  - id: bookkeeper
+    department: finance
+    name: Sam
+    role: Bookkeeper
+    does: Categorises transactions and drafts the monthly summary.
+
+  - id: researcher
+    department: sales
+    name: Lee
+    role: Lead researcher
+    does: Builds shortlists of prospects from a one-line description.
+    # tools: [web, lookup_order]   # after: npx staffroom tools add lookup-order
+    tools: [web]

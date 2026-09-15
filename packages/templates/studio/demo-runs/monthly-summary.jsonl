@@ -1,0 +1,3 @@
+{"matches":["monthly","summary","bookkeeping","transactions","finance"],"delayMs":40}
+{"type":"text","text":"# February summary\n\nIncome $14,400 across four invoices. Two still unpaid at the end of the month, both Harlow and Co, both inside terms.\n\nExpenses $3,210. The jump is the annual software renewal, not a new cost.\n\nOne thing worth your attention: Bright Electrical has not been invoiced since January.\n"}
+{"type":"done","stopReason":"end","usage":{"inputTokens":900,"outputTokens":96}}

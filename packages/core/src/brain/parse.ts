@@ -28,6 +28,13 @@ function trustFor(id: string, front: Partial<NoteFrontMatter>): NoteTrust {
   return "owner";
 }
 
+/** Accepts what YAML may produce for a date field: a string, or a Date. */
+function toIsoString(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim().length > 0) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  return undefined;
+}
+
 export interface ParseOptions {
   id: string;
   path: string;
@@ -61,16 +68,20 @@ export function parseNote(options: ParseOptions): ParsedNote {
     }
   }
 
-  let created = typeof front.created === "string" ? front.created : undefined;
+  // YAML turns an unquoted timestamp into a Date, so a correctly written note
+  // arrives here as an object rather than a string. Both are valid.
+  let created = toIsoString(front.created);
   if (created === undefined) {
     created = birthTime.toISOString();
     warnings.push({ scope: "note", id, reason: "missing_created" });
   }
 
+  const updated = toIsoString(front.updated);
   const frontMatter: NoteFrontMatter = {
     ...front,
     title,
     created,
+    ...(updated === undefined ? {} : { updated }),
     written_by: front.written_by ?? "owner",
   };
 

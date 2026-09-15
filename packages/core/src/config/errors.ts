@@ -27,7 +27,17 @@ export type ConfigErrorCode =
   | "MCP_SERVER_INVALID"
   | "YAML_PARSE";
 
-export type ConfigFile = "agents.yaml" | "config.yaml" | "routines.yaml" | "approvals.yaml";
+/**
+ * `.env` belongs here as well as in the reload message: an unresolved $NAME or a
+ * malformed line is a configuration problem the owner has to fix, and it has to be
+ * reportable the same way as one in a YAML file.
+ */
+export type ConfigFile =
+  | "agents.yaml"
+  | "config.yaml"
+  | "routines.yaml"
+  | "approvals.yaml"
+  | ".env";
 
 export interface ConfigError {
   code: ConfigErrorCode;
