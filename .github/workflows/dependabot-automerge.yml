@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Read Dependabot metadata
         id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -21,7 +21,16 @@ jobs:
       # Major bumps are left for a human to look at.
       - name: Enable auto-merge for patch and minor updates
         if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          echo "::notice::${{ steps.meta.outputs.update-type }} for ${{ steps.meta.outputs.dependency-names }}: enabling auto-merge."
+          gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Without this the run is green whether or not the step above fired, and a
+      # green run reads as "it merged" when it means "the job finished".
+      - name: Say why a major was left alone
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        run: |
+          echo "::notice::Major bump for ${{ steps.meta.outputs.dependency-names }}. Auto-merge NOT enabled; a human should review it."
