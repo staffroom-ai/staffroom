@@ -1,0 +1,49 @@
+{
+  "name": "staffroom",
+  "version": "0.0.1",
+  "description": "Your AI staff, in an office you can watch. Free for commercial use.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "staffroom": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "ai",
+    "agents",
+    "mcp",
+    "office",
+    "automation",
+    "self-hosted",
+    "local-first"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/staffroom-ai/staffroom.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/staffroom-ai/staffroom",
+  "dependencies": {
+    "@inquirer/prompts": "^8.7.2",
+    "commander": "^15.0.0",
+    "open": "^11.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "execa": "^10.0.1"
+  }
+}

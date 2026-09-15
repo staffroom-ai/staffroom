@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+office/
+!packages/templates/*/office/
+*.sqlite
+*.sqlite-journal
+test-results/
+playwright-report/

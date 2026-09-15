@@ -1,0 +1,20 @@
+# Git hooks for Staffroom. Installed by `pnpm exec lefthook install`.
+# Keep these fast: anything slower than a few seconds gets bypassed with --no-verify.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format and lint
+      glob: "*.{ts,tsx,js,jsx,json,jsonc}"
+      run: pnpm exec biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  jobs:
+    - name: require DCO sign-off
+      run: |
+        grep -qiE '^Signed-off-by: .+ <.+@.+>' "{1}" || {
+          echo "Missing DCO sign-off. Commit with: git commit -s"
+          echo "See CONTRIBUTING.md for what signing off means."
+          exit 1
+        }
