@@ -1,0 +1,8 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the floor plan > is stable, so a rebuild does not move the furniture 1`] = `
+{
+  "x": 0,
+  "z": -8,
+}
+`;

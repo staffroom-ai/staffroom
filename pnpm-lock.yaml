@@ -164,6 +164,9 @@ importers:
       '@react-three/fiber':
         specifier: ^9.7.0
         version: 9.7.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(three@0.186.0)
+      '@staffroom/core':
+        specifier: workspace:*
+        version: link:../core
       react:
         specifier: ^19.3.0
         version: 19.3.0

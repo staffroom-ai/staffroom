@@ -17,7 +17,7 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests --environment jsdom",
+    "test": "vitest run --passWithNoTests",
     "e2e": "playwright test"
   },
   "publishConfig": {
@@ -31,6 +31,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@staffroom/core": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "three": "^0.186.0",
