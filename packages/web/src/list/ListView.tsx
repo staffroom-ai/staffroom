@@ -10,8 +10,9 @@
  * is snapshot-tested, so renaming anything here fails loudly rather than
  * quietly breaking the only end-to-end check the project has.
  */
-import type { Agent, OfficeState } from "@staffroom/core";
+import type { Agent, BrainGraph, OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
+import { NotesTable } from "./NotesTable.js";
 
 const STATUS_WORD: Record<string, string> = {
   idle: "Free",
@@ -67,12 +68,19 @@ function Row({ agent, onOpen }: { agent: Agent; onOpen: (agentId: string) => voi
 
 export function ListView({
   state,
+  graph,
   onOpenAgent,
   onOpenNote,
+  onUpload,
+  onRefuse,
 }: {
   state: OfficeState;
+  /** Undefined until the office has been asked for it. */
+  graph?: BrainGraph | undefined;
   onOpenAgent: (agentId: string) => void;
   onOpenNote: (noteId: string) => void;
+  onUpload?: ((file: File) => void) | undefined;
+  onRefuse?: ((message: string) => void) | undefined;
 }): ReactElement {
   const departments = [...state.departments].sort((a, b) => a.pod - b.pod);
   // A run nobody has picked up yet: it belongs to the office, not to a person.
@@ -105,6 +113,12 @@ export function ListView({
           </ul>
         )}
       </section>
+
+      {/* The brain, for anybody the picture does not serve. Not a fallback: on a
+          narrow window this is the only view there is room for. */}
+      {onUpload !== undefined && onRefuse !== undefined && (
+        <NotesTable graph={graph} onOpenNote={onOpenNote} onUpload={onUpload} onRefuse={onRefuse} />
+      )}
 
       {departments.map((department) => {
         const people = state.agents

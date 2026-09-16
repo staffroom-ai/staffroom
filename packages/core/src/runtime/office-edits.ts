@@ -13,6 +13,7 @@ import { join } from "node:path";
 import type { AgentsFile } from "../config/agents.js";
 import { loadAgentsFile } from "../config/load.js";
 import { RosterWriter } from "../config/roster.js";
+import { openCommandFor } from "./editors.js";
 
 /** Providers the office knows how to configure. */
 const KNOWN_PROVIDERS = new Set([
@@ -128,15 +129,30 @@ export function setProviderKey(officeDir: string, provider: string, key: string)
  * The point is not convenience. It is that a deliverable is an ordinary file in a
  * folder they own, and being able to see it there is what makes that believable.
  */
-export function revealNote(brainDir: string, noteId: string): boolean {
+/**
+ * Shows a note in the file manager, or opens it in an editor the owner has.
+ *
+ * `app` is an editor id from `detectEditors`, never a command: this ends in a
+ * spawn, and a command arriving over the socket would be a command the office
+ * runs for whoever can reach it. An id that is not a detected editor falls back
+ * to the file manager rather than guessing.
+ */
+export function revealNote(brainDir: string, noteId: string, app?: string): boolean {
   // The same containment rule the file routes use: nothing outside the brain.
   if (noteId.includes("..") || noteId.startsWith("/") || noteId.includes("\0")) return false;
   const path = join(brainDir, `${noteId}.md`);
   if (!existsSync(path)) return false;
 
+  const editor = app === undefined || app === "finder" ? undefined : openCommandFor(app, path);
+
   const command =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
-  const args = process.platform === "darwin" ? ["-R", path] : [path];
+    editor?.command ??
+    (process.platform === "darwin"
+      ? "open"
+      : process.platform === "win32"
+        ? "explorer"
+        : "xdg-open");
+  const args = editor?.args ?? (process.platform === "darwin" ? ["-R", path] : [path]);
 
   try {
     spawn(command, args, { detached: true, stdio: "ignore" }).unref();

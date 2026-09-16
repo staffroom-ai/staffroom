@@ -20,6 +20,9 @@ export function failureDetail(notice: {
 }
 
 export function failureText(notice: ToolNotice): string {
+  // A brain warning already arrives as a finished sentence from the office; it
+  // is not a tool file and must not be described as one.
+  if (notice.kind === "brain") return notice.message ?? "Something in the brain needs a look.";
   return `Your tool file ${notice.file} could not be loaded. ${failureDetail(notice)}`;
 }
 

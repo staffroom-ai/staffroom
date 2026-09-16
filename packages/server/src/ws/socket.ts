@@ -9,7 +9,7 @@
  */
 import { platform } from "node:os";
 import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
-import { buildGraph, noteIndexedDelta, noteRemovedDelta } from "@staffroom/core";
+import { buildGraph, detectEditors, noteIndexedDelta, noteRemovedDelta } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
 import { fromNoteWarning, pinnedTruncatedWarning } from "./brain-warnings.js";
@@ -70,6 +70,7 @@ export class SocketHub {
   private readonly timers: NodeJS.Timeout[] = [];
   private unsubscribe: (() => void) | undefined;
   private unwatchBrain: (() => void) | undefined;
+  private readonly editors = detectEditors();
 
   constructor(options: SocketHubOptions) {
     this.options = options;
@@ -223,6 +224,9 @@ export class SocketHub {
       version: this.options.version,
       mode: this.options.office.mode,
       platform: platformName(),
+      // Detected once and reused: this is a handful of existsSync calls and the
+      // answer cannot change while the office is open without an install.
+      editors: this.editors,
       resumed,
       state,
     });

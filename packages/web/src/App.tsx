@@ -5,7 +5,11 @@
  * actually happened. Everything reads from the store, which holds the office's own
  * account of itself; nothing here decides anything on its own.
  */
+import type { BrainGraph } from "@staffroom/core";
 import { lazy, type ReactElement, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { applyIndexed, applyRemoved } from "./graph/patch.js";
+import { acceptsUpload, UPLOAD_REFUSED } from "./graph/style.js";
+import { chainFor, uploadToBrain } from "./graph/upload.js";
 import { revealLabel } from "./hud/Chat.js";
 import { DepartmentCard, summarise } from "./hud/DepartmentCard.js";
 import { NoteSheet } from "./hud/NoteSheet.js";
@@ -33,6 +37,17 @@ import {
  */
 const Scene = lazy(async () => ({ default: (await import("./scene/Scene.js")).Scene }));
 
+/**
+ * The graph is loaded when somebody asks for it.
+ *
+ * A force layout and the drawing around it are a few kilobytes that only matter
+ * once G is pressed, and the first load is a budget every visitor pays whether
+ * they open the brain or not.
+ */
+const GraphOverlay = lazy(async () => ({
+  default: (await import("./hud/GraphOverlay.js")).GraphOverlay,
+}));
+
 import { useOfficeStore } from "./store.js";
 import { OfficeSocket, readToken } from "./ws.js";
 
@@ -56,6 +71,9 @@ export function App(): ReactElement {
   const dark = usePrefersDark();
   const [tab, setTab] = useState<RailTab>("activity");
   const [openNote, setOpenNote] = useState<string | undefined>(undefined);
+  const [graphOpen, setGraphOpen] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const [graph, setGraph] = useState<BrainGraph | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [view, setView] = useState<View>(() =>
     viewFor(typeof window === "undefined" ? 1440 : window.innerWidth, rememberedView()),
@@ -82,7 +100,16 @@ export function App(): ReactElement {
         const state = useOfficeStore.getState();
         switch (message.type) {
           case "welcome":
-            state.applyWelcome(message.state, message.mode, message.version, message.platform);
+            state.applyWelcome(
+              message.state,
+              message.mode,
+              message.version,
+              message.platform,
+              message.editors,
+            );
+            // Asked for once, here, rather than when a view opens: both the
+            // picture and the table want it, and it is one snapshot either way.
+            socket?.send({ type: "brain.graph.get", reqId: reqId() });
             break;
           case "state":
             state.applyState(message.state);
@@ -101,6 +128,30 @@ export function App(): ReactElement {
               ...(message.warning === undefined ? {} : { warning: message.warning }),
               ...(message.unassigned === undefined ? {} : { unassigned: message.unassigned }),
               ...(message.agents === undefined ? {} : { agents: message.agents }),
+            });
+            break;
+          case "brain.graph":
+            setGraph(message.graph);
+            break;
+          // Patched rather than refetched: a force layout that reruns is a
+          // picture that jumps under the cursor of whoever is reading it.
+          case "brain.note.indexed":
+            setGraph((current) =>
+              current === undefined ? current : applyIndexed(current, message.node, message.edges),
+            );
+            break;
+          case "brain.note.removed":
+            setGraph((current) =>
+              current === undefined
+                ? current
+                : applyRemoved(current, message.noteId, message.nowMissing, message.edges),
+            );
+            break;
+          case "brain.warning":
+            state.addToolNotice({
+              file: message.noteId ?? "brain",
+              ok: false,
+              message: message.message,
             });
             break;
           case "ack": {
@@ -145,6 +196,32 @@ export function App(): ReactElement {
   useEffect(() => {
     socket?.connect();
     return () => socket?.close();
+  }, [socket]);
+
+  /*
+   * G opens the brain, and asks for it the first time.
+   *
+   * Ignored while somebody is typing: a shortcut that swallows a letter out of
+   * the task bar is a shortcut people learn to fear.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== "g" && event.key !== "G") return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (target?.isContentEditable === true) return;
+
+      event.preventDefault();
+      setGraphOpen((open) => {
+        if (!open) socket?.send({ type: "brain.graph.get", reqId: reqId() });
+        return !open;
+      });
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [socket]);
 
   // One line per agent per five seconds. A busy office that narrates every event
@@ -329,15 +406,76 @@ export function App(): ReactElement {
             />
           </div>
 
-          <div className="stage">
+          {/*
+           * Drop a file anywhere on the office to put it in the brain.
+           *
+           * The spec asks for a drop zone on the Brain cylinder itself. Hit
+           * testing a mesh through DOM drag events means raycasting on every
+           * dragover, which is a lot of machinery to make the target smaller:
+           * the whole stage is easier to hit and says where the file is going.
+           */}
+          {/* A section rather than a div, because it is a labelled region a
+              file can be dropped into and somebody has to be able to be told
+              that. */}
+          <section
+            className="stage"
+            aria-label="The office. Drop a file here to add it to the brain."
+            onDragOver={(event) => {
+              if (!event.dataTransfer.types.includes("Files")) return;
+              event.preventDefault();
+              setDropping(true);
+            }}
+            onDragLeave={() => setDropping(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDropping(false);
+              const file = event.dataTransfer.files[0];
+              if (file === undefined) return;
+              if (!acceptsUpload(file.name)) {
+                useOfficeStore.getState().addToolNotice({
+                  kind: "brain",
+                  file: file.name,
+                  ok: false,
+                  message: UPLOAD_REFUSED,
+                });
+                return;
+              }
+              void uploadToBrain(file, token).then((failure) => {
+                if (failure !== undefined) {
+                  useOfficeStore
+                    .getState()
+                    .addToolNotice({ kind: "brain", file: file.name, ok: false, message: failure });
+                }
+              });
+            }}
+          >
+            {dropping && <p className="stage-drop">Drop it here to add it to the brain</p>}
             {view === "list" && (
               <ListView
                 state={state}
+                graph={graph}
                 onOpenAgent={(agentId) => {
                   useOfficeStore.getState().selectAgent(agentId);
                   setTab("chat");
                 }}
                 onOpenNote={(noteId) => setOpenNote(noteId)}
+                onUpload={(file) => {
+                  void uploadToBrain(file, token).then((failure) => {
+                    if (failure !== undefined) {
+                      useOfficeStore.getState().addToolNotice({
+                        kind: "brain",
+                        file: file.name,
+                        ok: false,
+                        message: failure,
+                      });
+                    }
+                  });
+                }}
+                onRefuse={(message) =>
+                  useOfficeStore
+                    .getState()
+                    .addToolNotice({ kind: "brain", file: "", ok: false, message })
+                }
               />
             )}
             <TaskBar
@@ -349,7 +487,7 @@ export function App(): ReactElement {
                 socket?.send({ type: "task.create", reqId: id, department, text });
               }}
             />
-          </div>
+          </section>
 
           <Rail
             state={state}
@@ -404,13 +542,41 @@ export function App(): ReactElement {
           }}
         />
       )}
+      {graphOpen && (
+        <Suspense fallback={null}>
+          <GraphOverlay
+            graph={graph}
+            onClose={() => setGraphOpen(false)}
+            onOpenNote={(noteId) => setOpenNote(noteId)}
+            onUpload={(file) => {
+              void uploadToBrain(file, token).then((failure) => {
+                if (failure !== undefined) {
+                  useOfficeStore
+                    .getState()
+                    .addToolNotice({ kind: "brain", file: file.name, ok: false, message: failure });
+                }
+              });
+            }}
+            onRefuse={(message) =>
+              useOfficeStore
+                .getState()
+                .addToolNotice({ kind: "brain", file: "", ok: false, message })
+            }
+          />
+        </Suspense>
+      )}
 
       {openNote !== undefined && (
         <NoteSheet
           noteId={openNote}
           token={token}
           revealLabel={revealLabel(store.platform)}
+          editor={store.editors[0]}
+          revisions={chainFor(graph, openNote)}
           onReveal={() => socket?.send({ type: "note.reveal", reqId: reqId(), noteId: openNote })}
+          onOpenInEditor={(app) =>
+            socket?.send({ type: "note.reveal", reqId: reqId(), noteId: openNote, app })
+          }
           onClose={() => setOpenNote(undefined)}
         />
       )}

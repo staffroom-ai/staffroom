@@ -55,7 +55,8 @@ export type ClientMessage =
   | { type: "mcp.reconnect"; reqId: string; server: string }
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
   | { type: "tools.assign"; reqId: string; name: string; agentIds: string[] }
-  | { type: "note.reveal"; reqId: string; noteId: string }
+  /** `app` is a DetectedEditor id, or "finder" for the file manager. */
+  | { type: "note.reveal"; reqId: string; noteId: string; app?: string }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   | { type: "office.reload"; reqId: string }
   | { type: "ping"; reqId: string };
@@ -70,6 +71,12 @@ export type ServerMessage =
       mode: "live" | "demo";
       /** So the browser can say "Show in Finder" or "Show in Explorer" correctly. */
       platform: "mac" | "windows" | "linux";
+      /**
+       * Markdown editors found on this machine, in preference order. Empty means
+       * the office offers no "Open in editor" button at all — see editors.ts for
+       * why an undetected editor is worse than none.
+       */
+      editors: { id: string; label: string }[];
       resumed: boolean;
       state: OfficeState;
     }

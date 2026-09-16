@@ -1979,3 +1979,282 @@ body::before {
   font: 400 11px / 1.5 var(--ui);
   color: var(--ink-3);
 }
+
+/* ── the brain, as a picture ─────────────────────────────────────────────── */
+
+/*
+ * Colour in the graph says who wrote a note, which is the question somebody
+ * opens it to answer. Two hues, far enough apart to tell at a glance and both
+ * legible on either ground, and never the only thing carrying the meaning: each
+ * node's accessible name says it in words as well.
+ */
+:root {
+  --graph-owner: #1a46d6;
+  --graph-agent: #0f8a6a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --graph-owner: #7fa0ff;
+    --graph-agent: #4fd6a8;
+  }
+}
+
+.graph-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 18px;
+  /*
+   * The office is still there behind it, faded rather than replaced: this is a
+   * view of the same room, not a different screen. Faded hard, though — at 80
+   * percent the department panels were still legible enough to compete with the
+   * notes, and a picture you have to look past is a picture nobody reads.
+   */
+  background: color-mix(in srgb, var(--ground) 94%, transparent);
+  backdrop-filter: blur(16px) saturate(0.6);
+}
+
+.graph-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.graph-title {
+  margin: 0;
+  font: 600 16px / 1.2 var(--ui);
+  letter-spacing: -0.012em;
+}
+
+.graph-search {
+  flex: 0 1 280px;
+  padding: 7px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 13px / 1.2 var(--ui);
+}
+
+.graph-count {
+  flex: 1;
+  font: 400 11px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.graph-canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.graph-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font: 400 14px / 1.5 var(--ui);
+  color: var(--ink-2);
+}
+
+.graph-edge {
+  stroke: var(--hairline-strong);
+  stroke-width: 1;
+}
+
+/* A revision is history rather than a reference, so it is drawn differently. */
+.graph-edge-revises {
+  stroke: var(--accent);
+  stroke-dasharray: 4 3;
+}
+
+.graph-edge-read {
+  stroke: var(--hairline);
+  stroke-width: 0.5;
+}
+
+.graph-node {
+  cursor: pointer;
+}
+
+.graph-dot {
+  fill: var(--graph-owner);
+}
+
+/* A note nobody wrote: an outline, because there is nothing in it. */
+.graph-node.is-missing .graph-dot {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+
+.graph-node.is-sample {
+  opacity: 0.45;
+}
+
+.graph-node.is-faded {
+  opacity: 0.12;
+}
+
+.graph-node.is-recent .graph-dot {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.graph-ring {
+  fill: none;
+  stroke-width: 2;
+}
+
+.graph-node:focus-visible .graph-dot,
+.graph-node.is-focused .graph-dot {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.graph-node:focus {
+  outline: none;
+}
+
+.graph-label {
+  fill: var(--ink-2);
+  font: 400 10px / 1 var(--ui);
+  text-anchor: middle;
+  pointer-events: none;
+  /* A halo in the page's own ground colour, so a name that lands on top of
+     another one is still readable rather than a smear. */
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.graph-drop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: var(--accent-wash);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  font: 500 15px / 1.4 var(--ui);
+  color: var(--ink);
+  pointer-events: none;
+}
+
+/* ── a note's history ────────────────────────────────────────────────────── */
+
+.note-revision {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font: 400 12px / 1.5 var(--ui);
+  color: var(--ink-2);
+}
+
+.btn-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.note-diff {
+  font: 400 12px / 1.6 var(--mono);
+}
+
+.diff-line {
+  margin: 0;
+  padding: 1px 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-marker {
+  display: inline-block;
+  width: 1.2em;
+  color: var(--ink-3);
+}
+
+.diff-added {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.diff-removed {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--ink-2);
+}
+
+.stage-drop {
+  position: absolute;
+  inset: 12px;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+  font: 500 15px / 1.4 var(--ui);
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.list-head .list-heading {
+  flex: 1;
+  margin: 0;
+}
+
+.notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 13px / 1.5 var(--ui);
+}
+
+.notes-table th,
+.notes-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.notes-table thead th {
+  font: 400 11px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.notes-table tbody th {
+  font-weight: 500;
+}
+
+/* Template filler, quieter than the owner's own writing. */
+.notes-table tr.is-sample {
+  color: var(--ink-3);
+}
+
+.notes-missing {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}

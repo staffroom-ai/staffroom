@@ -39,7 +39,7 @@ export type ClientMessage =
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
   | { type: "brain.graph.get"; reqId: string; includeReads?: boolean }
   | { type: "runs.replay"; reqId: string; runId: string }
-  | { type: "note.reveal"; reqId: string; noteId: string }
+  | { type: "note.reveal"; reqId: string; noteId: string; app?: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
   | { type: "mcp.reconnect"; reqId: string; server: string }
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
@@ -56,6 +56,8 @@ export type ServerMessage =
       version: string;
       mode: "live" | "demo";
       platform: "mac" | "windows" | "linux";
+      /** Markdown editors on this machine. Empty means no "Open in editor". */
+      editors: { id: string; label: string }[];
       resumed: boolean;
       state: OfficeState;
     }

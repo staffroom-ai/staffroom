@@ -252,7 +252,7 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
       // SR-043: shows the note in Finder or Explorer, so the owner can see that
       // their deliverables are ordinary files they own.
       case "note.reveal": {
-        const revealed = office.revealNote?.(message.noteId);
+        const revealed = office.revealNote?.(message.noteId, message.app);
         return revealed === true
           ? { ok: true, result: { noteId: message.noteId } }
           : {

@@ -22,6 +22,15 @@ const MAX_CUES = 60;
  */
 export interface ToolNotice {
   id: number;
+  /**
+   * What this card is about.
+   *
+   * A brain warning and a broken tool file both arrive as cards in the feed, but
+   * "Your tool file x could not be loaded" is the wrong sentence for a note with
+   * unparseable front matter, and telling somebody the wrong thing went wrong
+   * costs them the time it takes to go and look.
+   */
+  kind?: "tool" | "brain";
   file: string;
   ok: boolean;
   message?: string;
@@ -52,6 +61,8 @@ export interface OfficeStore {
   version: string;
   /** From `welcome`, so the UI can name the file manager the owner actually has. */
   platform: "mac" | "windows" | "linux";
+  /** Markdown editors on this machine. Empty means no "Open in editor". */
+  editors: { id: string; label: string }[];
 
   selectedAgentId: string | null;
   focusedPod: number | null;
@@ -74,6 +85,7 @@ export interface OfficeStore {
     mode: "live" | "demo",
     version: string,
     platform?: "mac" | "windows" | "linux",
+    editors?: { id: string; label: string }[],
   ) => void;
   applyState: (state: OfficeState) => void;
   applyEvent: (envelope: RunEventEnvelope, reducedMotion?: boolean) => void;
@@ -95,6 +107,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   mode: "demo",
   version: "",
   platform: "mac",
+  editors: [],
 
   selectedAgentId: null,
   focusedPod: null,
@@ -113,13 +126,14 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
 
   // A welcome replaces everything: it is the office's own account of itself, and
   // anything this tab had inferred is stale by definition.
-  applyWelcome: (state, mode, version, platform) =>
+  applyWelcome: (state, mode, version, platform, editors) =>
     set({
       state,
       mode,
       version,
       connection: "open",
       ...(platform === undefined ? {} : { platform }),
+      ...(editors === undefined ? {} : { editors }),
     }),
 
   applyState: (state) => set({ state }),

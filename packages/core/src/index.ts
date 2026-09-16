@@ -150,6 +150,8 @@ export {
   redactSecrets,
   redactSecretsCounted,
 } from "./redact.js";
+export type { DetectedEditor } from "./runtime/editors.js";
+export { detectEditors, openCommandFor } from "./runtime/editors.js";
 export type {
   ErrorDetail,
   ProviderErrorOptions,

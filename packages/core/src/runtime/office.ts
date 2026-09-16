@@ -58,7 +58,7 @@ export interface Office {
   renameAgent(agentId: string, name: string): boolean;
   assignTool(agentId: string, tool: string): boolean;
   setProviderKey(provider: string, key: string): boolean;
-  revealNote(noteId: string): boolean;
+  revealNote(noteId: string, app?: string): boolean;
   close(): void;
 }
 
@@ -363,7 +363,7 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
       return true;
     },
     setProviderKey: (provider: string, key: string) => setProviderKey(officeDir, provider, key),
-    revealNote: (noteId: string) => revealNote(brainDir, noteId),
+    revealNote: (noteId: string, app?: string) => revealNote(brainDir, noteId, app),
     warnings,
     toolFailures,
     mcp,
