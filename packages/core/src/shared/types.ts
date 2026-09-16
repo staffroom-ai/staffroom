@@ -7,7 +7,7 @@
 export type ToolSource =
   | { kind: "builtin" }
   | { kind: "custom"; file: string }
-  | { kind: "mcp"; server: string };
+  | { kind: "mcp"; server: string; schema?: unknown };
 
 /**
  * What the owner sees before they allow something to leave the machine.

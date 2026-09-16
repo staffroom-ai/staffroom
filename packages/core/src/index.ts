@@ -59,6 +59,13 @@ export type { Department, Seat } from "./config/roster.js";
 export { Roster, RosterWriter } from "./config/roster.js";
 export type { ToolNameResolver, ValidateOptions } from "./config/validate.js";
 export { validateAgents } from "./config/validate.js";
+export type {
+  McpManagerOptions,
+  McpState,
+  McpStatus,
+  McpToolsChanged,
+} from "./mcp/manager.js";
+export { capDescription, capSchema, fingerprint, McpManager } from "./mcp/manager.js";
 // What the office looks like
 export type {
   ActiveRun,

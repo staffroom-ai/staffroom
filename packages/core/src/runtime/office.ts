@@ -12,6 +12,7 @@ import type { OfficeConfig } from "../config/config.js";
 import { loadAgentsFile, loadConfig } from "../config/load.js";
 import { Roster } from "../config/roster.js";
 import { type ConfigErrorLike, validateAgents } from "../config/validate-types.js";
+import { McpManager } from "../mcp/manager.js";
 import { AnthropicAdapter } from "../providers/anthropic.js";
 import { OllamaAdapter } from "../providers/ollama.js";
 import { OpenAIAdapter } from "../providers/openai.js";
@@ -37,6 +38,8 @@ export interface Office {
   store: RunStore;
   providers: Map<string, ProviderAdapter>;
   mode: "live" | "demo";
+  /** Connections to MCP servers, and their health. */
+  mcp: McpManager;
   /** Problems that did not stop the office opening. */
   warnings: ConfigErrorLike[];
   toolFailures: LoadFailure[];
@@ -54,6 +57,8 @@ export interface CreateOfficeOptions {
   adapters?: Map<string, ProviderAdapter>;
   /** Skips loading office/tools, for tests that do not need them. */
   skipCustomTools?: boolean;
+  /** Skips connecting to MCP servers, for tests that do not need them. */
+  skipMcp?: boolean;
   /**
    * Says outright whether this is a demo. Inferring it from the adapter count is
    * wrong the moment demo mode injects one: a replaying office would report
@@ -219,6 +224,23 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     toolFailures.push(...custom.failures);
   }
 
+  // MCP servers are started without being waited for. One on the other side of a
+  // slow network, or one that never answers, must not hold the office closed:
+  // it shows as unavailable on the connector strip and the staff carry on.
+  const mcp = new McpManager({ config: loaded.config.mcp });
+  mcp.wire(
+    (tool) => {
+      try {
+        tools.register(tool);
+      } catch {
+        // A name that collides with something already registered. The connector
+        // strip reports the server; one tool is not worth refusing the rest.
+      }
+    },
+    (name) => tools.unregister(name),
+  );
+  if (options.skipMcp !== true) mcp.start();
+
   // Checked after the tools exist, so a roster naming a custom tool validates.
   const warnings: ConfigErrorLike[] = [
     ...loaded.warnings,
@@ -266,7 +288,9 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     revealNote: (noteId: string) => revealNote(brainDir, noteId),
     warnings,
     toolFailures,
+    mcp,
     close: () => {
+      void mcp.stop();
       store.close();
       brain.close();
     },
