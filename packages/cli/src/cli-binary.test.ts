@@ -32,9 +32,14 @@ function temp(): string {
 }
 
 describe.skipIf(!built)("the built CLI", () => {
-  it("starts with a shebang and is executable", () => {
+  it("starts with a shebang", () => {
     expect(readFileSync(BIN, "utf8").split("\n")[0]).toBe("#!/usr/bin/env node");
-    // Owner execute bit. npm relies on this for the bin link.
+  });
+
+  // NTFS has no POSIX permission bits, and npm does not use them there: on
+  // Windows the bin entry becomes a generated .cmd shim instead. Asserting the
+  // mode there fails for a reason that has nothing to do with the package.
+  it.skipIf(process.platform === "win32")("is executable", () => {
     expect(statSync(BIN).mode & 0o100).toBe(0o100);
   });
 
