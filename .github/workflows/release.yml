@@ -39,14 +39,31 @@ jobs:
       - run: pnpm test
 
       # Opens or updates a "Version Packages" pull request while changesets are
-      # pending; publishes once that pull request is merged.
-      - name: Version or publish
+      # pending. Publishing is done below, not here.
+      - name: Version
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          publish: pnpm changeset publish
           title: "Version packages"
           commit: "Version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
+
+      # Published with npm, not pnpm. Trusted publishing is an npm CLI feature
+      # (11.5.1+) and `pnpm changeset publish` publishes with pnpm, which was
+      # refused with "OIDC permission denied". Dependency order by hand, because
+      # each package must exist before the ones that depend on it.
+      - name: Publish to npm
+        run: |
+          set -e
+          for p in core templates web server cli; do
+            dir="packages/$p"
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            if npm view "$name@$version" version > /dev/null 2>&1; then
+              echo "$name@$version is already published"
+              continue
+            fi
+            echo "Publishing $name@$version"
+            (cd "$dir" && npm publish --access public --provenance)
+          done
