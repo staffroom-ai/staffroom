@@ -30,6 +30,20 @@ const SILENT_SOCKET_MS = 60_000;
 const STATE_COALESCE_MS = 250;
 const CLOCK_MS = 30_000;
 
+/**
+ * Events that change who is busy. These go out immediately rather than being
+ * coalesced, because "who is working" is the question the office answers.
+ */
+const LIFECYCLE: ReadonlySet<string> = new Set([
+  "started",
+  "done",
+  "failed",
+  "cancelled",
+  "approval_requested",
+  "approval_resolved",
+  "routed",
+]);
+
 interface Client {
   socket: WebSocket;
   helloed: boolean;
@@ -61,7 +75,13 @@ export class SocketHub {
     // run log keeps.
     this.unsubscribe = options.office.store.subscribe((envelope: RunEventEnvelope) => {
       this.push({ type: "event", seq: 0, event: envelope });
-      this.scheduleState();
+      // A status change is the one thing the office exists to show, so it is not
+      // made to wait behind the coalescing window. A replayed demo run finishes
+      // in a few hundred milliseconds; with everything coalesced at 250 ms the
+      // browser could receive its first snapshot after the work was already done
+      // and never show anyone working at all.
+      if (LIFECYCLE.has(envelope.event.type)) this.pushStateNow();
+      else this.scheduleState();
     });
 
     this.every(SILENT_SOCKET_MS / 2, () => this.dropSilentSockets());
@@ -197,6 +217,15 @@ export class SocketHub {
   }
 
   /** Coalesced, so a burst of events produces one snapshot rather than twenty. */
+  /** Send the snapshot at once, and cancel any push already queued behind it. */
+  private pushStateNow(): void {
+    if (this.stateTimer !== undefined) {
+      clearTimeout(this.stateTimer);
+      this.stateTimer = undefined;
+    }
+    void this.pushState();
+  }
+
   scheduleState(): void {
     if (this.stateTimer !== undefined) return;
     const delay = this.options.coalesceMs ?? STATE_COALESCE_MS;

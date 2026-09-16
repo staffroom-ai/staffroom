@@ -1,0 +1,14 @@
+[
+  {
+    "name": "first load (everyone pays this)",
+    "path": ["dist/assets/index-*.js", "dist/assets/*.css"],
+    "limit": "95 kB",
+    "gzip": true
+  },
+  {
+    "name": "the 3D office (only when it draws)",
+    "path": "dist/assets/Scene-*.js",
+    "limit": "260 kB",
+    "gzip": true
+  }
+]

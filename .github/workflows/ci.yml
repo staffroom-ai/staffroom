@@ -95,3 +95,38 @@ jobs:
           for p in packages/cli packages/core packages/server packages/web packages/templates; do
             (cd "$p" && npm pack --dry-run)
           done
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install Chromium
+        run: pnpm --filter @staffroom/web exec playwright install --with-deps chromium
+      - name: Smoke test
+        run: pnpm --filter @staffroom/web e2e
+      - name: No office left running
+        # Teardown kills the child it started. A server still holding a port here
+        # would make the next run fail for a reason unrelated to the change.
+        run: |
+          if pgrep -f "cli/dist/index.js" > /dev/null; then
+            echo "An office survived teardown:"
+            pgrep -af "cli/dist/index.js"
+            exit 1
+          fi
+          echo "Nothing left running."
+      - name: Size budget
+        run: pnpm --filter @staffroom/web size | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep the trace when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: packages/web/test-results/
+          retention-days: 7
