@@ -89,19 +89,30 @@ describe("the paths it looks in", () => {
   });
 
   it("looks in the app folder on a Mac", () => {
-    const paths = candidatesFor("darwin", "/Users/someone").flatMap((c) => c.paths);
+    const paths = candidatesFor("darwin", "/Users/someone")
+      .flatMap((c) => c.paths)
+      .map((p) => p.split("\\").join("/"));
     expect(paths.some((p) => p.includes("/Applications/Obsidian.app"))).toBe(true);
   });
 
   it("looks where Windows actually installs them", () => {
-    const paths = candidatesFor("win32", "C:\\Users\\someone").flatMap((c) => c.paths);
+    const paths = candidatesFor("win32", "C:\\Users\\someone")
+      .flatMap((c) => c.paths)
+      .map((p) => p.split("\\").join("/"));
     // Obsidian installs per-user, VS Code either way.
     expect(paths.some((p) => p.includes("Obsidian.exe"))).toBe(true);
     expect(paths.some((p) => p.includes("Code.exe"))).toBe(true);
   });
 
   it("looks on PATH and in Flatpak on Linux", () => {
-    const paths = candidatesFor("linux", "/home/someone").flatMap((c) => c.paths);
+    // Separators normalised: these paths are joined with the host's own, and the
+    // host running the tests is not always the platform being asked about. On a
+    // real machine candidatesFor is only ever called with its own platform, so
+    // what is being checked here is the list of places, not the slashes.
+    const paths = candidatesFor("linux", "/home/someone")
+      .flatMap((c) => c.paths)
+      .map((p) => p.split("\\").join("/"));
+
     expect(paths.some((p) => p === "/usr/bin/obsidian")).toBe(true);
     expect(paths.some((p) => p.includes("flatpak"))).toBe(true);
     // A user-local install too: not everyone can write to /usr/bin.
