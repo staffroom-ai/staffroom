@@ -49,12 +49,16 @@ export interface Ingested {
 function describe(
   event: RunEvent,
   agentName: string,
+  nameOf: (agentId: string) => string,
 ): { text: string; tone: ActivityLine["tone"] } | undefined {
   switch (event.type) {
     case "started":
       return { text: `${agentName} started work.`, tone: "normal" };
     case "routed":
-      return { text: `Handed to ${event.toAgentId}.`, tone: "normal" };
+      // By name, not by id. The line right under this one says "Handed to Priya",
+      // and an office that calls the same person two different things in two
+      // consecutive lines does not look like it knows who works there.
+      return { text: `Handed to ${nameOf(event.toAgentId)}.`, tone: "normal" };
     case "tool_call":
       return {
         text:
@@ -102,7 +106,7 @@ export function ingestEvent(envelope: RunEventEnvelope, options: IngestOptions =
   const activity: ActivityLine[] = [];
 
   const named = options.agentName?.(agentId) ?? agentId;
-  const described = describe(event, named);
+  const described = describe(event, named, (id) => options.agentName?.(id) ?? id);
   if (described !== undefined) {
     activity.push({ id: seq, runId, agentId, at, text: described.text, tone: described.tone });
   }
