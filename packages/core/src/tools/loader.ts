@@ -36,7 +36,10 @@ export interface LoadResult {
  */
 const CORE_ENTRY = (() => {
   const here = dirname(fileURLToPath(import.meta.url));
-  for (const candidate of ["../index.js", "../index.ts"]) {
+  // "index.js" first: once bundled this module IS dist/index.js, so our entry is
+  // the file beside it, not one directory up. The same depth-counting mistake as
+  // the cache folder, and invisible in tests, which run from the source tree.
+  for (const candidate of ["index.js", "../index.js", "../index.ts"]) {
     const path = resolve(here, candidate);
     if (existsSync(path)) return pathToFileURL(path).href;
   }
@@ -53,7 +56,22 @@ const CORE_ENTRY = (() => {
  * bundle here means that walk always succeeds, on every platform, with no path
  * rewriting to get wrong.
  */
-const DEFAULT_CACHE = resolve(dirname(fileURLToPath(import.meta.url)), "../../.tools-cache");
+const DEFAULT_CACHE = (() => {
+  // Walk up to this package's own root rather than counting directories. The
+  // depth differs between the source tree (src/tools/loader.ts) and the bundle
+  // (dist/index.js), so a fixed "../../" resolved inside packages/core when
+  // running under vitest and one level too high — packages/ — once built, where
+  // no node_modules walk can find zod. The tests passed and the shipped server
+  // could not load a single tool.
+  let here = dirname(fileURLToPath(import.meta.url));
+  for (let up = 0; up < 6; up++) {
+    if (existsSync(join(here, "package.json"))) return join(here, ".tools-cache");
+    const parent = dirname(here);
+    if (parent === here) break;
+    here = parent;
+  }
+  return resolve(dirname(fileURLToPath(import.meta.url)), "../../.tools-cache");
+})();
 
 /** Only @staffroom/core needs rewriting: a package cannot reliably import itself. */
 const coreAlias = {

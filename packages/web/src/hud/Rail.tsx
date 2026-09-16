@@ -11,7 +11,8 @@
 import type { Agent, DeliverableSummary, OfficeState, PendingApprovalView } from "@staffroom/core";
 import { type ReactElement, useEffect, useRef } from "react";
 import type { ActivityLine } from "../cues.js";
-import type { ChatTurn } from "../store.js";
+import type { ChatTurn, ToolNotice } from "../store.js";
+import { Activity } from "./Activity.js";
 import { ApprovalCard } from "./ApprovalCard.js";
 import { Chat } from "./Chat.js";
 
@@ -71,6 +72,9 @@ export function Rail({
   platform,
   onRename,
   onSend,
+  notices,
+  onAssign,
+  onDismissNotice,
 }: {
   state: OfficeState;
   activity: ActivityLine[];
@@ -86,6 +90,9 @@ export function Rail({
   platform: "mac" | "windows" | "linux";
   onRename: (agentId: string, name: string) => void;
   onSend: (agentId: string, text: string) => void;
+  notices: ToolNotice[];
+  onAssign: (tool: string, agentIds: string[]) => void;
+  onDismissNotice: (id: number) => void;
 }): ReactElement {
   const feed = useRef<HTMLDivElement>(null);
 
@@ -114,10 +121,11 @@ export function Rail({
             Waiting for you
             <span className="rail-count">{state.approvals.length}</span>
           </h2>
-          {state.approvals.map((approval) => (
+          {state.approvals.map((approval, index) => (
             <ApprovalCard
               key={approval.id}
               approval={approval}
+              chords={index === 0}
               onDecide={(decision, note) => onDecide(approval, decision, note)}
             />
           ))}
@@ -140,6 +148,7 @@ export function Rail({
           aria-pressed={tab === "activity"}
         >
           Activity
+          {notices.length > 0 && <span className="rail-count">{notices.length}</span>}
         </button>
         <button
           type="button"
@@ -168,20 +177,13 @@ export function Rail({
       )}
 
       {tab === "activity" && (
-        <div className="rail-feed" ref={feed} aria-live="polite">
-          {activity.length === 0 ? (
-            <Empty hint="Pick a department in the bar below, say what you need in a sentence, and every step they take shows up here.">
-              Nothing has happened yet.
-            </Empty>
-          ) : (
-            activity.map((line) => (
-              <p key={line.id} className={`feed-line feed-${line.tone}`}>
-                <time className="feed-time">{timeOf(line.at)}</time>
-                <span className="feed-text">{line.text}</span>
-              </p>
-            ))
-          )}
-        </div>
+        <Activity
+          state={state}
+          activity={activity}
+          notices={notices}
+          onAssign={onAssign}
+          onDismissNotice={onDismissNotice}
+        />
       )}
 
       {tab === "results" && (

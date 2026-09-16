@@ -61,7 +61,14 @@ export type ServerMessage =
     }
   | { type: "config.error"; seq: number; errors: ConfigError[] }
   | { type: "config.reloaded"; seq: number; file: string }
-  | { type: "tools.reloaded"; seq: number; file: string; ok: boolean; message?: string }
+  | {
+      type: "tools.reloaded";
+      seq: number;
+      file: string;
+      ok: boolean;
+      message?: string;
+      tools?: string[];
+    }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
   | { type: "brain.warning"; seq: number; scope: "note"; id: string; reason: string }
   | { type: "pong"; reqId: string; seq: number };

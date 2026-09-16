@@ -26,8 +26,13 @@ export interface ApprovalPreview {
   summary: string;
   /** The full content that will be sent, unabridged. */
   body: string;
-  /** Named fields the owner may edit before approving, such as a recipient. */
-  fields?: Array<{ name: string; value: string; editable: boolean }>;
+  /**
+   * Named fields the owner may edit before approving, such as a recipient.
+   * `sensitive` fields are shown masked: an approval card is often read with
+   * someone looking over the owner's shoulder, and a token on screen is a token
+   * leaked.
+   */
+  fields?: Array<{ name: string; value: string; editable: boolean; sensitive?: boolean }>;
   /** True when it cannot be taken back: a send, a payment, a delete. */
   irreversible: boolean;
   /**

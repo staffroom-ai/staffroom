@@ -12,6 +12,7 @@ import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
 import { type SaveState, Settings } from "./hud/Settings.js";
+import { StoppedBanner } from "./hud/StoppedBanner.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
 import { Scene } from "./scene/Scene.js";
@@ -64,6 +65,14 @@ export function App(): ReactElement {
             break;
           case "event":
             state.applyEvent(message.event);
+            break;
+          case "tools.reloaded":
+            state.addToolNotice({
+              file: message.file,
+              ok: message.ok,
+              ...(message.message === undefined ? {} : { message: message.message }),
+              ...(message.tools === undefined ? {} : { tools: message.tools }),
+            });
             break;
           case "ack": {
             const provider = keyReqs.current.get(message.reqId);
@@ -155,6 +164,7 @@ export function App(): ReactElement {
       <Scene state={state} />
 
       <div className="hud">
+        <StoppedBanner connection={store.connection} platform={store.platform} />
         <TopBar
           state={state}
           mode={store.mode}
@@ -237,6 +247,15 @@ export function App(): ReactElement {
             onSend={(agentId, text) =>
               socket?.send({ type: "chat.send", reqId: reqId(), agentId, text })
             }
+            notices={store.toolNotices}
+            onDismissNotice={(id) => useOfficeStore.getState().dismissToolNotice(id)}
+            onAssign={(tool, agentIds) => {
+              // One message per agent: the server's tools.assign takes a single
+              // pair, and a card with three people ticked is three assignments.
+              for (const agentId of agentIds) {
+                socket?.send({ type: "tools.assign", reqId: reqId(), agentId, tool });
+              }
+            }}
           />
         </div>
       </div>

@@ -206,7 +206,8 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
       onEvent: (event) => {
         if (event.type === "config.reloaded") hub.broadcastConfigReloaded(event.file);
         else if (event.type === "config.error") hub.broadcastConfigError(event.errors);
-        else if (event.type === "tools.reloaded") hub.broadcastToolsReloaded(event.file, event.ok);
+        else if (event.type === "tools.reloaded")
+          hub.broadcastToolsReloaded(event.file, event.ok, event.message, event.tools);
         else hub.scheduleState();
       },
     });

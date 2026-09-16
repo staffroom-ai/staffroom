@@ -234,3 +234,51 @@ describe("the first five minutes", () => {
     socket.close();
   });
 });
+
+/**
+ * Custom tools, loaded through the built @staffroom/core the way the published
+ * package does.
+ *
+ * This lives in the server package on purpose. Core's own tests import from its
+ * source tree, where the loader's relative paths happen to be right; the bundle
+ * flattens the directory depth and they were not. That difference shipped: the
+ * built package could not load a single custom tool, and every test was green.
+ */
+describe("a tool the owner wrote themselves", () => {
+  it("loads from the built core, so bare imports in it resolve", async () => {
+    const dir = freshOffice();
+    mkdirSync(join(dir, "tools"), { recursive: true });
+    writeFileSync(
+      join(dir, "tools", "orders.ts"),
+      [
+        'import { z } from "zod";',
+        'import { tool } from "@staffroom/core";',
+        "export default tool({",
+        '  name: "lookup_order",',
+        '  description: "Look up an order by id.",',
+        '  scope: "read",',
+        "  input: z.object({ id: z.string() }),",
+        '  async run({ id }) { return { id, status: "shipped" }; },',
+        "});",
+        "",
+      ].join("\n"),
+    );
+
+    const { office } = await boot({ officeDir: dir });
+    expect(office.toolFailures).toEqual([]);
+    expect(office.tools.has("lookup_order")).toBe(true);
+  });
+
+  it("reports a file that will not compile and keeps the office open", async () => {
+    const dir = freshOffice();
+    mkdirSync(join(dir, "tools"), { recursive: true });
+    writeFileSync(join(dir, "tools", "broken.ts"), "export const nope = ((((\n");
+
+    const { office } = await boot({ officeDir: dir });
+    expect(office.toolFailures).toHaveLength(1);
+    expect(office.toolFailures[0]?.file).toContain("broken.ts");
+    // The office still opened, which is the whole point of reporting rather than
+    // throwing: one bad file must not take the staff offline.
+    expect(office.roster.agents.length).toBeGreaterThan(0);
+  });
+});

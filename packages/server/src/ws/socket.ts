@@ -250,8 +250,17 @@ export class SocketHub {
     this.push({ type: "config.error", seq: 0, errors });
   }
 
-  broadcastToolsReloaded(file: string, ok: boolean): void {
-    this.push({ type: "tools.reloaded", seq: 0, file, ok });
+  broadcastToolsReloaded(file: string, ok: boolean, message?: string, tools?: string[]): void {
+    // The message and the tool names used to be dropped here, which left the
+    // browser unable to say why a tool file failed or which tool had appeared.
+    this.push({
+      type: "tools.reloaded",
+      seq: 0,
+      file,
+      ok,
+      ...(message === undefined ? {} : { message }),
+      ...(tools === undefined ? {} : { tools }),
+    });
     this.scheduleState();
   }
 

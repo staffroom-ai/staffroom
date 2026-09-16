@@ -90,6 +90,7 @@ export type ServerMessage =
       name?: string;
       ok: boolean;
       message?: string;
+      tools?: string[];
     }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
   | { type: "brain.warning"; seq: number; scope: "note"; id: string; reason: string }

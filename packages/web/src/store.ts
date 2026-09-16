@@ -15,6 +15,19 @@ import type { Connection } from "./ws.js";
 const MAX_ACTIVITY = 200;
 const MAX_CUES = 60;
 
+/**
+ * Something the office noticed about a tool file. Kept as a list rather than
+ * shown as a toast: a card about a tool that will not compile has to survive long
+ * enough for the owner to read the line number and copy it.
+ */
+export interface ToolNotice {
+  id: number;
+  file: string;
+  ok: boolean;
+  message?: string;
+  tools?: string[];
+}
+
 export interface ChatTurn {
   runId: string;
   role: "owner" | "agent";
@@ -42,6 +55,7 @@ export interface OfficeStore {
   runAgents: Record<string, string>;
   /** Task requests we are waiting on, so a routed event can open the right chat. */
   pendingTaskReqIds: Set<string>;
+  toolNotices: ToolNotice[];
   lastError: { code: string; message: string; hint: string } | undefined;
 
   setConnection: (connection: Connection) => void;
@@ -58,6 +72,8 @@ export interface OfficeStore {
   focusPod: (pod: number | null) => void;
   openRail: (rail: OfficeStore["rail"]) => void;
   openOverlay: (overlay: OfficeStore["overlay"]) => void;
+  addToolNotice: (notice: Omit<ToolNotice, "id">) => void;
+  dismissToolNotice: (id: number) => void;
   trackTask: (reqId: string) => void;
   resolveTask: (reqId: string) => void;
   drainAnimations: () => AnimationCue[];
@@ -80,6 +96,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   chats: {},
   runAgents: {},
   pendingTaskReqIds: new Set(),
+  toolNotices: [],
   lastError: undefined,
 
   setConnection: (connection) => set({ connection }),
@@ -156,6 +173,17 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   },
 
   applyError: (lastError) => set({ lastError }),
+
+  // One card per file: a watcher that fires twice on one save should not stack
+  // two identical cards for the owner to dismiss.
+  addToolNotice: (notice) => {
+    const { toolNotices } = get();
+    const id = (toolNotices.at(-1)?.id ?? 0) + 1;
+    set({ toolNotices: [...toolNotices.filter((n) => n.file !== notice.file), { ...notice, id }] });
+  },
+
+  dismissToolNotice: (id) =>
+    set({ toolNotices: get().toolNotices.filter((notice) => notice.id !== id) }),
 
   selectAgent: (selectedAgentId) => set({ selectedAgentId }),
   focusPod: (focusedPod) => set({ focusedPod }),

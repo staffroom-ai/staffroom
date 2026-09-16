@@ -9,13 +9,21 @@
  */
 
 import { join } from "node:path";
-import type { ConfigError, Office } from "@staffroom/core";
+import { type ConfigError, loadCustomTools, type Office } from "@staffroom/core";
 import { type FSWatcher, watch } from "chokidar";
 
 export type WatchEvent =
   | { type: "config.reloaded"; file: "agents.yaml" | "config.yaml" | ".env" | "approvals.yaml" }
   | { type: "config.error"; errors: ConfigError[] }
-  | { type: "tools.reloaded"; file: string; ok: boolean; message?: string }
+  | {
+      type: "tools.reloaded";
+      file: string;
+      ok: boolean;
+      /** Why it would not load, in the compiler's own words. */
+      message?: string;
+      /** Names of the tools this file defines, when it loaded. */
+      tools?: string[];
+    }
   | { type: "brain.changed"; path: string };
 
 export interface WatchOptions {
@@ -105,13 +113,58 @@ export class OfficeWatchers {
     });
   }
 
+  /**
+   * A changed tool file is actually loaded before it is announced.
+   *
+   * This used to report `ok: true` without opening the file at all, so a tool
+   * with a syntax error looked exactly like one that worked and the owner found
+   * out only when an agent tried to use it. One bad file never stops the others,
+   * and a failure leaves whatever was already registered running.
+   */
   private onToolChange(path: string): void {
+    const file = path.split(/[/\\]/).pop() ?? path;
+
     this.debounce(path, 200, () => {
-      this.options.onEvent({
-        type: "tools.reloaded",
-        file: path.split(/[/\\]/).pop() ?? path,
-        ok: true,
-      });
+      const { office, officeDir } = this.options;
+      const dir = join(officeDir, office.config.tools.custom_dir);
+
+      loadCustomTools({ dir })
+        .then((result) => {
+          const failure = result.failures.find((f) => f.file.endsWith(file));
+          if (failure !== undefined) {
+            this.options.onEvent({
+              type: "tools.reloaded",
+              file,
+              ok: false,
+              message: failure.message,
+            });
+            return;
+          }
+
+          // Register anything new. Re-registering an existing name throws, and
+          // that is not a failure worth reporting: it just means nothing changed
+          // about which tools exist.
+          const names: string[] = [];
+          for (const { tool, file: from } of result.tools) {
+            if (!from.endsWith(file)) continue;
+            names.push(tool.name);
+            try {
+              office.tools.register(tool);
+            } catch {
+              // Already registered under this name.
+            }
+          }
+
+          this.options.onEvent({ type: "tools.reloaded", file, ok: true, tools: names });
+        })
+        .catch((error: unknown) => {
+          this.options.onEvent({
+            type: "tools.reloaded",
+            file,
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
     });
   }
 

@@ -1381,3 +1381,118 @@ body::before {
   padding-top: 0;
   border-top: 0;
 }
+
+/* ── activity: filters and tool cards ────────────────────────────────────── */
+
+.feed-filters {
+  display: flex;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.feed-search,
+.feed-who {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: 400 12px / 1.3 var(--ui);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.feed-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feed-who {
+  flex: 0 0 auto;
+  max-width: 40%;
+}
+
+.tool-card {
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  padding: 11px 12px;
+  margin-bottom: 10px;
+  background: var(--surface-2);
+}
+
+.tool-card-bad {
+  border-color: var(--danger);
+  background: var(--surface);
+}
+
+.tool-card-text {
+  margin: 0 0 9px;
+  font: 400 13px / 1.5 var(--ui);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.tool-card-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 10px;
+}
+
+.tool-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: 400 13px / 1.3 var(--ui);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.tool-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── the office has stopped ──────────────────────────────────────────────── */
+
+.stopped {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 9px 16px;
+  background: var(--warning-wash);
+  border-bottom: 1px solid var(--warning);
+}
+
+.stopped-text {
+  margin: 0;
+  font: 500 13px / 1.4 var(--ui);
+  color: var(--warning);
+}
+
+.stopped-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stopped-command {
+  font: 400 13px / 1.4 var(--mono);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+.approval-armed {
+  margin: 8px 0 0;
+  font: 500 12px / 1.4 var(--ui);
+  color: var(--accent);
+}
+
+.is-masked {
+  letter-spacing: 0.08em;
+}
