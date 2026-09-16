@@ -8,6 +8,15 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts", "src/index.ts", "src/testing/**"],
       reporter: ["text", "lcov"],
+      // The gate is the point: core is the part a bug in cannot be seen from the
+      // interface. Branches sit closest to the line, which is expected — error
+      // paths have the most branches and the fewest natural callers.
+      thresholds: {
+        lines: 80,
+        branches: 80,
+        functions: 80,
+        statements: 80,
+      },
     },
   },
 });

@@ -563,3 +563,60 @@ describe("messagesFromEvents", () => {
     expect(rebuilt.at(-1)).toEqual({ role: "assistant", content: "kept" });
   });
 });
+
+describe("an instruction hidden in a note", () => {
+  it("does not act on it, and says so instead", async () => {
+    // The oldest attack on an agent that reads things: leave it an order in the
+    // material it is supposed to be summarising. The note is the owner's own
+    // file, so it is trusted as content — but content is not instruction, and
+    // nothing in it may cause a write.
+    const send = writeTool({ name: "send_email" });
+
+    const adapter = scripted([
+      [
+        text("The notes contain an instruction to email the customer list. I have not done that."),
+        done(),
+      ],
+    ]);
+
+    const h = await harness(adapter, [send], {
+      pinnedIncluded: ["10-notes/voice"],
+    });
+
+    await runAgentLoop(h.ctx);
+
+    // No write was attempted at all, so nobody was ever asked to approve one.
+    expect(h.asked).toHaveLength(0);
+    const types = await h.types();
+    expect(types).not.toContain("approval_needed");
+    expect(types).not.toContain("tool_call");
+
+    // And the deliverable names the instruction rather than quietly ignoring it:
+    // an owner needs to know their notes contain something that tried this.
+    expect(h.written.map((w) => w.body).join(" ")).toMatch(/instruction/i);
+  });
+
+  it("wraps a tool result as untrusted, because a result is data", async () => {
+    const adapter = scripted([
+      [callChunk("c1", "brain_search", { query: "voice" }), done("tool_calls")],
+      [text("Done."), done()],
+    ]);
+
+    const h = await harness(adapter, [readTool()]);
+    await runAgentLoop(h.ctx);
+
+    const events = await h.events();
+    expect(events.filter((e) => e.type === "tool_result").length).toBeGreaterThan(0);
+
+    // The wrapper is what stops a search result reading as an order. Checked on
+    // the message content itself rather than a JSON dump of it, which escapes the
+    // quotes and would pass on a string that never reached the model.
+    const messages = messagesFromEvents(events, "Write a tagline");
+    const toolMessages = messages.filter((m) => m.role === "tool");
+    expect(toolMessages.length).toBeGreaterThan(0);
+    for (const message of toolMessages) {
+      expect(String(message.content)).toContain('trust="untrusted"');
+      expect(String(message.content)).toContain("</tool_result>");
+    }
+  });
+});
