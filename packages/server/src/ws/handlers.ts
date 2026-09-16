@@ -192,19 +192,61 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
       }
 
       // SR-058: which agents may use a tool, without editing YAML by hand.
+      /*
+       * SR-058: the answer to "New tool x is ready. Who may use it?"
+       *
+       * Several agents at once, because that is the question the card asks. An
+       * id that already has the tool is not a failure — the row is already how
+       * the owner wants it — so only an id that could not be written at all
+       * stops this. Reporting those by name matters: silently assigning three of
+       * four and answering ok would leave somebody wondering why one of their
+       * staff still cannot use it.
+       */
       case "tools.assign": {
-        const assigned = office.assignTool?.(message.agentId, message.tool);
-        if (assigned !== true) {
+        if (message.agentIds.length === 0) {
           return {
             ok: false,
             error: {
               code: "AGENT_TOOL_UNKNOWN",
-              message: `Could not give ${message.tool} to ${message.agentId}.`,
+              message: "Nobody was chosen, so nothing was given out.",
+              hint: "Tick at least one person on the card.",
+            },
+          };
+        }
+
+        const has = (agentId: string): boolean =>
+          office.agentsFile.agents.some(
+            (agent) => agent.id === agentId && agent.tools.includes(message.name),
+          );
+
+        const failed: string[] = [];
+        for (const agentId of message.agentIds) {
+          // Nothing was written when they already had it, which is not a
+          // failure: the row is already what the owner is asking for.
+          if (office.assignTool?.(agentId, message.name) !== true && !has(agentId)) {
+            failed.push(agentId);
+          }
+        }
+
+        if (failed.length === message.agentIds.length) {
+          return {
+            ok: false,
+            error: {
+              code: "AGENT_TOOL_UNKNOWN",
+              message: `Could not give ${message.name} to ${failed.join(", ")}.`,
               hint: "Check the tool name in office/tools/ or config.yaml mcp.servers.",
             },
           };
         }
-        return { ok: true, result: { agentId: message.agentId, tool: message.tool } };
+
+        return {
+          ok: true,
+          result: {
+            name: message.name,
+            assigned: message.agentIds.filter((id) => !failed.includes(id)),
+            ...(failed.length === 0 ? {} : { failed }),
+          },
+        };
       }
 
       // SR-043: shows the note in Finder or Explorer, so the owner can see that

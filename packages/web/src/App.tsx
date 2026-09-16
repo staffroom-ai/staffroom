@@ -95,7 +95,12 @@ export function App(): ReactElement {
               file: message.file,
               ok: message.ok,
               ...(message.message === undefined ? {} : { message: message.message }),
+              ...(message.line === undefined ? {} : { line: message.line }),
               ...(message.tools === undefined ? {} : { tools: message.tools }),
+              ...(message.name === undefined ? {} : { name: message.name }),
+              ...(message.warning === undefined ? {} : { warning: message.warning }),
+              ...(message.unassigned === undefined ? {} : { unassigned: message.unassigned }),
+              ...(message.agents === undefined ? {} : { agents: message.agents }),
             });
             break;
           case "ack": {
@@ -376,13 +381,12 @@ export function App(): ReactElement {
             }
             notices={store.toolNotices}
             onDismissNotice={(id) => useOfficeStore.getState().dismissToolNotice(id)}
-            onAssign={(tool, agentIds) => {
-              // One message per agent: the server's tools.assign takes a single
-              // pair, and a card with three people ticked is three assignments.
-              for (const agentId of agentIds) {
-                socket?.send({ type: "tools.assign", reqId: reqId(), agentId, tool });
-              }
-            }}
+            onAssign={(name, agentIds) =>
+              // One message for the whole card: the owner ticked a set of people
+              // and pressed Save once, so three of four succeeding is one answer
+              // to report, not three acks to reconcile.
+              socket?.send({ type: "tools.assign", reqId: reqId(), name, agentIds })
+            }
           />
         </div>
       </div>

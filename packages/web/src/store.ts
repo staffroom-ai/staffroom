@@ -25,7 +25,17 @@ export interface ToolNotice {
   file: string;
   ok: boolean;
   message?: string;
+  /** Where it broke, when the compiler said. 1-based. */
+  line?: number;
   tools?: string[];
+  /** The tool this file defines. */
+  name?: string;
+  /** Its author left `scope` out, so it will ask about every call. */
+  warning?: "no_scope";
+  /** Nobody may use it yet. */
+  unassigned?: boolean;
+  /** Everyone who could be given it, as the office knew them at the time. */
+  agents?: { id: string; name: string }[];
 }
 
 export interface ChatTurn {

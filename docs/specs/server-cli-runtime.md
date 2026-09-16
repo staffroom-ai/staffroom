@@ -373,6 +373,7 @@ export type ClientMessage =
   | { type: "runs.replay"; reqId: string; runId: string }
   | { type: "mcp.reconnect"; reqId: string; server: string }
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
+  | { type: "tools.assign"; reqId: string; name: string; agentIds: string[] }    // Roster.addTool per id; acks with { name, assigned, failed? } then pushes config.reloaded { file: "agents.yaml" }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   | { type: "office.reload"; reqId: string }
   | { type: "ping"; reqId: string };
@@ -386,7 +387,7 @@ export type ServerMessage =
   | { type: "replay"; reqId: string; seq: number; runId: string; events: RunEventEnvelope[]; done: boolean }
   | { type: "config.error"; seq: number; errors: ConfigError[] }
   | { type: "config.reloaded"; seq: number; file: "agents.yaml" | "config.yaml" | "routines.yaml" | "approvals.yaml" | ".env" }
-  | { type: "tools.reloaded"; seq: number; file: string; name?: string; ok: boolean; message?: string; line?: number }
+  | { type: "tools.reloaded"; seq: number; file: string; name?: string; ok: boolean; message?: string; line?: number; tools?: string[]; warning?: "no_scope"; unassigned?: boolean; agents?: { id: string; name: string }[] }  // one message, three cards: it would not load, it has no scope, nobody may use it. A file can be more than one at once.
   | { type: "mcp.status"; seq: number; connection: McpConnection }
   | { type: "mcp.tools_changed"; seq: number; server: string; added: string[]; removed: string[]; changed: string[] }
   | { type: "mcp.oauth.url"; reqId: string; seq: number; server: string; authorizeUrl: string }

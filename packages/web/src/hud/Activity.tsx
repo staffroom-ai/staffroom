@@ -13,6 +13,14 @@ import type { OfficeState } from "@staffroom/core";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import type { ActivityLine } from "../cues.js";
 import type { ToolNotice } from "../store.js";
+import {
+  asksWhoMayUse,
+  assignText,
+  failureDetail,
+  failureText,
+  noScopeText,
+  toolOf,
+} from "./tool-cards.js";
 
 function timeOf(at: number | string): string {
   return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -56,13 +64,13 @@ function ToolCard({
   const [checked, setChecked] = useState<string[]>([]);
 
   if (!notice.ok) {
-    const detail = notice.message ?? "It could not be loaded.";
+    const detail = failureDetail(notice);
     return (
       <article className="tool-card tool-card-bad" role="alert">
-        <p className="tool-card-text">
-          Your tool file {notice.file} could not be loaded. {detail}
-        </p>
+        <p className="tool-card-text">{failureText(notice)}</p>
         <div className="tool-card-actions">
+          {/* File, line and message together: what an owner would otherwise
+              retype into an issue by hand, and get wrong. */}
           <CopyButton text={`${notice.file}: ${detail}`} label="Copy the tool error" />
           <button type="button" className="btn-quiet" onClick={onDismiss}>
             Dismiss
@@ -72,11 +80,25 @@ function ToolCard({
     );
   }
 
-  const names = notice.tools ?? [];
-  if (names.length === 0) {
+  const tool = toolOf(notice);
+  // Whoever the office knew when it sent the card, falling back to the roster in
+  // front of us if it did not say.
+  const people = notice.agents ?? state.agents.map((a) => ({ id: a.id, name: a.name ?? a.id }));
+
+  // The scope warning is not a card of its own: a new tool with no scope is one
+  // save, and the owner should read one card about it.
+  const scopeWarning =
+    notice.warning === "no_scope" ? (
+      <p className="tool-card-warn">{noScopeText(notice.file)}</p>
+    ) : null;
+
+  if (!asksWhoMayUse(notice) || tool === undefined) {
     return (
       <article className="tool-card">
-        <p className="tool-card-text">{notice.file} was reloaded.</p>
+        <p className="tool-card-text">
+          {tool === undefined ? `${notice.file} was reloaded.` : `${tool} was reloaded.`}
+        </p>
+        {scopeWarning}
         <div className="tool-card-actions">
           <button type="button" className="btn-quiet" onClick={onDismiss}>
             Dismiss
@@ -86,17 +108,19 @@ function ToolCard({
     );
   }
 
-  const tool = names[0] as string;
-
   return (
     <article className="tool-card">
-      <p className="tool-card-text">New tool {tool} is ready. Who may use it?</p>
+      <p className="tool-card-text">{assignText(tool)}</p>
+      {scopeWarning}
 
       <div className="tool-card-people">
-        {state.agents.map((agent) => (
+        {people.map((agent) => (
           <label className="tool-check" key={agent.id}>
             <input
               type="checkbox"
+              // The label wraps this, but a bare checkbox in a row of four reads
+              // as "checkbox, on" four times over without one.
+              aria-label={agent.name}
               checked={checked.includes(agent.id)}
               onChange={(event) =>
                 setChecked((prev) =>
@@ -104,7 +128,7 @@ function ToolCard({
                 )
               }
             />
-            <span>{agent.name ?? agent.id}</span>
+            <span>{agent.name}</span>
           </label>
         ))}
       </div>

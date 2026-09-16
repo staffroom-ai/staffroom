@@ -26,7 +26,13 @@ import { type LoadFailure, loadCustomTools } from "../tools/loader.js";
 import { ToolRegistry } from "../tools/registry.js";
 import { FileWhitelist } from "../tools/whitelist.js";
 import type { RunStore } from "./events.js";
-import { assignTool, renameAgent, revealNote, setProviderKey } from "./office-edits.js";
+import {
+  assignTool,
+  refreshAgents,
+  renameAgent,
+  revealNote,
+  setProviderKey,
+} from "./office-edits.js";
 import { Runner } from "./runner.js";
 import { SqliteRunStore } from "./store.js";
 
@@ -340,8 +346,18 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     store,
     providers: adapters,
     mode,
-    renameAgent: (agentId: string, name: string) => renameAgent(officeDir, agentId, name),
-    assignTool: (agentId: string, tool: string) => assignTool(officeDir, agentId, tool),
+    // Both edits re-read the file into the objects already in use, so the change
+    // is live in this office rather than only on disk until the next restart.
+    renameAgent: (agentId: string, name: string) => {
+      if (!renameAgent(officeDir, agentId, name)) return false;
+      refreshAgents(officeDir, agentsFile);
+      return true;
+    },
+    assignTool: (agentId: string, tool: string) => {
+      if (!assignTool(officeDir, agentId, tool)) return false;
+      refreshAgents(officeDir, agentsFile);
+      return true;
+    },
     setProviderKey: (provider: string, key: string) => setProviderKey(officeDir, provider, key),
     revealNote: (noteId: string) => revealNote(brainDir, noteId),
     warnings,

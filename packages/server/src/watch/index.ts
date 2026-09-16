@@ -21,8 +21,18 @@ export type WatchEvent =
       ok: boolean;
       /** Why it would not load, in the compiler's own words. */
       message?: string;
+      /** Where, when the compiler said. 1-based. */
+      line?: number;
       /** Names of the tools this file defines, when it loaded. */
       tools?: string[];
+      /** The tool this file defines, when the card is about one tool. */
+      name?: string;
+      /** The author left `scope` out, so it will ask about every call. */
+      warning?: "no_scope";
+      /** Nobody may use it yet. The card asks who should. */
+      unassigned?: boolean;
+      /** Everyone who could be given it, for the card's checkboxes. */
+      agents?: { id: string; name: string }[];
     }
   | { type: "brain.changed"; path: string };
 
@@ -149,6 +159,7 @@ export class OfficeWatchers {
               file,
               ok: false,
               message: failure.message,
+              ...(failure.line === undefined ? {} : { line: failure.line }),
             });
             return;
           }
@@ -157,9 +168,11 @@ export class OfficeWatchers {
           // that is not a failure worth reporting: it just means nothing changed
           // about which tools exist.
           const names: string[] = [];
+          let assumedScope = false;
           for (const { tool, file: from } of result.tools) {
             if (!from.endsWith(file)) continue;
             names.push(tool.name);
+            if (tool.scopeAssumed === true) assumedScope = true;
             try {
               office.tools.register(tool);
             } catch {
@@ -167,7 +180,38 @@ export class OfficeWatchers {
             }
           }
 
-          this.options.onEvent({ type: "tools.reloaded", file, ok: true, tools: names });
+          /*
+           * One event, not three.
+           *
+           * The spec lists the no-scope warning and the who-may-use-it question
+           * as separate card payloads, but one file can easily be both — a new
+           * tool with no scope that nobody has been given — and pushing two
+           * events for one save would put two cards in the feed about the same
+           * file. The fields are set independently and the card decides what to
+           * say.
+           */
+          const name = names[0];
+          const unassigned =
+            name !== undefined &&
+            office.agentsFile.agents.every((agent) => !(agent.tools ?? []).includes(name));
+
+          this.options.onEvent({
+            type: "tools.reloaded",
+            file,
+            ok: true,
+            tools: names,
+            ...(name === undefined ? {} : { name }),
+            ...(assumedScope ? { warning: "no_scope" as const } : {}),
+            ...(unassigned
+              ? {
+                  unassigned: true,
+                  agents: office.agentsFile.agents.map((agent) => ({
+                    id: agent.id,
+                    name: agent.name ?? agent.id,
+                  })),
+                }
+              : {}),
+          });
         })
         .catch((error: unknown) => {
           this.options.onEvent({

@@ -1624,20 +1624,62 @@ body::before {
   overflow-wrap: anywhere;
 }
 
+/* The scope warning: the card's second sentence, and the quieter one. */
+.tool-card-warn {
+  margin: 6px 0 0;
+  font: 400 12px / 1.5 var(--ui);
+  color: var(--warning);
+}
+
 .tool-card-people {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
+  gap: 4px;
   margin-bottom: 10px;
 }
 
+/*
+ * A row, not four bare checkboxes.
+ *
+ * A default checkbox is thirteen pixels square, and four of them in a line in a
+ * narrow rail is a question the owner has to aim at. The whole row is the
+ * target instead: the label is padded out to a comfortable height and carries
+ * the hit area, so the name beside the box works as well as the box.
+ */
 .tool-check {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
   font: 400 13px / 1.3 var(--ui);
   color: var(--ink-2);
   cursor: pointer;
+}
+
+.tool-check:hover {
+  border-color: var(--hairline-strong);
+  background: var(--surface-2);
+}
+
+.tool-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tool-check:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+
+.tool-check:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .tool-card-actions {

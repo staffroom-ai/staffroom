@@ -10,6 +10,8 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentsFile } from "../config/agents.js";
+import { loadAgentsFile } from "../config/load.js";
 import { RosterWriter } from "../config/roster.js";
 
 /** Providers the office knows how to configure. */
@@ -53,6 +55,42 @@ export function renameAgent(officeDir: string, agentId: string, name: string, by
 
 export function assignTool(officeDir: string, agentId: string, tool: string): boolean {
   return editRoster(officeDir, (writer) => writer.addTool(agentId, tool));
+}
+
+/**
+ * Brings the running office's copy of the roster back in line with the file.
+ *
+ * The office read agents.yaml once, at boot, and everything since then — the
+ * roster, its seats, the runner — holds the same agent objects. Writing the file
+ * therefore changed nothing that was already running: a tool the owner handed
+ * out from the card did not reach the agent, and the next `state` still showed
+ * the old row. Nothing said so, which is the worst version of that bug.
+ *
+ * So the fields are copied onto the objects that are already there, matched by
+ * id, rather than a new file object being swapped in: every holder of a
+ * reference sees the change at once and nothing has to be rebuilt.
+ *
+ * Adding or deleting a row by hand is a different thing and is not handled here.
+ * That needs a real reload, which is `office.reload`.
+ */
+export function refreshAgents(officeDir: string, agentsFile: AgentsFile): boolean {
+  let fresh: AgentsFile;
+  try {
+    fresh = loadAgentsFile(officeDir);
+  } catch {
+    // Half-edited on disk. The office keeps running on the last good roster.
+    return false;
+  }
+
+  for (const row of fresh.agents) {
+    const existing = agentsFile.agents.find((agent) => agent.id === row.id);
+    if (existing === undefined) continue;
+    Object.assign(existing, row);
+  }
+  agentsFile.default_model = fresh.default_model;
+  agentsFile.office = fresh.office;
+  agentsFile.departments = fresh.departments;
+  return true;
 }
 
 /**

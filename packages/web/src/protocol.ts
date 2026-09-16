@@ -35,7 +35,7 @@ export type ClientMessage =
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
   | { type: "mcp.reconnect"; reqId: string; server: string }
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
-  | { type: "tools.assign"; reqId: string; agentId: string; tool: string }
+  | { type: "tools.assign"; reqId: string; name: string; agentIds: string[] }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   | { type: "ping"; reqId: string };
 
@@ -71,7 +71,17 @@ export type ServerMessage =
       file: string;
       ok: boolean;
       message?: string;
+      /** Where it broke, when the compiler said. 1-based. */
+      line?: number;
       tools?: string[];
+      /** The tool this file defines. */
+      name?: string;
+      /** Its author left `scope` out, so it will ask about every call. */
+      warning?: "no_scope";
+      /** Nobody may use it yet. */
+      unassigned?: boolean;
+      /** Everyone who could be given it. */
+      agents?: { id: string; name: string }[];
     }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
   | { type: "brain.warning"; seq: number; scope: "note"; id: string; reason: string }

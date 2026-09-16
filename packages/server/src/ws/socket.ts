@@ -160,6 +160,15 @@ export class SocketHub {
         ok: true,
         ...(result.result === undefined ? {} : { result: result.result }),
       });
+      /*
+       * SR-058: the ack, then the file.
+       *
+       * Assigning a tool rewrites agents.yaml, and the watcher would announce
+       * that anyway — but only when the office is watching. An office started
+       * with --no-watch would leave every other tab showing a roster that is no
+       * longer what is on disk, so the change is announced by whoever made it.
+       */
+      if (message.type === "tools.assign") this.broadcastConfigReloaded("agents.yaml");
       this.scheduleState();
     } else {
       const error = result.error as { code: string; message: string; hint: string };
@@ -279,17 +288,16 @@ export class SocketHub {
     this.push({ type: "config.error", seq: 0, errors });
   }
 
-  broadcastToolsReloaded(file: string, ok: boolean, message?: string, tools?: string[]): void {
-    // The message and the tool names used to be dropped here, which left the
-    // browser unable to say why a tool file failed or which tool had appeared.
-    this.push({
-      type: "tools.reloaded",
-      seq: 0,
-      file,
-      ok,
-      ...(message === undefined ? {} : { message }),
-      ...(tools === undefined ? {} : { tools }),
-    });
+  /**
+   * Forwards the watcher's card as it was built.
+   *
+   * This took the fields as positional arguments and quietly dropped whichever
+   * ones the signature had not caught up with — twice. Passing the event through
+   * means a new field on the card reaches the browser without anyone having to
+   * remember this function exists.
+   */
+  broadcastToolsReloaded(card: Omit<Extract<ServerMessage, { type: "tools.reloaded" }>, "seq">) {
+    this.push({ ...card, seq: 0 });
     this.scheduleState();
   }
 

@@ -2,8 +2,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadRoster } from "../config/load.js";
-import { assignTool, envKeyFor, renameAgent, revealNote, setProviderKey } from "./office-edits.js";
+import { loadAgentsFile, loadRoster } from "../config/load.js";
+import { Roster } from "../config/roster.js";
+import {
+  assignTool,
+  envKeyFor,
+  refreshAgents,
+  renameAgent,
+  revealNote,
+  setProviderKey,
+} from "./office-edits.js";
 
 const AGENTS = `# office/agents.yaml
 version: 1
@@ -147,5 +155,61 @@ describe("showing a note in the file manager", () => {
     mkdirSync(brainDir, { recursive: true });
     writeFileSync(join(brainDir, "tagline.md"), "# Tagline\n", "utf8");
     expect(existsSync(join(brainDir, "tagline.md"))).toBe(true);
+  });
+});
+
+describe("keeping the running office in step with the file", () => {
+  it("brings a tool the office just handed out into the roster it is using", () => {
+    const dir = office();
+    const agentsFile = loadAgentsFile(dir);
+    const roster = new Roster(agentsFile);
+    const copywriter = roster.agents.find((a) => a.id === "copywriter");
+
+    assignTool(dir, "copywriter", "lookup_order");
+    // Before the refresh the office is running on what it read at boot: the file
+    // says one thing and every agent, seat and prompt says another.
+    expect(copywriter?.tools).toEqual(["web"]);
+
+    expect(refreshAgents(dir, agentsFile)).toBe(true);
+
+    // The same object the roster, its seats and the runner are all holding.
+    expect(copywriter?.tools).toEqual(["web", "lookup_order"]);
+    expect(roster.agents.find((a) => a.id === "copywriter")?.tools).toContain("lookup_order");
+  });
+
+  it("brings a rename in too", () => {
+    const dir = office();
+    const agentsFile = loadAgentsFile(dir);
+    renameAgent(dir, "designer", "Mo", "you");
+    refreshAgents(dir, agentsFile);
+    expect(agentsFile.agents.find((a) => a.id === "designer")?.name).toBe("Mo");
+  });
+
+  it("leaves the last good roster alone when the file will not parse", () => {
+    const dir = office();
+    const agentsFile = loadAgentsFile(dir);
+    writeFileSync(join(dir, "agents.yaml"), "version: 1\nagents: [\n", "utf8");
+
+    expect(refreshAgents(dir, agentsFile)).toBe(false);
+    // Still running on what worked, rather than on nothing.
+    expect(agentsFile.agents).toHaveLength(2);
+  });
+
+  it("ignores a row that is no longer there rather than half-applying the file", () => {
+    const dir = office();
+    const agentsFile = loadAgentsFile(dir);
+    writeFileSync(
+      join(dir, "agents.yaml"),
+      AGENTS.replace(
+        "  - id: designer\n    department: marketing\n    role: Brand designer\n    does: Produces image briefs and alt text.\n",
+        "",
+      ),
+      "utf8",
+    );
+
+    refreshAgents(dir, agentsFile);
+    // Adding and removing people needs a real reload; this only updates rows
+    // that are still there, and says so rather than dropping somebody silently.
+    expect(agentsFile.agents).toHaveLength(2);
   });
 });

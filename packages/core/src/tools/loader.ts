@@ -23,6 +23,25 @@ export interface LoadedTool {
 export interface LoadFailure {
   file: string;
   message: string;
+  /** 1-based, when the compiler said where. The card shows it to the owner. */
+  line?: number;
+}
+
+/**
+ * The line esbuild blamed, if it blamed one.
+ *
+ * Read off the structured errors rather than scraped out of the message: the
+ * message is prose meant for a person and its shape is esbuild's to change.
+ */
+export function failureLine(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const errors = (error as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return undefined;
+  for (const entry of errors) {
+    const line = (entry as { location?: { line?: unknown } })?.location?.line;
+    if (typeof line === "number" && Number.isFinite(line) && line > 0) return line;
+  }
+  return undefined;
 }
 
 export interface LoadResult {
@@ -152,9 +171,11 @@ export async function loadCustomTools(options: LoadToolsOptions): Promise<LoadRe
         file: entry,
       });
     } catch (error) {
+      const line = failureLine(error);
       failures.push({
         file: entry,
         message: error instanceof Error ? error.message : String(error),
+        ...(line === undefined ? {} : { line }),
       });
     }
   }

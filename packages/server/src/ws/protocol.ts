@@ -46,7 +46,7 @@ export type ClientMessage =
   | { type: "runs.replay"; reqId: string; runId: string }
   | { type: "mcp.reconnect"; reqId: string; server: string }
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
-  | { type: "tools.assign"; reqId: string; agentId: string; tool: string }
+  | { type: "tools.assign"; reqId: string; name: string; agentIds: string[] }
   | { type: "note.reveal"; reqId: string; noteId: string }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   | { type: "office.reload"; reqId: string }
@@ -83,6 +83,15 @@ export type ServerMessage =
       seq: number;
       file: "agents.yaml" | "config.yaml" | "routines.yaml" | "approvals.yaml" | ".env";
     }
+  /**
+   * One tool file changed, and what the owner needs to know about it.
+   *
+   * Three cards in `office-ui.md` come out of this one message: it would not
+   * load (`ok: false` with `line`), it has no scope so it will ask every time
+   * (`warning: "no_scope"`), and nobody may use it yet (`unassigned`, with
+   * everyone who could be given it). A file can be more than one of those at
+   * once, which is why they are fields rather than three message types.
+   */
   | {
       type: "tools.reloaded";
       seq: number;
@@ -90,7 +99,11 @@ export type ServerMessage =
       name?: string;
       ok: boolean;
       message?: string;
+      line?: number;
       tools?: string[];
+      warning?: "no_scope";
+      unassigned?: boolean;
+      agents?: { id: string; name: string }[];
     }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
   | { type: "brain.warning"; seq: number; scope: "note"; id: string; reason: string }

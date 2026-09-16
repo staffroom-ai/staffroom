@@ -37,6 +37,15 @@ export interface Tool<I extends ZodType = ZodType, O = unknown> {
   run: (input: unknown, ctx: ToolContext) => Promise<O>;
   /** Set by whichever loader registered it, never by the author. */
   source: ToolSource;
+  /**
+   * True when the author never wrote a `scope` and got `write` by default.
+   *
+   * Stamped by `tool()`, so an author cannot clear it to stop the office saying
+   * so. It exists because the difference between "this asks every time because
+   * it sends email" and "this asks every time because somebody forgot a line" is
+   * invisible once the default has been applied.
+   */
+  scopeAssumed?: boolean;
 }
 
 export const TOOL_NAME = /^[a-z][a-z0-9_]{1,31}$/;
@@ -66,8 +75,11 @@ export function tool<I extends ZodType, O>(definition: ToolDefinition<I, O>): To
   }
   return Object.freeze({
     ...definition,
-    // Missing scope means write. The server raises an Activity card saying so.
+    // Missing scope means write. The server raises an Activity card saying so,
+    // which is what the stamp below is for. Both are set after the spread, so a
+    // definition cannot claim a scope it did not declare.
     scope: definition.scope ?? "write",
+    scopeAssumed: scopeWasAssumed(definition),
     source: { kind: "custom", file: "unknown" } as ToolSource,
   }) as Tool<I, O>;
 }
