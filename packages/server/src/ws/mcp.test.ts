@@ -205,3 +205,53 @@ describe("signing in to a server", () => {
     }
   }, 20_000);
 });
+
+describe("the web_search connector", () => {
+  it("is grey with no backend, and says what to do about it", async () => {
+    const server = await office();
+    const search = (await collectState(server.office)).connectors.find(
+      (c) => c.id === "web_search",
+    );
+
+    expect(search?.health).toBe("grey");
+    expect(search?.message).toContain("tools.web");
+  });
+
+  it("goes red once a configured backend has actually failed", async () => {
+    // A self-hosted searxng at a port nothing is listening on: a configured
+    // backend that will certainly fail, without this test reaching the internet.
+    const server = await office(
+      [
+        "version: 1",
+        "tools:",
+        "  web:",
+        "    provider: searxng",
+        "    base_url: http://127.0.0.1:1",
+        "",
+      ].join("\n"),
+    );
+
+    // Configured but untried is not the same as working, so it does not claim to
+    // be: green is only reported after a call has come back.
+    expect(
+      (await collectState(server.office)).connectors.find((c) => c.id === "web_search")?.health,
+    ).toBe("ok");
+
+    const tool = server.office.tools.list().find((t) => t.tool.name === "web_search")?.tool;
+    await tool?.run(
+      { query: "bakery", maxResults: 3 },
+      {
+        agentId: "researcher",
+        department: "marketing",
+        runId: "r1",
+        signal: AbortSignal.timeout(9_000),
+        log: () => {},
+        brain: {} as never,
+      },
+    );
+
+    const after = (await collectState(server.office)).connectors.find((c) => c.id === "web_search");
+    expect(after?.health).toBe("down");
+    expect(after?.message).toBeTruthy();
+  }, 20_000);
+});

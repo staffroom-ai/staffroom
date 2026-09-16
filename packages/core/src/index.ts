@@ -207,9 +207,14 @@ export type {
 export type { BrainToolsOptions } from "./tools/builtins/brain.js";
 // Built-in tools
 export { brainTools } from "./tools/builtins/brain.js";
+export type { SearchHit, WebSearchState, WebSearchStatus } from "./tools/builtins/web-search.js";
 export {
+  buildRequest,
+  capResults,
+  SNIPPET_BUDGET,
   WEB_SEARCH_UNCONFIGURED,
   webSearchConfigError,
+  webSearchStatus,
   webSearchTool,
 } from "./tools/builtins/web-search.js";
 export type { LoadedTool, LoadFailure, LoadResult, LoadToolsOptions } from "./tools/loader.js";

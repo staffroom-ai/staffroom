@@ -27,6 +27,10 @@ tools:
   web:
     provider: none                  # brave | tavily | searxng | none
     max_results: 8
+    # brave and tavily need a key; put it in office/.env and name it here.
+    #   api_key: $BRAVE_API_KEY
+    # searxng needs no key, only the address of your own instance.
+    #   base_url: http://127.0.0.1:8080
   custom_dir: tools
   hot_reload: true
 

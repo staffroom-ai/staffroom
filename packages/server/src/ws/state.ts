@@ -17,7 +17,13 @@ import type {
   PendingApprovalView,
   Run,
 } from "@staffroom/core";
-import { type McpState, modelStatusFor, redactSecrets, resolveModel } from "@staffroom/core";
+import {
+  type McpState,
+  modelStatusFor,
+  redactSecrets,
+  resolveModel,
+  webSearchStatus,
+} from "@staffroom/core";
 
 /** Brain tools are omitted from an agent's list: everyone has them. */
 const IMPLIED = new Set(["brain_search", "brain_read", "brain_write", "brain_list"]);
@@ -141,17 +147,26 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
     .filter(({ tool }) => tool.source.kind !== "mcp")
     .map(({ tool }) => {
       const kind = tool.source.kind;
-      const denied = false;
-      const unconfigured =
-        tool.name === "web_search" && office.config.tools.web.provider === "none";
+
+      // SR-059: web_search is the one built-in that talks to somebody else, so
+      // it is the one that can be broken while the office is fine. Grey with no
+      // backend, red once a call has actually failed.
+      const search = tool.name === "web_search" ? webSearchStatus(office.config) : undefined;
+      const health: Connector["health"] =
+        search === undefined
+          ? "ok"
+          : search.state === "unconfigured"
+            ? "grey"
+            : search.state === "down"
+              ? "down"
+              : "ok";
+
       return {
         id: tool.name,
         kind,
         label: tool.name,
-        health: denied ? "denied" : unconfigured ? "grey" : "ok",
-        message: unconfigured
-          ? "Add a search key in office/config.yaml under tools.web to turn this on."
-          : null,
+        health,
+        message: search?.message === undefined ? null : redactSecrets(search.message),
         toolCount: 1,
         departments: tool.departments ?? "all",
         lastUsedAt: null,
