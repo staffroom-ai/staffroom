@@ -8,6 +8,7 @@
  */
 import { checkNodeVersion } from "@staffroom/server";
 import { Command } from "commander";
+import { doctor } from "./commands/doctor.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { start } from "./commands/start.js";
 
@@ -75,6 +76,17 @@ async function run(): Promise<void> {
     .addHelpText("after", `\nTemplates:\n${templateChoices()}\n`)
     .action((options) => {
       initOffice(options);
+    });
+
+  program
+    .command("doctor")
+    .description("Check the office over and say what to do about anything wrong")
+    .option("--office <dir>", "Which office folder to check")
+    .option("--json", "Print the result as JSON")
+    .option("--fix", "Apply the fixes that are safe to apply")
+    .action(async (options) => {
+      const healthy = await doctor(options);
+      if (!healthy) process.exitCode = 1;
     });
 
   await program.parseAsync(process.argv);

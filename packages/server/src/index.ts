@@ -279,6 +279,8 @@ export {
   officeDemoRuns,
   shouldUseDemo,
 } from "./demo/demo.js";
+export type { DoctorCheck, DoctorOptions, DoctorResult, DoctorStatus } from "./doctor/index.js";
+export { GITIGNORE_LINES, runDoctor } from "./doctor/index.js";
 export { resolveBrainPath } from "./http/paths.js";
 export type { LogLine } from "./log.js";
 export { say, setLogSink } from "./log.js";
