@@ -14,7 +14,7 @@
 import { Html } from "@react-three/drei";
 import type { OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
-import { POD_COUNT, podFacing, podPosition, seatPosition, seatsInPod } from "../layout.js";
+import { podFacing, podPosition, seatPosition } from "../layout.js";
 import {
   accent,
   podPencil,
@@ -25,15 +25,15 @@ import {
 } from "./materials.js";
 
 /** The plate is round because the office is a ring of six; a square left dead corners. */
-export const PLATE_RADIUS = 13.2;
+/** The plate hugs the pod ring; a wider one left a bare margin all round. */
+export const PLATE_RADIUS = 11.4;
 const PLATE_THICKNESS = 0.7;
 const WEDGE_INNER = 3.4;
-const WEDGE_OUTER = 12.3;
+const WEDGE_OUTER = 10.6;
 
 /** Local frame of a workstation: +Z points at the Brain, so everyone faces the middle. */
 const DESK_OFFSET = 0.66;
 
-const POD_INDEX = Array.from({ length: POD_COUNT }, (_, pod) => pod);
 /** Named sheets, so a stack of paper does not key off its own index. */
 const SHEETS = ["a", "b", "c", "d", "e", "f"] as const;
 
@@ -113,15 +113,16 @@ export function Brain({ dark }: { dark: boolean }): ReactElement {
 export function Pods({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
   return (
     <>
-      {POD_INDEX.map((pod) => {
-        const a = podFacing(pod);
-        const department = state.departments.find((d) => (d.pod as number) === pod);
-        const inUse = department !== undefined;
-        const pencil = podPencil(pod, dark);
+      {state.departments.map((department) => {
+        const pod = department.pod as number;
+        const podCount = state.departments.length;
+        const a = podFacing(pod, podCount);
+        const inUse = true;
+        const pencil = podPencil(pod, dark, podCount);
         // The plane is rotated flat, so a pod's world bearing becomes this angle.
-        const start = Math.PI / 2 - a - Math.PI / POD_COUNT;
-        const sweep = (Math.PI * 2) / POD_COUNT - 0.016;
-        const outward = podPosition(pod);
+        const start = Math.PI / 2 - a - Math.PI / podCount;
+        const sweep = (Math.PI * 2) / podCount - 0.016;
+        const outward = podPosition(pod, podCount);
         const unit = Math.hypot(outward.x, outward.z) || 1;
 
         return (
@@ -184,9 +185,17 @@ interface SeatState {
  * Every part is a different height and a different value, because a desk made of
  * one flat box at one tone is what made the old office read as a field of blobs.
  */
-function Workstation({ seat, dark }: { seat: SeatState; dark: boolean }): ReactElement {
+function Workstation({
+  seat,
+  dark,
+  podCount,
+}: {
+  seat: SeatState;
+  dark: boolean;
+  podCount: number;
+}): ReactElement {
   const c = surfaces(dark);
-  const at = seatPosition(seat.pod, seat.seat);
+  const at = seatPosition(seat.pod, seat.seat, podCount);
   // layout.ts rotates anticlockwise in (x,z); three rotates the other way, so the
   // group turns by -facing and local +Z then points at the Brain.
   const facing = -podFacing(seat.pod);
@@ -280,30 +289,28 @@ function Workstation({ seat, dark }: { seat: SeatState; dark: boolean }): ReactE
 
 /** Every desk in the office, occupied or not. */
 export function Desks({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
-  const occupants = new Map<string, { status: SeatState["status"]; filed: number }>();
+  // A desk per person, not a desk per seat the floor plan could hold. Rendering
+  // all 35 seats made a four-person studio read as an abandoned office, and it
+  // also made the scene disagree with the roster panel, which counts people.
+  const podCount = state.departments.length;
+  const seats: SeatState[] = [];
 
   for (const agent of state.agents) {
     const pod = state.departments.find((d) => d.id === agent.departmentId)?.pod;
     if (pod === undefined) continue;
-    occupants.set(`${pod}-${agent.seat}`, {
+    seats.push({
+      key: `${pod}-${agent.seat}`,
+      pod,
+      seat: agent.seat,
       status: agent.status,
       filed: state.latestDeliverables.filter((d) => d.agentId === agent.id).length,
     });
   }
 
-  const seats: SeatState[] = [];
-  for (let pod = 0; pod < POD_COUNT; pod++) {
-    for (let seat = 0; seat < seatsInPod(pod); seat++) {
-      const key = `${pod}-${seat}`;
-      const occupant = occupants.get(key);
-      seats.push({ key, pod, seat, status: occupant?.status, filed: occupant?.filed ?? 0 });
-    }
-  }
-
   return (
     <>
       {seats.map((seat) => (
-        <Workstation key={seat.key} seat={seat} dark={dark} />
+        <Workstation key={seat.key} seat={seat} dark={dark} podCount={podCount} />
       ))}
     </>
   );

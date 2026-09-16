@@ -34,6 +34,7 @@ export function Roster({ state, dark }: { state: OfficeState; dark: boolean }): 
     .sort((a, b) => (a.pod === b.pod ? a.agent.seat - b.agent.seat : a.pod - b.pod));
 
   const busy = people.filter((p) => p.agent.status !== "idle").length;
+  const podCount = state.departments.length;
 
   return (
     <section className="panel roster" aria-label="Who works here">
@@ -49,7 +50,7 @@ export function Roster({ state, dark }: { state: OfficeState; dark: boolean }): 
           <div key={agent.id} className="person">
             <span
               className="person-pip"
-              style={{ ["--pencil" as string]: podPencil(pod, dark) }}
+              style={{ ["--pencil" as string]: podPencil(pod, dark, podCount) }}
               aria-hidden="true"
             />
             <span className="person-body">

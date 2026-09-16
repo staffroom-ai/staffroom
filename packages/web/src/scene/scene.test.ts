@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { AnimationCue } from "../cues.js";
+import { podFacing, podPosition, seatPosition } from "../layout.js";
 import {
   cameraPosition,
   clampToFloor,
   ease,
+  frameOverview,
   ISO_ELEVATION,
+  inStage,
   lerpTarget,
   OVERVIEW,
   orbit,
   podFrustumFor,
+  stageShift,
   ZOOM_MAX,
   ZOOM_MIN,
   zoom,
@@ -230,6 +234,11 @@ describe("the palette", () => {
 
   it("tells the six departments apart", () => {
     expect(new Set([0, 1, 2, 3, 4, 5].map((p) => podPencil(p, false))).size).toBe(6);
+    // Striding must stay injective, or two departments share a pencil.
+    for (const count of [2, 3, 4, 5, 6]) {
+      const used = Array.from({ length: count }, (_, pod) => podPencil(pod, false, count));
+      expect(new Set(used).size).toBe(count);
+    }
   });
 });
 
@@ -317,3 +326,88 @@ function saturationOf(hex: string): number {
   const l = (max + min) / 2;
   return max - min === 0 ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
 }
+
+describe("framing to the stage", () => {
+  const desktop = { width: 1440, height: 900, stageLeft: 304, stageWidth: 724 };
+  const radius = 13.2;
+
+  it("zooms out far enough that the plate fits the stage, not the window", () => {
+    const target = frameOverview(desktop, radius);
+    // Half the stage, in world units, must cover the plate's radius.
+    const worldPerPx = (target.frustum * 2) / desktop.height;
+    const halfStageWorld = (desktop.stageWidth / 2) * worldPerPx;
+    expect(halfStageWorld).toBeGreaterThan(radius);
+  });
+
+  it("puts the middle of the plate in the middle of the stage", () => {
+    const target = frameOverview(desktop, radius);
+    // Project world origin back to a screen x: the shift is along screen-right.
+    const a = (target.azimuth * Math.PI) / 180;
+    const alongRight = -(target.x * Math.cos(a) - target.z * Math.sin(a));
+    const worldPerPx = (target.frustum * 2) / desktop.height;
+    const screenX = desktop.width / 2 + alongRight / worldPerPx;
+    expect(screenX).toBeCloseTo(desktop.stageLeft + desktop.stageWidth / 2, 6);
+  });
+
+  it("does not shift at all when the stage fills the window", () => {
+    const full = { width: 1440, height: 900, stageLeft: 0, stageWidth: 1440 };
+    const target = frameOverview(full, radius);
+    expect(target.x).toBeCloseTo(0, 10);
+    expect(target.z).toBeCloseTo(0, 10);
+  });
+
+  it("zooms in as the stage widens", () => {
+    const narrow = frameOverview(desktop, radius);
+    const wide = frameOverview({ ...desktop, stageWidth: 1100 }, radius);
+    expect(wide.frustum).toBeLessThan(narrow.frustum);
+  });
+
+  it("never zooms in so far that the plate is taller than the view", () => {
+    const veryWide = frameOverview({ ...desktop, stageWidth: 4000 }, radius);
+    expect(veryWide.frustum).toBeGreaterThan(radius * Math.sin((35.264 * Math.PI) / 180));
+  });
+
+  it("moves a pod close-up into the stage by the same shift", () => {
+    const pod = podFrustumFor(2);
+    const shifted = inStage(pod, desktop);
+    const shift = stageShift(desktop, pod.frustum, pod.azimuth);
+    expect(shifted.x).toBeCloseTo(pod.x + shift.x, 10);
+    expect(shifted.z).toBeCloseTo(pod.z + shift.z, 10);
+    expect(shifted.frustum).toBe(pod.frustum);
+  });
+});
+
+describe("the floor divides by the departments that exist", () => {
+  it("spreads three departments evenly rather than clustering them in three sixths", () => {
+    const thirds = [0, 1, 2].map((pod) => podPosition(pod, 3));
+    // Evenly spread means each is the same distance from the Brain...
+    const radii = thirds.map((p) => Math.hypot(p.x, p.z));
+    // Coordinates are rounded in layout.ts, so compare to that precision.
+    for (const r of radii) expect(r).toBeCloseTo(radii[0] as number, 3);
+    // ...and 120 degrees apart, so the far side of the plate is not left empty.
+    const bearing = (p: { x: number; z: number }): number =>
+      ((Math.atan2(p.x, -p.z) * 180) / Math.PI + 360) % 360;
+    expect(bearing(thirds[1] as { x: number; z: number })).toBeCloseTo(120, 2);
+    expect(bearing(thirds[2] as { x: number; z: number })).toBeCloseTo(240, 2);
+  });
+
+  it("keeps pod 0 at the same place whatever the count, so the first department is stable", () => {
+    expect(podPosition(0, 3)).toEqual(podPosition(0, 6));
+  });
+
+  it("faces every pod inward at any count", () => {
+    for (const count of [2, 3, 4, 5, 6]) {
+      for (let pod = 0; pod < count; pod++) {
+        const centre = podPosition(pod, count);
+        const facing = podFacing(pod, count);
+        // Facing is the outward bearing; a seat in row 0 sits nearer the Brain
+        // than the pod centre once the local offset is rotated by it.
+        const front = seatPosition(pod, 1, count);
+        expect(Math.hypot(front.x, front.z)).toBeLessThanOrEqual(
+          Math.hypot(centre.x, centre.z) + 0.001,
+        );
+        expect(Number.isFinite(facing)).toBe(true);
+      }
+    }
+  });
+});

@@ -17,11 +17,51 @@ import {
   type CameraTarget,
   cameraPosition,
   FOCUS_MS,
+  frameOverview,
+  inStage,
   lerpTarget,
   OVERVIEW,
   podFrustumFor,
+  type StageBox,
 } from "./camera.js";
-import { Brain, Desks, Ground, Pods } from "./Office.js";
+import { Brain, Desks, Ground, PLATE_RADIUS, Pods } from "./Office.js";
+
+/**
+ * The middle grid column, measured. The camera frames to this rather than to the
+ * window, because the panels sit over a full-bleed canvas. It is read from the DOM
+ * instead of duplicating the CSS column widths here, so the two cannot drift.
+ */
+function useStageBox(): StageBox {
+  const [box, setBox] = useState<StageBox>(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    stageLeft: 0,
+    stageWidth: window.innerWidth,
+  }));
+
+  useEffect(() => {
+    const stage = document.querySelector(".stage");
+    const read = (): void => {
+      const rect = stage?.getBoundingClientRect();
+      setBox({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        stageLeft: rect?.left ?? 0,
+        stageWidth: rect?.width ?? window.innerWidth,
+      });
+    };
+    read();
+    window.addEventListener("resize", read);
+    const observer = stage === null ? undefined : new ResizeObserver(read);
+    if (stage !== null) observer?.observe(stage);
+    return () => {
+      window.removeEventListener("resize", read);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return box;
+}
 
 function CameraRig({ target }: { target: CameraTarget }): ReactElement {
   const camera = useRef<never>(null);
@@ -82,6 +122,7 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
   const focusedPod = useOfficeStore((s) => s.focusedPod);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [dark, setDark] = useState(false);
+  const stageBox = useStageBox();
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -101,19 +142,20 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
     return () => query.removeEventListener("change", listener);
   }, []);
 
-  // One target, whatever caused it to change.
+  // One target, whatever caused it to change. Every branch goes through the stage
+  // so a pod close-up is centred in the same space the overview is.
   const target: CameraTarget = useMemo(() => {
     if (selectedAgentId !== null) {
       const agent = state.agents.find((a) => a.id === selectedAgentId);
       const pod = state.departments.find((d) => d.id === agent?.departmentId)?.pod;
       if (agent !== undefined && pod !== undefined) {
         const seat = seatPosition(pod, agent.seat);
-        return { x: seat.x, z: seat.z, frustum: 9, azimuth: OVERVIEW.azimuth };
+        return inStage({ x: seat.x, z: seat.z, frustum: 9, azimuth: OVERVIEW.azimuth }, stageBox);
       }
     }
-    if (focusedPod !== null) return podFrustumFor(focusedPod);
-    return OVERVIEW;
-  }, [selectedAgentId, focusedPod, state.agents, state.departments]);
+    if (focusedPod !== null) return inStage(podFrustumFor(focusedPod), stageBox);
+    return frameOverview(stageBox, PLATE_RADIUS);
+  }, [selectedAgentId, focusedPod, state.agents, state.departments, stageBox]);
 
   return (
     <Canvas

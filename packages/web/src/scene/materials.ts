@@ -86,9 +86,16 @@ export const POD_PENCIL_DARK = [
   "#c379a8",
 ] as const;
 
-export function podPencil(pod: number, dark: boolean): string {
+/**
+ * Spread the departments across the whole pencil palette rather than taking the
+ * first N. With three departments, indices 0,1,2 gave rust, moss and jade — two
+ * of them green, which is exactly the confusion the pencils exist to prevent.
+ * Striding gives rust, jade and iris instead.
+ */
+export function podPencil(pod: number, dark: boolean, podCount = 0): string {
   const palette = dark ? POD_PENCIL_DARK : POD_PENCIL;
-  return palette[pod % palette.length] as string;
+  const stride = podCount > 0 ? Math.max(1, Math.floor(palette.length / podCount)) : 1;
+  return palette[(pod * stride) % palette.length] as string;
 }
 
 /**

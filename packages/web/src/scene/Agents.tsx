@@ -55,6 +55,8 @@ export function Agents({
     Array<{ position: { set: (x: number, y: number, z: number) => void } } | null>
   >([]);
   const timelines = useRef(new Map<string, AgentTimelines>());
+  /** The floor is divided by the number of departments, so seats move with it. */
+  const podCount = state.departments.length;
 
   const placed: Placed[] = useMemo(
     () =>
@@ -78,7 +80,7 @@ export function Agents({
       if (person === undefined) continue;
       let timeline = timelines.current.get(cue.agentId);
       if (timeline === undefined) {
-        timeline = new AgentTimelines(seatPosition(person.pod, person.seat));
+        timeline = new AgentTimelines(seatPosition(person.pod, person.seat, podCount));
         timelines.current.set(cue.agentId, timeline);
       }
       if (reducedMotion && cue.kind !== "type_start" && cue.kind !== "type_stop") continue;
@@ -86,7 +88,7 @@ export function Agents({
     }
 
     placed.forEach((person, index) => {
-      const seat = seatPosition(person.pod, person.seat);
+      const seat = seatPosition(person.pod, person.seat, podCount);
       const motion = timelines.current.get(person.id)?.sample(now);
       const node = figures.current[index];
       if (node === null || node === undefined) return;
@@ -98,7 +100,7 @@ export function Agents({
   return (
     <>
       {placed.map((person, index) => {
-        const seat = seatPosition(person.pod, person.seat);
+        const seat = seatPosition(person.pod, person.seat, podCount);
         const status = statusColour(person.status, dark);
         const height = BEACON_HEIGHT[person.status] ?? IDLE_BEACON;
         const needsOwner = person.status === "waiting_approval";

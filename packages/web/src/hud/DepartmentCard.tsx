@@ -18,6 +18,8 @@ export interface DepartmentSummary {
   working: number;
   waiting: number;
   doneToday: number;
+  /** How many departments share the floor, so the card's pencil matches its wedge. */
+  podCount: number;
 }
 
 export function summarise(state: OfficeState, _dark: boolean): DepartmentSummary[] {
@@ -32,6 +34,7 @@ export function summarise(state: OfficeState, _dark: boolean): DepartmentSummary
       waiting: state.approvals.filter((approval) => agents.some((a) => a.id === approval.agentId))
         .length,
       doneToday: state.latestDeliverables.filter((d) => d.departmentId === department.id).length,
+      podCount: state.departments.length,
     };
   });
 }
@@ -47,7 +50,7 @@ export function DepartmentCard({
   selected: boolean;
   onSelect: () => void;
 }): ReactElement {
-  const pencil = podPencil(summary.pod, dark);
+  const pencil = podPencil(summary.pod, dark, summary.podCount);
 
   return (
     <button
