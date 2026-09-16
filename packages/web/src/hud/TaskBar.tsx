@@ -34,7 +34,7 @@ export function TaskBar({
         className="taskbar-department"
         value={department}
         onChange={(e) => setDepartment(e.target.value)}
-        aria-label="Which department should take this"
+        aria-label="Department"
       >
         {state.departments.map((d) => (
           <option key={d.id} value={d.id}>
@@ -48,7 +48,7 @@ export function TaskBar({
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Ask for something. Try: write a two-line tagline for the new bakery."
-        aria-label="What needs doing"
+        aria-label="Task"
         data-testid="task-input"
         autoComplete="off"
       />

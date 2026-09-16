@@ -1,0 +1,20 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the selectors the smoke test depends on > has not changed without someone meaning it to 1`] = `
+{
+  "departmentPicker": {
+    "name": "Department",
+    "role": "combobox",
+  },
+  "firstResult": "deliverable-latest",
+  "listTarget": "list-view",
+  "resultNamePrefix": "Written by ",
+  "row": "agent-<id>",
+  "rowState": "data-state",
+  "skipLink": "Skip to list view",
+  "taskField": {
+    "name": "Task",
+    "role": "textbox",
+  },
+}
+`;

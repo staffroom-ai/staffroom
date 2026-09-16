@@ -15,6 +15,14 @@ import { type SaveState, Settings } from "./hud/Settings.js";
 import { StoppedBanner } from "./hud/StoppedBanner.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
+import {
+  Announcer,
+  ListView,
+  rememberedView,
+  rememberView,
+  type View,
+  viewFor,
+} from "./list/ListView.js";
 import { Scene } from "./scene/Scene.js";
 import { useOfficeStore } from "./store.js";
 import { OfficeSocket, readToken } from "./ws.js";
@@ -40,6 +48,11 @@ export function App(): ReactElement {
   const [tab, setTab] = useState<RailTab>("activity");
   const [openNote, setOpenNote] = useState<string | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [view, setView] = useState<View>(() =>
+    viewFor(typeof window === "undefined" ? 1440 : window.innerWidth, rememberedView()),
+  );
+  const [announcement, setAnnouncement] = useState("");
+  const announcer = useRef(new Announcer());
   const [keyStates, setKeyStates] = useState<Record<string, SaveState>>({});
   /** reqId -> provider, so an ack or error lands on the row that asked. */
   const keyReqs = useRef(new Map<string, string>());
@@ -110,6 +123,30 @@ export function App(): ReactElement {
     return () => socket?.close();
   }, [socket]);
 
+  // One line per agent per five seconds. A busy office that narrates every event
+  // talks over itself and becomes unusable with a screen reader.
+  const busy = useMemo(
+    () =>
+      (store.state?.agents ?? [])
+        .filter((agent) => agent.status !== "idle")
+        .map((agent) => ({ id: agent.id, status: agent.status, name: agent.name ?? agent.id })),
+    [store.state?.agents],
+  );
+
+  useEffect(() => {
+    const now = Date.now();
+    for (const agent of busy) {
+      const doing =
+        agent.status === "working"
+          ? "working"
+          : agent.status === "waiting_approval"
+            ? "waiting for you"
+            : "stuck";
+      const said = announcer.current.consider(agent.id, `${agent.name} is ${doing}.`, now);
+      if (said !== undefined) setAnnouncement(said);
+    }
+  }, [busy]);
+
   const departments = useMemo(
     () => (store.state === undefined ? [] : summarise(store.state, dark)),
     [store.state, dark],
@@ -119,6 +156,32 @@ export function App(): ReactElement {
   useEffect(() => {
     if ((store.state?.approvals.length ?? 0) > 0) setTab("activity");
   }, [store.state?.approvals.length]);
+
+  // The view follows the window: narrow is forced to the list, wide defaults to
+  // the office, and only the band between them remembers a choice.
+  useEffect(() => {
+    const onResize = (): void => setView(viewFor(window.innerWidth, rememberedView()));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // L toggles, but never out of the list on a screen too narrow for the office.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key.toLowerCase() !== "l" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement?.tagName;
+      if (active === "INPUT" || active === "TEXTAREA" || active === "SELECT") return;
+      event.preventDefault();
+      setView((current) => {
+        const next: View = current === "list" ? "scene" : "list";
+        const allowed = viewFor(window.innerWidth, next);
+        rememberView(allowed);
+        return allowed;
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Alt+C/A/P move between the rail's sections without reaching for the mouse.
   useEffect(() => {
@@ -161,7 +224,31 @@ export function App(): ReactElement {
 
   return (
     <>
-      <Scene state={state} />
+      {/* First in tab order: a keyboard user should never have to pass the whole
+          interface to reach the readable version of it. */}
+      <button
+        type="button"
+        className="skip-link"
+        onClick={() => {
+          setView("list");
+          // The list may not be mounted yet, so focus it once React has drawn it.
+          requestAnimationFrame(() => document.getElementById("list-view")?.focus());
+        }}
+      >
+        Skip to list view
+      </button>
+
+      {/* The canvas is decorative to a screen reader: the list says the same
+          things in a form it can actually read. */}
+      {view === "scene" && (
+        <div aria-hidden="true">
+          <Scene state={state} />
+        </div>
+      )}
+
+      <p className="visually-hidden" aria-live="polite">
+        {announcement}
+      </p>
 
       <div className="hud">
         <StoppedBanner connection={store.connection} platform={store.platform} />
@@ -209,6 +296,16 @@ export function App(): ReactElement {
           </div>
 
           <div className="stage">
+            {view === "list" && (
+              <ListView
+                state={state}
+                onOpenAgent={(agentId) => {
+                  useOfficeStore.getState().selectAgent(agentId);
+                  setTab("chat");
+                }}
+                onOpenNote={(noteId) => setOpenNote(noteId)}
+              />
+            )}
             <TaskBar
               state={state}
               disabled={store.connection !== "open"}
