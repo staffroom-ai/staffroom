@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CompletionChunk, Message } from "../providers/types.js";
 import { ProviderError } from "../runtime/errors.js";
-import { FixtureAdapter, hashRequest } from "./fixture-adapter.js";
+import { chunkDelay, FixtureAdapter, hashRequest } from "./fixture-adapter.js";
 
 const DEMO = fileURLToPath(new URL("./fixtures/demo", import.meta.url));
 const noSignal = () => new AbortController().signal;
@@ -114,32 +114,33 @@ describe("playback", () => {
     ).toBe("Northlight Studio");
   });
 
-  it("divides the delay by the speed", async () => {
+  it("divides the delay by the speed", () => {
+    // Arithmetic, not a stopwatch. Timing this through a real playback measured
+    // the CI runner: on Windows the second of two runs was sometimes the slower
+    // one however fast the code was, and the test said nothing either way.
+    expect(chunkDelay(40, 25, 1)).toBe(40);
+    expect(chunkDelay(40, 25, 4)).toBe(10);
+    // Without its own delay, a fixture takes the adapter's.
+    expect(chunkDelay(undefined, 25, 1)).toBe(25);
+    expect(chunkDelay(undefined, 25, 2)).toBe(12.5);
+    // A fixture that asks for no delay gets none, at any speed.
+    expect(chunkDelay(0, 25, 1)).toBe(0);
+  });
+
+  it("replays a whole fixture without waiting when the delay is zero", async () => {
     const transcript =
-      '{"matches":[],"delayMs":40}\n{"type":"text","text":"a"}\n{"type":"text","text":"b"}\n{"type":"done","stopReason":"end","usage":{"inputTokens":1,"outputTokens":1}}\n';
+      '{"matches":[],"delayMs":0}\n{"type":"text","text":"a"}\n{"type":"text","text":"b"}\n{"type":"done","stopReason":"end","usage":{"inputTokens":1,"outputTokens":1}}\n';
+    const adapter = new FixtureAdapter(tempFixtures({ "generic.jsonl": transcript }));
+    adapter.setSpeed(4);
 
-    const run = async (speed: number): Promise<number> => {
-      const adapter = new FixtureAdapter(tempFixtures({ "generic.jsonl": transcript }));
-      adapter.setSpeed(speed);
-      const started = performance.now();
-      await collect(
-        adapter.complete([{ role: "user", content: "x" }], [], {
-          model: "demo",
-          maxTokens: 10,
-          signal: noSignal(),
-        }),
-      );
-      return performance.now() - started;
-    };
-
-    // Compared against each other rather than against a stopwatch. A fixed
-    // ceiling here failed on a loaded CI runner at 111 ms against 100 ms, which
-    // said nothing about the code: both runs share whatever the machine is doing,
-    // so the ratio survives load that an absolute bound cannot.
-    const slow = await run(1);
-    const fast = await run(4);
-
-    expect(fast).toBeLessThan(slow * 0.6);
+    const chunks = await collect(
+      adapter.complete([{ role: "user", content: "x" }], [], {
+        model: "demo",
+        maxTokens: 10,
+        signal: noSignal(),
+      }),
+    );
+    expect(chunks.filter((c) => c.type === "text")).toHaveLength(2);
   });
 
   it("throws AbortError and yields nothing when already aborted", async () => {

@@ -94,6 +94,22 @@ function parseFixture(name: string, text: string): Fixture {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * How long to wait between chunks: the fixture's own delay if it has one, the
+ * adapter's otherwise, divided by the playback speed.
+ *
+ * Exported so it can be checked as arithmetic. It used to be tested with a
+ * stopwatch, which measured the CI runner rather than this line and failed on
+ * Windows when the second of the two runs happened to be the slow one.
+ */
+export function chunkDelay(
+  fixtureDelayMs: number | undefined,
+  defaultDelayMs: number,
+  speed: number,
+): number {
+  return (fixtureDelayMs ?? defaultDelayMs) / speed;
+}
+
 export class FixtureAdapter implements ProviderAdapter {
   readonly id = "demo";
   readonly kind = "demo" as const;
@@ -199,7 +215,7 @@ export class FixtureAdapter implements ProviderAdapter {
     opts: CompleteOptions,
   ): AsyncIterable<CompletionChunk> {
     const fixture = this.select(messages, tools, opts.model);
-    const delay = (fixture.header.delayMs ?? this.delayMs) / this.speed;
+    const delay = chunkDelay(fixture.header.delayMs, this.delayMs, this.speed);
 
     if (fixture.error) {
       const { code, detail = {}, retryAfterMs, status } = fixture.error;
