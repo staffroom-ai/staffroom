@@ -336,13 +336,14 @@ export function App(): ReactElement {
             tab={tab}
             onTab={setTab}
             error={store.lastError}
-            onDecide={(approval, decision, note) =>
+            onDecide={(approval, decision, note, match) =>
               socket?.send({
                 type: "approval.decide",
                 reqId: reqId(),
                 approvalId: approval.id,
                 decision,
                 ...(note === undefined || note.length === 0 ? {} : { note }),
+                ...(match === undefined ? {} : { match }),
               })
             }
             onOpenNote={(noteId) => setOpenNote(noteId)}

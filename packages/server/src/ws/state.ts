@@ -207,6 +207,7 @@ export async function collectState(office: Office, now?: Date): Promise<OfficeSt
       agentId,
       agentName: office.roster.agent(agentId)?.name ?? agentId,
       tool: { name: a.tool.name, source: a.tool.source.kind, scope: "write" },
+      input: a.input,
       preview: a.preview,
       requestedAt: new Date(a.requestedAt).toISOString(),
       expiresAt: new Date(a.expiresAt).toISOString(),

@@ -75,6 +75,8 @@ export interface PendingApprovalView {
   agentId: string;
   agentName: string;
   tool: { name: string; source: "builtin" | "custom" | "mcp"; scope: "write" };
+  /** What the tool was called with. The preview's body already shows it in full. */
+  input: unknown;
   preview: ApprovalPreview;
   requestedAt: string;
   expiresAt: string;

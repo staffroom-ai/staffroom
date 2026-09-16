@@ -80,7 +80,12 @@ export function Rail({
   activity: ActivityLine[];
   tab: RailTab;
   onTab: (tab: RailTab) => void;
-  onDecide: (approval: PendingApprovalView, decision: "approve" | "deny", note?: string) => void;
+  onDecide: (
+    approval: PendingApprovalView,
+    decision: "approve" | "deny" | "approve_always",
+    note?: string,
+    match?: Record<string, string>,
+  ) => void;
   onOpenNote: (noteId: string) => void;
   onReveal: (noteId: string) => void;
   error: { code: string; message: string; hint: string } | undefined;
@@ -126,7 +131,7 @@ export function Rail({
               key={approval.id}
               approval={approval}
               chords={index === 0}
-              onDecide={(decision, note) => onDecide(approval, decision, note)}
+              onDecide={(decision, note, match) => onDecide(approval, decision, note, match)}
             />
           ))}
         </section>

@@ -25,6 +25,8 @@ export type ClientMessage =
       approvalId: string;
       decision: "approve" | "approve_always" | "deny";
       note?: string;
+      /** What "always" should be limited to. Required for approve_always. */
+      match?: Record<string, string>;
     }
   | { type: "agent.rename"; reqId: string; agentId: string; name: string }
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
