@@ -135,6 +135,27 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
         return { ok: true };
       }
 
+      // SR-057: the Connect button behind an "needs you to sign in" connector.
+      //
+      // The office cannot open a browser tab, and should not try: the owner is
+      // already looking at one. The authorisation URL is handed back and the page
+      // opens it, which also keeps the sign-in on the owner's own click rather
+      // than on something the office decided to do to them.
+      case "mcp.oauth.begin": {
+        const begun = await office.mcp.beginOAuth(message.server);
+        if (!begun.ok) {
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: begun.message,
+              hint: `Check the entry for ${message.server} in office/config.yaml.`,
+            },
+          };
+        }
+        return { ok: true, result: { url: begun.url } };
+      }
+
       // SR-043: the office writes the name into agents.yaml through the document
       // API, so the owner's comments and formatting survive being renamed.
       case "agent.rename": {

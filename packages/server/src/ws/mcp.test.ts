@@ -142,3 +142,66 @@ describe("reconnecting a server by hand", () => {
     expect(result.ok).toBe(true);
   }, 20_000);
 });
+
+describe("signing in to a server", () => {
+  it("refuses a stdio server, which has nothing to sign in to", async () => {
+    const server = await office(
+      [
+        "version: 1",
+        "mcp:",
+        "  servers:",
+        "    local:",
+        "      command: node",
+        '      args: ["-e", "process.exit(0)"]',
+        "",
+      ].join("\n"),
+    );
+
+    const result = await handle(server.office, {
+      type: "mcp.oauth.begin",
+      reqId: "r1",
+      server: "local",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.message).toContain("not a remote MCP server");
+  });
+
+  it("refuses a name that is not in the config rather than starting anything", async () => {
+    const server = await office();
+    const result = await handle(server.office, {
+      type: "mcp.oauth.begin",
+      reqId: "r1",
+      server: "not-configured",
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
+  // The Connect button only ever opens a URL the office hands back, so the
+  // handler must never answer ok without one.
+  it("never reports success without an authorisation URL", async () => {
+    const server = await office(
+      [
+        "version: 1",
+        "mcp:",
+        "  servers:",
+        "    remote:",
+        "      url: http://127.0.0.1:1/mcp",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await handle(server.office, {
+      type: "mcp.oauth.begin",
+      reqId: "r1",
+      server: "remote",
+    });
+
+    if (result.ok) {
+      expect(typeof (result.result as { url?: unknown }).url).toBe("string");
+    } else {
+      expect(result.error?.message).toBeTruthy();
+    }
+  }, 20_000);
+});

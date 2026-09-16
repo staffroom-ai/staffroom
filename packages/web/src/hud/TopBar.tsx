@@ -13,6 +13,7 @@
 import type { OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
 import type { Connection } from "../ws.js";
+import { Connectors } from "./Connectors.js";
 
 const CONNECTION_TEXT: Partial<Record<Connection, string>> = {
   reconnecting: "Reconnecting",
@@ -23,13 +24,22 @@ function Vital({
   value,
   label,
   tone,
+  /*
+   * Set on the two facts the panels below already state — how many people work
+   * here, and how many things are filed. When the header runs out of room those
+   * are the ones to give up, because they are the only ones said twice.
+   */
+  spare,
 }: {
   value: number;
   label: string;
   tone?: "busy" | "waiting" | undefined;
+  spare?: boolean;
 }): ReactElement {
   return (
-    <span className={`vital${tone === undefined ? "" : ` vital-${tone}`}`}>
+    <span
+      className={`vital${tone === undefined ? "" : ` vital-${tone}`}${spare === true ? " vital-spare" : ""}`}
+    >
       <span className="vital-value">{value}</span>
       <span className="vital-label">{label}</span>
     </span>
@@ -41,11 +51,15 @@ export function TopBar({
   mode,
   connection,
   onSettings,
+  onSignIn,
+  onReconnect,
 }: {
   state: OfficeState;
   mode: "live" | "demo";
   connection: Connection;
   onSettings: () => void;
+  onSignIn: (server: string) => void;
+  onReconnect: (server: string) => void;
 }): ReactElement {
   const warning = CONNECTION_TEXT[connection];
   const waiting = state.approvals.length;
@@ -57,13 +71,15 @@ export function TopBar({
       <span className="topbar-rule" aria-hidden="true" />
 
       <div className="vitals">
-        <Vital value={state.agents.length} label="on staff" />
+        <Vital value={state.agents.length} label="on staff" spare />
         <Vital value={working} label="working" tone={working > 0 ? "busy" : undefined} />
         <Vital value={waiting} label="waiting on you" tone={waiting > 0 ? "waiting" : undefined} />
-        <Vital value={state.latestDeliverables.length} label="filed" />
+        <Vital value={state.latestDeliverables.length} label="filed" spare />
       </div>
 
       <div className="topbar-spacer" />
+
+      <Connectors connectors={state.connectors} onSignIn={onSignIn} onReconnect={onReconnect} />
 
       <div className="meta">
         {warning !== undefined && (

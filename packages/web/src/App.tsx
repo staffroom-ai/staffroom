@@ -65,6 +65,8 @@ export function App(): ReactElement {
   const [keyStates, setKeyStates] = useState<Record<string, SaveState>>({});
   /** reqId -> provider, so an ack or error lands on the row that asked. */
   const keyReqs = useRef(new Map<string, string>());
+  /** reqIds waiting on an authorisation URL to open. */
+  const oauthReqs = useRef(new Set<string>());
   const token = useMemo(() => readToken(), []);
 
   const socket = useMemo(() => {
@@ -102,11 +104,19 @@ export function App(): ReactElement {
               keyReqs.current.delete(message.reqId);
               setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saved" } }));
             }
+            if (oauthReqs.current.delete(message.reqId)) {
+              // Opened here rather than by the office: the sign-in stays on the
+              // owner's own click, and `noopener` keeps the provider's page from
+              // reaching back into this one.
+              const url = (message.result as { url?: string } | undefined)?.url;
+              if (typeof url === "string") window.open(url, "_blank", "noopener,noreferrer");
+            }
             break;
           }
           case "error": {
             // A failed key belongs under its own row, not in the rail's error slot.
             const failedReqId = message.reqId;
+            if (failedReqId !== undefined) oauthReqs.current.delete(failedReqId);
             const provider =
               failedReqId === undefined ? undefined : keyReqs.current.get(failedReqId);
             if (provider !== undefined && failedReqId !== undefined) {
@@ -270,6 +280,12 @@ export function App(): ReactElement {
           mode={store.mode}
           connection={store.connection}
           onSettings={() => setSettingsOpen(true)}
+          onSignIn={(server) => {
+            const id = reqId();
+            oauthReqs.current.add(id);
+            socket?.send({ type: "mcp.oauth.begin", reqId: id, server });
+          }}
+          onReconnect={(server) => socket?.send({ type: "mcp.reconnect", reqId: reqId(), server })}
         />
 
         <div className="hud-body">

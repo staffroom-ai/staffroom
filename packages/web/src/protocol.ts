@@ -33,6 +33,8 @@ export type ClientMessage =
   | { type: "runs.replay"; reqId: string; runId: string }
   | { type: "note.reveal"; reqId: string; noteId: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
+  | { type: "mcp.reconnect"; reqId: string; server: string }
+  | { type: "mcp.oauth.begin"; reqId: string; server: string }
   | { type: "tools.assign"; reqId: string; agentId: string; tool: string }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   | { type: "ping"; reqId: string };
