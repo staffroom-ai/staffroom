@@ -8,6 +8,7 @@
  */
 import { checkNodeVersion } from "@staffroom/server";
 import { Command } from "commander";
+import { importIntoBrain, reindexBrain } from "./commands/brain.js";
 import { doctor } from "./commands/doctor.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { start } from "./commands/start.js";
@@ -96,6 +97,44 @@ async function run(): Promise<void> {
         name,
         officeDir: resolved.dir,
         ...(options.for === undefined ? {} : { forAgent: options.for }),
+      });
+    });
+
+  const brain = program.command("brain").description("Bring notes in, or index them again");
+  brain
+    .command("import <path>")
+    .description("Copy a folder of notes, or an Obsidian vault, into this office")
+    .option("--office <dir>", "Which office folder to import into")
+    .option("--move", "Move the files instead of copying them")
+    .option("--area <area>", "Where they land", "90-archive")
+    .option("--include-tools", "Also bring a tools/ folder, which runs on this machine")
+    .action((path, options) => {
+      const resolved = resolveOfficeDir({
+        flag: options.office,
+        env: process.env["STAFFROOM_OFFICE"],
+      });
+      importIntoBrain({
+        officeDir: resolved.dir,
+        source: path,
+        ...(options.move === undefined ? {} : { move: options.move }),
+        ...(options.area === undefined ? {} : { area: options.area }),
+        ...(options.includeTools === undefined ? {} : { includeTools: options.includeTools }),
+      });
+    });
+
+  brain
+    .command("reindex")
+    .description("Read every note again, from the files")
+    .option("--office <dir>", "Which office folder to reindex")
+    .option("--embeddings", "Not in this version yet")
+    .action((options) => {
+      const resolved = resolveOfficeDir({
+        flag: options.office,
+        env: process.env["STAFFROOM_OFFICE"],
+      });
+      reindexBrain({
+        officeDir: resolved.dir,
+        ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
       });
     });
 

@@ -20,6 +20,18 @@ export {
   noteIndexedDelta,
   noteRemovedDelta,
 } from "./brain/graph.js";
+export type { ImportOptions, ImportSummary } from "./brain/import.js";
+export {
+  ATTACHMENTS,
+  DEFAULT_AREA,
+  fillFrontMatter,
+  importBrain,
+  isObsidianVault,
+  rewriteLinks,
+  slugOf,
+  summaryLines,
+  walk as walkImportSource,
+} from "./brain/import.js";
 export type { BrainIndexOptions } from "./brain/index.js";
 // Brain
 export { BrainIndex } from "./brain/index.js";
