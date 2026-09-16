@@ -5,7 +5,7 @@
  * actually happened. Everything reads from the store, which holds the office's own
  * account of itself; nothing here decides anything on its own.
  */
-import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, type ReactElement, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { revealLabel } from "./hud/Chat.js";
 import { DepartmentCard, summarise } from "./hud/DepartmentCard.js";
 import { NoteSheet } from "./hud/NoteSheet.js";
@@ -23,7 +23,16 @@ import {
   type View,
   viewFor,
 } from "./list/ListView.js";
-import { Scene } from "./scene/Scene.js";
+
+/**
+ * The scene is loaded on demand, not with the page.
+ *
+ * three.js, fiber and drei are about 1.4 MB of the bundle, and a visitor on a
+ * phone or in the list view never renders a single frame of it. Splitting here
+ * means they never download it either.
+ */
+const Scene = lazy(async () => ({ default: (await import("./scene/Scene.js")).Scene }));
+
 import { useOfficeStore } from "./store.js";
 import { OfficeSocket, readToken } from "./ws.js";
 
@@ -242,7 +251,11 @@ export function App(): ReactElement {
           things in a form it can actually read. */}
       {view === "scene" && (
         <div aria-hidden="true">
-          <Scene state={state} />
+          {/* No fallback: the panels are already drawn over the office, so an
+              empty ground for a moment is less jarring than a spinner. */}
+          <Suspense fallback={null}>
+            <Scene state={state} />
+          </Suspense>
         </div>
       )}
 

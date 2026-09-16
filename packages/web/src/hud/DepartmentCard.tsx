@@ -8,7 +8,7 @@
  */
 import type { OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
-import { podPencil } from "../scene/materials.js";
+import { podPencil } from "../scene/palette.js";
 
 export interface DepartmentSummary {
   id: string;

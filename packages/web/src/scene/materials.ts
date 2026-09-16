@@ -17,12 +17,20 @@
  */
 import { Color } from "three";
 
-/** Cool near-black, never pure black: pure black reads as a hole, not a surface. */
-export const INK = "#12171d";
+// The palette itself has no three.js import, so the interface can take a colour
+// from it without pulling the renderer in. Re-exported here because everything
+// in the scene reasonably expects to find all of it in one place.
+export {
+  ACCENT,
+  ACCENT_DARK,
+  INK,
+  POD_PENCIL,
+  POD_PENCIL_DARK,
+  podPencil,
+} from "./palette.js";
 
-/** The interface accent, and the light inside the Brain. One accent, one job. */
-export const ACCENT = "#1a46d6";
-export const ACCENT_DARK = "#7fa0ff";
+// Also imported, not just re-exported: the materials below use them.
+import { ACCENT, ACCENT_DARK } from "./palette.js";
 
 /**
  * Surfaces, in value order. `floor` is the brightest thing in light and the
@@ -60,43 +68,6 @@ export const DARK = {
   figure: new Color("#cdd6e0"),
   figureHead: new Color("#d9e2eb"),
 } as const;
-
-/**
- * Departments in coloured pencil: six hues at one saturation and one value, so no
- * department shouts over another. They sit on the floor, never on a person, which
- * keeps "which team" and "what is that person doing" separate questions: people
- * themselves are neutral figures, and the only colour they carry is their status.
- */
-export const POD_PENCIL = [
-  "#9f6850", // rust
-  "#7d9f50", // moss
-  "#509f75", // jade
-  "#50829f", // steel
-  "#68509f", // iris
-  "#9f5082", // magenta
-] as const;
-
-/** Lifted for dark, where the same value against a dark floor disappears. */
-export const POD_PENCIL_DARK = [
-  "#c38f79",
-  "#a3c379",
-  "#79c39c",
-  "#79a8c3",
-  "#8f79c3",
-  "#c379a8",
-] as const;
-
-/**
- * Spread the departments across the whole pencil palette rather than taking the
- * first N. With three departments, indices 0,1,2 gave rust, moss and jade — two
- * of them green, which is exactly the confusion the pencils exist to prevent.
- * Striding gives rust, jade and iris instead.
- */
-export function podPencil(pod: number, dark: boolean, podCount = 0): string {
-  const palette = dark ? POD_PENCIL_DARK : POD_PENCIL;
-  const stride = podCount > 0 ? Math.max(1, Math.floor(palette.length / podCount)) : 1;
-  return palette[(pod * stride) % palette.length] as string;
-}
 
 /**
  * Status. The only saturated colour allowed on a person, because "is this one
