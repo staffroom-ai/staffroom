@@ -10,6 +10,14 @@ import { expect, test } from "@playwright/test";
 test("adds a task and sees a deliverable", async ({ page }) => {
   await page.goto(process.env["STAFFROOM_URL"] as string);
 
+  // Wait for the office to be open, not merely for the HTML to have parsed. The
+  // department picker is filled from the state the server sends, so its presence
+  // means the socket delivered a welcome. On a slower CI runner the first Tab
+  // used to fire before React had mounted and focus landed nowhere.
+  await expect(page.getByRole("combobox", { name: "Department" })).toBeVisible({
+    timeout: 20_000,
+  });
+
   // The list view is the accessible twin these hooks live on. It is reached the
   // way a keyboard user reaches it: the skip control sits off-screen until it has
   // focus, so the first Tab is both how you get there and a check that it really
