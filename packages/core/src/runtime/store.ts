@@ -169,9 +169,13 @@ export class SqliteRunStore implements RunStore {
   }
 
   /** Redacts, writes, updates the run row and notifies, in that order. */
-  append(runId: string, event: RunEvent): Promise<RunEventEnvelope> {
+  /**
+   * `at` is for replaying history that already happened — a template's sample
+   * run, say. Everything the office does itself leaves it out and gets now,
+   * which is the only honest answer for something happening as it is written.
+   */
+  append(runId: string, event: RunEvent, at = Date.now()): Promise<RunEventEnvelope> {
     const clean = redactSecrets(event);
-    const at = Date.now();
 
     if (clean.type === "chunk" && this.chunkFlushMs > 0) {
       // Deferred to disk, but the subscriber sees it now so text streams.

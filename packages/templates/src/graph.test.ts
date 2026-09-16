@@ -21,9 +21,10 @@ function studio(): BrainIndex {
 }
 
 /**
- * No runs.sqlite ships with the template, so the graph opens without `readBy`
- * or `wroteBy`. That is a gap in the sample content rather than in the graph:
- * `brain.md` says the template should ship a sample run, and it does not yet.
+ * An empty run log, on purpose: these tests are about the shipped notes and the
+ * arrows between them, which the brain folder decides on its own. What the
+ * template's sample run adds on top — who read what, who wrote what — is
+ * covered in seed.test.ts against a real office.
  */
 function noRuns(): SqliteRunStore {
   return new SqliteRunStore(

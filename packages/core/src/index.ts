@@ -205,6 +205,7 @@ export {
 } from "./runtime/routing.js";
 export type { RunnerDeps, SubmitTaskInput } from "./runtime/runner.js";
 export { Runner } from "./runtime/runner.js";
+export { readSampleRun, sampleRunPath, seedSampleRun } from "./runtime/seed.js";
 export type { SqliteRunStoreOptions } from "./runtime/store.js";
 export { newApprovalId, newRunId, SqliteRunStore } from "./runtime/store.js";
 // Shared types

@@ -1,0 +1,99 @@
+{
+  "_comment": "One run that already happened, so a new office is not an empty room. Written into runs.sqlite the first time the office opens, and only when the run log is empty. Every note id below is a real note in this template's brain/, so the graph opens with real arrows: the copywriter read four notes and wrote the one that revises the first draft.",
+  "run": {
+    "id": "sample-autumn-offer",
+    "kind": "task",
+    "agentId": "copywriter",
+    "department": "marketing",
+    "model": { "provider": "demo", "model": "demo" },
+    "prompt": "Write Acme Bakery an email about the autumn retainer.",
+    "parentRunId": null,
+    "routineId": null,
+    "sample": true,
+    "createdAt": "2026-03-02T15:18:00+11:00"
+  },
+  "events": [
+    {
+      "type": "started",
+      "agentId": "copywriter",
+      "kind": "task",
+      "model": { "provider": "demo", "model": "demo" },
+      "modelSource": "office_default",
+      "prompt": "Write Acme Bakery an email about the autumn retainer.",
+      "parentRunId": null,
+      "routineId": null,
+      "systemPromptHash": "sample",
+      "toolNames": ["brain_search", "brain_read", "brain_write"]
+    },
+    {
+      "type": "brain_pinned_included",
+      "noteIds": ["00-about/company", "00-about/how-we-work", "00-about/pricing", "00-about/voice"]
+    },
+    {
+      "type": "tool_call",
+      "turn": 1,
+      "call": {
+        "id": "sample-1",
+        "name": "brain_search",
+        "input": { "query": "autumn retainer Acme Bakery" }
+      },
+      "scope": "read",
+      "egress": false,
+      "inputChars": 48,
+      "group": "brain"
+    },
+    {
+      "type": "tool_result",
+      "toolCallId": "sample-1",
+      "name": "brain_search",
+      "output": "3 notes",
+      "isError": false,
+      "durationMs": 12,
+      "truncated": false,
+      "redactedCount": 0,
+      "noteIds": ["10-customers/acme-bakery", "20-products/autumn-retainer", "00-about/pricing"]
+    },
+    {
+      "type": "tool_call",
+      "turn": 1,
+      "call": {
+        "id": "sample-2",
+        "name": "brain_read",
+        "input": { "id": "40-deliverables/marketing/2026-03-01-autumn-offer-email" }
+      },
+      "scope": "read",
+      "egress": false,
+      "inputChars": 62,
+      "group": "brain"
+    },
+    {
+      "type": "tool_result",
+      "toolCallId": "sample-2",
+      "name": "brain_read",
+      "output": "the first draft",
+      "isError": false,
+      "durationMs": 4,
+      "truncated": false,
+      "redactedCount": 0,
+      "noteIds": ["40-deliverables/marketing/2026-03-01-autumn-offer-email"]
+    },
+    {
+      "type": "brain_note_written",
+      "noteId": "40-deliverables/marketing/2026-03-02-autumn-offer-email",
+      "revises": "40-deliverables/marketing/2026-03-01-autumn-offer-email",
+      "status": "draft"
+    },
+    {
+      "type": "done",
+      "deliverable": {
+        "title": "Autumn retainer email to Acme Bakery",
+        "text": "# Autumn retainer email to Acme Bakery\n\nSubject: Three months, one thing a month\n\nHi Marta,\n\nMarch to May is quiet for you and busy for us, so we put together something for the in-between: $2,400 a month, three months, one campaign each month.\n",
+        "noteId": "40-deliverables/marketing/2026-03-02-autumn-offer-email"
+      },
+      "usage": { "inputTokens": 2140, "outputTokens": 260 },
+      "costUsd": null,
+      "toolsUsed": ["brain_search", "brain_read", "brain_write"],
+      "turns": 2
+    }
+  ]
+}

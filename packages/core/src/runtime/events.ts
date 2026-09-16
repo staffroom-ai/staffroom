@@ -127,7 +127,8 @@ export interface RunListFilter {
 
 export interface RunStore {
   create(run: Omit<Run, "status" | "finishedAt" | "usage" | "costUsd">): Promise<Run>;
-  append(runId: string, event: RunEvent): Promise<RunEventEnvelope>;
+  /** `at` is only for replaying history; leave it out for anything happening now. */
+  append(runId: string, event: RunEvent, at?: number): Promise<RunEventEnvelope>;
   events(runId: string): AsyncIterable<RunEventEnvelope>;
   since(seq: number): AsyncIterable<RunEventEnvelope>;
   get(runId: string): Promise<Run | null>;

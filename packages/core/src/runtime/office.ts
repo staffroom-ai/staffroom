@@ -34,6 +34,7 @@ import {
   setProviderKey,
 } from "./office-edits.js";
 import { Runner } from "./runner.js";
+import { seedSampleRun } from "./seed.js";
 import { SqliteRunStore } from "./store.js";
 
 export interface Office {
@@ -189,6 +190,9 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
   const brainDir = join(officeDir, loaded.config.brain.dir);
   const brain = BrainIndex.open(brainDir, { indexFile: join(officeDir, "brain.index.sqlite") });
   const store = new SqliteRunStore(join(officeDir, "runs.sqlite"));
+  // A template may ship one run that already happened, so a brand new office is
+  // not an empty room. Only ever into an empty log; see seed.ts.
+  await seedSampleRun(officeDir, store);
 
   // The registry blocks on approvals; the store is what makes them visible. Without
   // this wiring an approval would pause a run that the office could never show.

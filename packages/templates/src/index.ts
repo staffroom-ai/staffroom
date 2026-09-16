@@ -58,6 +58,8 @@ export function exampleToolsDir(): string {
 /** Never copied into an office: these belong to the repository, not the owner. */
 const NEVER_COPY = new Set([
   "package.json",
+  // Copied below, into .staffroom rather than the office root.
+  "sample-run.json",
   "node_modules",
   "tools",
   ".staffroom",
@@ -94,6 +96,16 @@ export function copyTemplate(id: string, dest: string, options: CopyOptions = {}
     const target = entry === "gitignore" ? ".gitignore" : entry;
     cpSync(join(from, entry), join(dest, target), { recursive: true });
     copied.push(target);
+  }
+
+  // The run that already happened, next to the transcripts: ours, not the
+  // owner's, so it does not sit in their office folder looking like a file they
+  // are supposed to edit.
+  const seedFrom = join(from, "sample-run.json");
+  if (existsSync(seedFrom)) {
+    mkdirSync(join(dest, ".staffroom"), { recursive: true });
+    cpSync(seedFrom, join(dest, ".staffroom", "sample-run.json"));
+    copied.push(".staffroom/sample-run.json");
   }
 
   // Demo transcripts go where the server looks for them by default.
