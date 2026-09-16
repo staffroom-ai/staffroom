@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     branches: [main]
+  # So a failed publish can be retried without an empty commit.
+  workflow_dispatch:
 
 concurrency:
   group: release
