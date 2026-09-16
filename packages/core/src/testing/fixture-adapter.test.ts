@@ -115,25 +115,31 @@ describe("playback", () => {
   });
 
   it("divides the delay by the speed", async () => {
-    const dir = tempFixtures({
-      "generic.jsonl":
-        '{"matches":[],"delayMs":40}\n{"type":"text","text":"a"}\n{"type":"text","text":"b"}\n{"type":"done","stopReason":"end","usage":{"inputTokens":1,"outputTokens":1}}\n',
-    });
-    const adapter = new FixtureAdapter(dir);
-    adapter.setSpeed(4);
+    const transcript =
+      '{"matches":[],"delayMs":40}\n{"type":"text","text":"a"}\n{"type":"text","text":"b"}\n{"type":"done","stopReason":"end","usage":{"inputTokens":1,"outputTokens":1}}\n';
 
-    const started = performance.now();
-    await collect(
-      adapter.complete([{ role: "user", content: "x" }], [], {
-        model: "demo",
-        maxTokens: 10,
-        signal: noSignal(),
-      }),
-    );
-    const elapsed = performance.now() - started;
+    const run = async (speed: number): Promise<number> => {
+      const adapter = new FixtureAdapter(tempFixtures({ "generic.jsonl": transcript }));
+      adapter.setSpeed(speed);
+      const started = performance.now();
+      await collect(
+        adapter.complete([{ role: "user", content: "x" }], [], {
+          model: "demo",
+          maxTokens: 10,
+          signal: noSignal(),
+        }),
+      );
+      return performance.now() - started;
+    };
 
-    // Three chunks at 40/4 = 10ms each is about 30ms; at speed 1 it would be 120ms.
-    expect(elapsed).toBeLessThan(100);
+    // Compared against each other rather than against a stopwatch. A fixed
+    // ceiling here failed on a loaded CI runner at 111 ms against 100 ms, which
+    // said nothing about the code: both runs share whatever the machine is doing,
+    // so the ratio survives load that an absolute bound cannot.
+    const slow = await run(1);
+    const fast = await run(4);
+
+    expect(fast).toBeLessThan(slow * 0.6);
   });
 
   it("throws AbortError and yields nothing when already aborted", async () => {
