@@ -18,5 +18,5 @@
       "cache": false
     }
   },
-  "globalPassThroughEnv": ["CHANGESET_BASE", "CI", "GITHUB_BASE_REF"]
+  "globalPassThroughEnv": ["CHANGESET_BASE", "CI", "GITHUB_BASE_REF", "npm_config_user_agent"]
 }
