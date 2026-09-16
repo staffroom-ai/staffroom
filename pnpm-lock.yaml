@@ -41,6 +41,9 @@ importers:
       '@inquirer/prompts':
         specifier: ^8.7.2
         version: 8.7.2(@types/node@26.5.1)
+      '@staffroom/core':
+        specifier: workspace:*
+        version: link:../core
       '@staffroom/server':
         specifier: workspace:*
         version: link:../server

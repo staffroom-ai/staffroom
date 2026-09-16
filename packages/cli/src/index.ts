@@ -11,6 +11,8 @@ import { Command } from "commander";
 import { doctor } from "./commands/doctor.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { start } from "./commands/start.js";
+import { addTool, listExampleTools } from "./commands/tools.js";
+import { resolveOfficeDir } from "./office-dir.js";
 
 const VERSION = "0.1.1";
 
@@ -76,6 +78,25 @@ async function run(): Promise<void> {
     .addHelpText("after", `\nTemplates:\n${templateChoices()}\n`)
     .action((options) => {
       initOffice(options);
+    });
+
+  const tools = program.command("tools").description("Add one of the example tools");
+  tools
+    .command("add <name>")
+    .description("Copy an example tool into your office and give it to someone")
+    .option("--office <dir>", "Which office folder to add it to")
+    .option("--for <agent>", "Who may use it")
+    .addHelpText("after", `\nAvailable: ${listExampleTools().join(", ")}\n`)
+    .action((name, options) => {
+      const resolved = resolveOfficeDir({
+        flag: options.office,
+        env: process.env["STAFFROOM_OFFICE"],
+      });
+      addTool({
+        name,
+        officeDir: resolved.dir,
+        ...(options.for === undefined ? {} : { forAgent: options.for }),
+      });
     });
 
   program

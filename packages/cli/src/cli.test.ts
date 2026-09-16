@@ -5,12 +5,13 @@
  * program makes: getting it wrong means an owner opens a brand-new empty office
  * and believes they have lost their staff. It is worth pinning every branch.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { banner, KEEP_OPEN } from "./banner.js";
 import { initOffice, TOOLS_TIP } from "./commands/init.js";
+import { addTool, listExampleTools, toolNameOf } from "./commands/tools.js";
 import {
   defaultOfficePath,
   isOffice,
@@ -156,5 +157,65 @@ describe("init", () => {
     expect(() => initOffice({ dir: join(temp(), "x"), template: "nope" })).toThrow(
       /no template called nope/,
     );
+  });
+});
+
+describe("adding an example tool", () => {
+  it("copies the file and tells you nobody can use it yet", () => {
+    const dir = asOffice(join(temp(), "office"));
+    initOffice({ dir });
+    const lines: string[] = [];
+    addTool({ name: "send-sms", officeDir: dir }, (line) => lines.push(line));
+
+    expect(isOffice(dir)).toBe(true);
+    // A tool nobody holds does nothing, and "it did not work" is the only
+    // feedback you would otherwise get.
+    expect(lines.join("\n")).toContain("Nobody can use it yet");
+    expect(lines.join("\n")).toContain("--for");
+  });
+
+  it("names the staff, so the next command can be copied", () => {
+    const dir = join(temp(), "office");
+    initOffice({ dir });
+    const lines: string[] = [];
+    addTool({ name: "send-sms", officeDir: dir }, (line) => lines.push(line));
+    expect(lines.join("\n")).toContain("copywriter");
+  });
+
+  it("assigns it when told who to", () => {
+    const dir = join(temp(), "office");
+    initOffice({ dir });
+    addTool({ name: "send-sms", officeDir: dir, forAgent: "copywriter" }, () => {});
+
+    // The tool's own name, not the file's: send-sms.ts declares send_sms.
+    expect(readFileSync(join(dir, "agents.yaml"), "utf8")).toContain("send_sms");
+  });
+
+  it("refuses a tool that does not exist, and lists the ones that do", () => {
+    const dir = join(temp(), "office");
+    initOffice({ dir });
+    expect(() => addTool({ name: "not-a-tool", officeDir: dir }, () => {})).toThrow(/Available: /);
+  });
+
+  it("refuses an agent who does not work here", () => {
+    const dir = join(temp(), "office");
+    initOffice({ dir });
+    expect(() =>
+      addTool({ name: "send-sms", officeDir: dir, forAgent: "nobody" }, () => {}),
+    ).toThrow(/nobody/);
+  });
+
+  it("reads the tool's real name out of the file", () => {
+    expect(toolNameOf("send-sms")).toBe("send_sms");
+  });
+
+  it("offers the five example tools", () => {
+    expect(listExampleTools().sort()).toEqual([
+      "http-get",
+      "lookup-order",
+      "send-sms",
+      "sheet-append",
+      "sqlite-query",
+    ]);
   });
 });

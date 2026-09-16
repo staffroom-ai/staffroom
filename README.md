@@ -43,8 +43,15 @@ with recorded work, so you can see what it does before connecting anything.
 5. **Look in `~/Staffroom/office/brain/`.** Everything they write is markdown in a
    folder you own. Delete this app tomorrow and the work is still yours.
 
-To see an approval: `npx staffroom tools add send-sms`, then type that tool's
-`TRY IT` line. The agent stops and asks before anything leaves your machine.
+To see an approval, give one of your staff a tool that can reach the outside
+world, then ask them to use it:
+
+```bash
+npx staffroom tools add send-sms --for copywriter
+```
+
+Now type that tool's `TRY IT` line into the task bar. They stop and ask before
+anything leaves your machine.
 
 ## How it works
 

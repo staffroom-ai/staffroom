@@ -43,6 +43,7 @@
   "homepage": "https://github.com/staffroom-ai/staffroom",
   "dependencies": {
     "@inquirer/prompts": "^8.7.2",
+    "@staffroom/core": "workspace:*",
     "@staffroom/server": "workspace:*",
     "@staffroom/templates": "workspace:*",
     "commander": "^15.0.0",

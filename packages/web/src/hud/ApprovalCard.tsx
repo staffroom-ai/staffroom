@@ -99,16 +99,21 @@ export function ApprovalCard({
         <dd className="mono">{approval.tool.name}</dd>
       </dl>
 
-      {(approval.preview.fields?.length ?? 0) > 0 && (
+      {/* Fields that only repeat the destination row above are dropped: the same
+          address twice reads as a mistake rather than as emphasis. */}
+      {(approval.preview.fields?.filter((f) => f.value !== approval.preview.destination).length ??
+        0) > 0 && (
         <dl className="approval-fields">
-          {approval.preview.fields?.map((field) => (
-            <div key={field.name} style={{ display: "contents" }}>
-              <dt>{field.name}</dt>
-              <dd className={field.sensitive === true ? "mono is-masked" : "mono"}>
-                {field.sensitive === true ? mask(field.value) : field.value}
-              </dd>
-            </div>
-          ))}
+          {approval.preview.fields
+            ?.filter((field) => field.value !== approval.preview.destination)
+            .map((field) => (
+              <div key={field.name} style={{ display: "contents" }}>
+                <dt>{field.name}</dt>
+                <dd className={field.sensitive === true ? "mono is-masked" : "mono"}>
+                  {field.sensitive === true ? mask(field.value) : field.value}
+                </dd>
+              </div>
+            ))}
         </dl>
       )}
 
