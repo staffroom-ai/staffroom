@@ -134,11 +134,17 @@ describe.skipIf(!canSpawn)("a server that never answers", () => {
   it("is left unavailable with the reason, and never blocks the office", async () => {
     const { manager } = harness({ silent: stdio({ MCP_ECHO_SILENT: "1" }) });
 
-    // start() returns at once: this is the whole point of it being fire and
-    // forget. A server on a slow network cannot hold the office closed.
+    // start() returns without waiting: this is the whole point of it being fire
+    // and forget, and a server on a slow network cannot hold the office closed.
+    //
+    // The bound is generous on purpose. What is being protected is that start()
+    // does not wait on the connect, which takes CONNECT_TIMEOUT_MS — fifteen
+    // seconds — so anything in the same order as a function call proves it. A
+    // tighter figure measured the CI runner instead, and failed on Windows at
+    // 384 ms while the code was doing exactly the right thing.
     const before = Date.now();
     manager.start();
-    expect(Date.now() - before).toBeLessThan(200);
+    expect(Date.now() - before).toBeLessThan(2_000);
 
     await until(() => manager.status()[0]?.state === "unavailable", 10_000);
     expect(manager.status()[0]?.detail).toMatch(/did not answer/i);
