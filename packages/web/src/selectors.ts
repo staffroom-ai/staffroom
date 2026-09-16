@@ -25,7 +25,7 @@ export function positionOf(state: OfficeState, agentId: string): Point | undefin
   const agent = state.agents.find((a) => a.id === agentId);
   const pod = podOf(state, agentId);
   if (agent === undefined || pod === undefined) return undefined;
-  return seatPosition(pod, agent.seat);
+  return seatPosition(pod, agent.seat, state.departments.length);
 }
 
 /** Pods with nobody in them render dimmed rather than being hidden. */

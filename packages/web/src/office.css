@@ -1,52 +1,66 @@
 /*
- * The office's surface.
+ * The office's surface. Direction: Floorplate.
  *
- * An architect's model on a drafting table: warm paper, ink, hairlines, and one
- * drafting-pencil blue doing all the interactive work. Type is Archivo, which has
- * enough industrial character to sit beside a technical drawing, with IBM Plex
- * Mono for anything that is a number or a label rather than a sentence.
+ * The rule the whole interface is built on is figure and ground. The page is a
+ * cool grey ground; the floorplate and the panels are lighter than it and sit on
+ * it with a real shadow; text sits on the panels. Nothing is the same value as the
+ * thing behind it, in either theme.
+ *
+ * Type does the hierarchy rather than boxes: Archivo for anything that is a
+ * sentence, IBM Plex Mono in small caps for anything that is a label or a number.
+ * Ultramarine is the only accent and it is spent on one thing — what you can act
+ * on. Status colour is a separate, semantic family and never decorates.
  */
 
 :root {
   color-scheme: light dark;
 
-  --paper: #e8e4db;
-  --surface: #f3f0e9;
-  --surface-2: #ddd8cd;
-  --ink: #22201c;
-  --ink-2: #6b6659;
-  --ink-3: #928c7d;
-  --hairline: rgba(34, 32, 28, 0.14);
-  --hairline-strong: rgba(34, 32, 28, 0.26);
-  --accent: #2b4b7c;
+  --ground: #ccd3dc;
+  --surface: #ffffff;
+  --surface-2: #f3f5f8;
+  --surface-3: #e7ebf1;
+  --ink: #12171d;
+  --ink-2: #495562;
+  --ink-3: #5d6975;
+  --hairline: rgba(18, 23, 29, 0.1);
+  --hairline-strong: rgba(18, 23, 29, 0.22);
+  --accent: #1a46d6;
   --accent-ink: #ffffff;
-  --warning: #9a6a2c;
-  --danger: #8f463e;
+  --accent-wash: rgba(26, 70, 214, 0.08);
+  --ok: #17703f;
+  --warning: #8a5a00;
+  --warning-wash: rgba(138, 90, 0, 0.09);
+  --danger: #a3341f;
 
   --ui: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --shadow-sm: 0 1px 2px rgba(34, 32, 28, 0.06);
-  --shadow-md: 0 6px 20px -8px rgba(34, 32, 28, 0.28);
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(18, 23, 29, 0.07);
+  --shadow-md: 0 2px 4px rgba(18, 23, 29, 0.05), 0 12px 28px -14px rgba(18, 23, 29, 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #191a1d;
-    --surface: #212327;
-    --surface-2: #2b2e33;
-    --ink: #eae7e0;
-    --ink-2: #a8a396;
-    --ink-3: #7b7669;
-    --hairline: rgba(234, 231, 224, 0.13);
-    --hairline-strong: rgba(234, 231, 224, 0.24);
-    --accent: #7d9ecc;
-    --accent-ink: #14161a;
-    --warning: #d2a05c;
-    --danger: #cf7268;
+    --ground: #0d1013;
+    --surface: #171c22;
+    --surface-2: #212931;
+    --surface-3: #2a333c;
+    --ink: #e9eef3;
+    --ink-2: #9eaab6;
+    --ink-3: #8b96a2;
+    --hairline: rgba(233, 238, 243, 0.12);
+    --hairline-strong: rgba(233, 238, 243, 0.26);
+    --accent: #7fa0ff;
+    --accent-ink: #0b1020;
+    --accent-wash: rgba(127, 160, 255, 0.14);
+    --ok: #4bd48c;
+    --warning: #f0b45c;
+    --warning-wash: rgba(240, 180, 92, 0.14);
+    --danger: #ff7a68;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.7);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 34px -16px rgba(0, 0, 0, 0.8);
   }
 }
 
@@ -62,11 +76,24 @@ body,
 }
 
 body {
-  background: var(--paper);
+  background: var(--ground);
   color: var(--ink);
   font: 400 14px / 1.55 var(--ui);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+}
+
+/* A faint pool of light under the plate, so the model is standing on something. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    62% 52% at 50% 54%,
+    color-mix(in srgb, var(--surface) 34%, transparent) 0%,
+    transparent 72%
+  );
 }
 
 .loading {
@@ -74,24 +101,45 @@ body {
   place-items: center;
   height: 100%;
   color: var(--ink-2);
-  font-size: 13px;
-  letter-spacing: 0.01em;
+  font-size: 14px;
 }
 
-/* Labels drawn onto the floor. Small, spaced, like an annotation. */
+/* ── the label drawn on the floor ────────────────────────────────────────── */
+
 .pod-label {
-  font: 500 9px / 1 var(--mono);
-  letter-spacing: 0.16em;
+  font: 600 11px / 1 var(--mono);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
   user-select: none;
-  opacity: 0.72;
-  /* A sliver of the paper behind the text keeps it readable where two pods
-     overlap on screen, without drawing a box around it. */
-  padding: 3px 6px;
-  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  color: var(--surface);
+  background: var(--pencil, var(--ink));
+  padding: 4px 8px 3px;
+  border-radius: 3px;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (prefers-color-scheme: dark) {
+  .pod-label {
+    color: #0d1013;
+  }
+}
+
+/* The one neutral label on the plate: what the thing in the middle is. */
+.plate-label {
+  font: 500 10px / 1 var(--mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border: 1px solid var(--hairline);
+  padding: 4px 8px 3px;
   border-radius: 3px;
 }
+
+/* ── frame ───────────────────────────────────────────────────────────────── */
 
 .hud {
   position: fixed;
@@ -101,47 +149,90 @@ body {
   flex-direction: column;
 }
 
+.hud-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr) 396px;
+  gap: 16px;
+  padding: 16px;
+  min-height: 0;
+}
+
 /* ── top bar ─────────────────────────────────────────────────────────────── */
 
 .topbar {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 20px;
-  height: 52px;
-  background: color-mix(in srgb, var(--paper) 82%, transparent);
-  backdrop-filter: blur(14px) saturate(1.1);
+  gap: 18px;
+  padding: 0 16px;
+  height: 56px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(16px) saturate(1.15);
   border-bottom: 1px solid var(--hairline);
 }
 
 .topbar-name {
   font-weight: 600;
-  font-size: 14px;
-  letter-spacing: -0.006em;
+  font-size: 17px;
+  letter-spacing: -0.014em;
+}
+
+.topbar-rule {
+  width: 1px;
+  height: 20px;
+  background: var(--hairline-strong);
 }
 
 .topbar-spacer {
   flex: 1;
 }
 
-.topbar-clock {
-  font: 400 12px / 1 var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-  letter-spacing: 0.02em;
+/*
+ * The header carries the office's vital signs, not a title and a clock. Each fact
+ * is a number and a word, in the same shape, so the row scans as one line.
+ */
+.vitals {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
 }
 
-/*
- * Metadata reads as a quiet caption, not a row of badges. A pill with a border
- * around every fact is what makes an interface look like a dashboard template.
- */
+.vital {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.vital-value {
+  font: 500 16px / 1 var(--ui);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.vital-label {
+  font: 400 11px / 1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.vital-busy .vital-value {
+  color: var(--ok);
+}
+
+.vital-waiting .vital-value,
+.vital-waiting .vital-label {
+  color: var(--warning);
+}
+
 .meta {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   font: 400 11px / 1 var(--mono);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   color: var(--ink-3);
   text-transform: uppercase;
 }
@@ -153,17 +244,16 @@ body {
   white-space: nowrap;
 }
 
-/* A dot carries the state; the word carries the meaning. */
 .dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: currentColor;
   flex: none;
 }
 
 .meta-live {
-  color: var(--ink-2);
+  color: var(--ok);
 }
 .meta-demo {
   color: var(--accent);
@@ -172,46 +262,270 @@ body {
   color: var(--warning);
 }
 
+.topbar-clock {
+  font: 400 12px / 1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+
+/* ── left column: who works here ─────────────────────────────────────────── */
+
+.left {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 13px 9px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.panel-title {
+  margin: 0;
+  font: 600 11px / 1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.panel-note {
+  font: 400 11px / 1 var(--mono);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── department row ──────────────────────────────────────────────────────── */
+
+.dept-card {
+  display: grid;
+  grid-template-columns: 3px 1fr auto;
+  align-items: center;
+  gap: 0 11px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.dept-card:last-child {
+  border-bottom: 0;
+}
+
+.dept-card:hover {
+  background: var(--surface-2);
+}
+
+.dept-card.is-selected {
+  background: var(--accent-wash);
+}
+
+/* The department's colour as a full-height edge, not a dot floating in space. */
+.dept-edge {
+  align-self: stretch;
+  background: var(--pencil);
+}
+
+.dept-body {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  min-width: 0;
+}
+
+.dept-name {
+  font: 600 13px / 1.2 var(--ui);
+  letter-spacing: 0.005em;
+  color: var(--ink);
+}
+
+.dept-line {
+  font: 400 12px / 1.3 var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dept-line em {
+  font-style: normal;
+  color: var(--ok);
+}
+
+/* The one number the row is about. */
+.dept-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding-right: 13px;
+}
+
+.dept-figure-value {
+  font: 500 24px / 1 var(--ui);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dept-figure-unit {
+  font: 400 10px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dept-flag {
+  grid-column: 2 / -1;
+  margin: 0 13px 10px 0;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font: 500 12px / 1.3 var(--ui);
+  color: var(--warning);
+  background: var(--warning-wash);
+}
+
+/* ── roster ──────────────────────────────────────────────────────────────── */
+
+.roster {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+.roster-list {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 0 6px;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 13px;
+}
+
+.person-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pencil);
+}
+
+.person-body {
+  min-width: 0;
+}
+
+.person-name {
+  display: block;
+  font: 500 14px / 1.25 var(--ui);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-role {
+  display: block;
+  font: 400 12px / 1.3 var(--ui);
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Busy or not, in a word, in the same place on every row. */
+.person-state {
+  font: 500 10px / 1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.person-state.is-working {
+  color: var(--ok);
+}
+.person-state.is-waiting {
+  color: var(--warning);
+}
+.person-state.is-error {
+  color: var(--danger);
+}
+
+/* ── centre: the stage keeps its own bottom edge for the task bar ────────── */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 /* ── task bar ────────────────────────────────────────────────────────────── */
 
 .taskbar {
   pointer-events: auto;
   display: flex;
   align-items: stretch;
-  /* One margin declaration: a shorthand after margin-top silently resets it. */
-  margin: auto 20px 20px;
-  max-width: 760px;
-  width: calc(100% - 40px);
-  align-self: center;
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-md);
   overflow: hidden;
   transition: border-color 160ms ease;
 }
 
 .taskbar:focus-within {
-  border-color: var(--hairline-strong);
+  border-color: var(--accent);
 }
 
 .taskbar-department {
   appearance: none;
   font: 500 11px / 1 var(--mono);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-2);
-  background: transparent;
+  background: var(--surface-2);
   border: 0;
   border-right: 1px solid var(--hairline);
-  padding: 0 32px 0 16px;
+  padding: 0 34px 0 16px;
   cursor: pointer;
   background-image:
     linear-gradient(45deg, transparent 50%, currentColor 50%),
     linear-gradient(135deg, currentColor 50%, transparent 50%);
   background-position:
-    calc(100% - 17px) center,
-    calc(100% - 13px) center;
+    calc(100% - 19px) center,
+    calc(100% - 15px) center;
   background-size:
     4px 4px,
     4px 4px;
@@ -219,13 +533,14 @@ body {
 }
 
 .taskbar-input {
-  flex: 1;
-  font: 400 14px / 1 var(--ui);
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 15px / 1.2 var(--ui);
   color: var(--ink);
   background: transparent;
   border: 0;
-  padding: 15px 16px;
-  min-width: 0;
+  padding: 16px;
+  text-overflow: ellipsis;
 }
 
 .taskbar-input::placeholder {
@@ -237,181 +552,25 @@ body {
 }
 
 .taskbar-send {
-  font: 500 12px / 1 var(--ui);
-  letter-spacing: 0.01em;
-  color: var(--accent);
-  background: transparent;
+  flex: none;
+  font: 500 13px / 1 var(--ui);
+  color: var(--accent-ink);
+  background: var(--accent);
   border: 0;
-  border-left: 1px solid var(--hairline);
-  padding: 0 18px;
+  padding: 0 20px;
   cursor: pointer;
-  transition:
-    background 160ms ease,
-    color 160ms ease;
+  transition: filter 160ms ease;
   white-space: nowrap;
 }
 
 .taskbar-send:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  filter: brightness(1.12);
 }
 
 .taskbar-send:disabled {
   color: var(--ink-3);
+  background: var(--surface-3);
   cursor: default;
-}
-
-/* ── shared ──────────────────────────────────────────────────────────────── */
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* biome-ignore-start lint/complexity/noImportantStyles: honouring the viewer's
-     setting has to beat every component's own transition, which is the one case
-     where !important is the correct tool. */
-  * {
-    transition-duration: 1ms !important;
-    animation-duration: 1ms !important;
-  }
-  /* biome-ignore-end lint/complexity/noImportantStyles: as above. */
-}
-
-/* ── layout ──────────────────────────────────────────────────────────────── */
-
-.hud-body {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 372px;
-  gap: 20px;
-  padding: 18px 20px 0;
-  min-height: 0;
-}
-
-/*
- * Cards sit over the model in a column rather than pinned to their pods: pinned
- * cards overlap each other the moment two departments are near each other on
- * screen, and a card you cannot read is worse than one that is not where you
- * expected.
- */
-.cards {
-  pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 232px;
-  /* Scroll within the column. Without this the cards grow past the viewport and
-     sit on top of the task bar, which then cannot be clicked at all. */
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 4px;
-}
-
-/* ── department card ─────────────────────────────────────────────────────── */
-
-.dept-card {
-  display: grid;
-  gap: 8px;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  padding: 12px 14px;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(14px) saturate(1.1);
-  border: 1px solid var(--hairline);
-  border-radius: 9px;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition:
-    border-color 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.dept-card:hover {
-  border-color: var(--hairline-strong);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
-.dept-card.is-selected {
-  border-color: var(--accent);
-}
-
-.dept-card-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.dept-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex: none;
-}
-
-.dept-name {
-  font: 500 10px / 1 var(--mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-2);
-}
-
-/* One number, large, because the card is about that number. */
-.dept-figure {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.dept-figure-value {
-  font: 500 26px / 1 var(--ui);
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.dept-figure-unit {
-  font-size: 12px;
-  color: var(--ink-3);
-}
-
-.dept-stats {
-  display: flex;
-  gap: 16px;
-  padding-top: 8px;
-  border-top: 1px solid var(--hairline);
-}
-
-.dept-stat {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.dept-stat-label {
-  font: 400 10px / 1 var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.dept-stat-value {
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-}
-
-/* The only place on a card that raises its voice. */
-.dept-waiting {
-  font: 500 11px / 1 var(--ui);
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
-  border-radius: 6px;
-  padding: 7px 9px;
 }
 
 /* ── rail ────────────────────────────────────────────────────────────────── */
@@ -421,21 +580,58 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  backdrop-filter: blur(14px) saturate(1.1);
+  background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
+/* What the office has produced, before anything else on the rail. */
+.ledger {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-2);
+}
+
+.ledger-cell {
+  padding: 13px 14px;
+  border-right: 1px solid var(--hairline);
+}
+
+.ledger-cell:last-child {
+  border-right: 0;
+}
+
+.ledger-value {
+  display: block;
+  font: 500 26px / 1 var(--ui);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-label {
+  display: block;
+  margin-top: 5px;
+  font: 400 10px / 1 var(--mono);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ledger-cell.is-waiting .ledger-value,
+.ledger-cell.is-waiting .ledger-label {
+  color: var(--warning);
+}
+
 .rail-section {
-  padding: 14px;
+  padding: 13px;
   border-bottom: 1px solid var(--hairline);
 }
 
 .rail-approvals {
-  background: color-mix(in srgb, var(--warning) 6%, transparent);
+  background: var(--warning-wash);
   max-height: 58%;
   overflow-y: auto;
 }
@@ -445,16 +641,16 @@ body {
   align-items: center;
   gap: 8px;
   margin: 0 0 10px;
-  font: 500 10px / 1 var(--mono);
-  letter-spacing: 0.14em;
+  font: 600 11px / 1 var(--mono);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--warning);
 }
 
 .rail-count {
-  font: 400 10px / 1 var(--mono);
-  color: var(--ink-3);
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font: 500 10px / 1 var(--mono);
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
   border-radius: 99px;
   padding: 3px 6px;
   font-variant-numeric: tabular-nums;
@@ -462,20 +658,22 @@ body {
 
 .rail-tabs {
   display: flex;
-  gap: 2px;
-  padding: 10px 12px 0;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .rail-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font: 500 11px / 1 var(--ui);
+  gap: 7px;
+  font: 500 13px / 1 var(--ui);
   color: var(--ink-3);
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
-  padding: 8px 10px;
+  padding: 9px 8px 10px;
+  margin-bottom: -1px;
   cursor: pointer;
   transition:
     color 160ms ease,
@@ -495,32 +693,41 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 14px 14px;
+  padding: 8px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .rail-empty {
-  margin: 12px 0;
+  margin: 14px 0 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 30ch;
+}
+
+.rail-empty-hint {
+  margin: 8px 0 0;
   color: var(--ink-3);
   font-size: 12.5px;
   line-height: 1.6;
+  max-width: 34ch;
 }
 
 .feed-line {
   display: grid;
-  grid-template-columns: 42px 1fr;
-  gap: 8px;
+  grid-template-columns: 46px 1fr;
+  gap: 10px;
   margin: 0;
-  padding: 5px 0;
-  font-size: 12.5px;
+  padding: 6px 0;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--ink-2);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .feed-time {
-  font: 400 11px / 1.6 var(--mono);
+  font: 400 11px / 1.7 var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
 }
@@ -543,29 +750,28 @@ body {
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--hairline);
-  padding: 11px 0;
+  padding: 12px 0;
   cursor: pointer;
+}
+
+.result-title {
+  font-size: 14px;
+  font-weight: 600;
+  transition: color 160ms ease;
 }
 
 .result:hover .result-title {
   color: var(--accent);
 }
 
-.result-title {
-  font-size: 13.5px;
-  font-weight: 500;
-  transition: color 160ms ease;
-}
-
 .result-meta {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
 .result-path {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--ink-3);
-  opacity: 0.8;
 }
 
 .mono {
@@ -579,7 +785,7 @@ body {
   gap: 9px;
   padding: 12px;
   background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--warning) 34%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
   border-radius: 8px;
 }
 
@@ -596,10 +802,10 @@ body {
 
 .approval-who {
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 .approval-what {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 
@@ -608,12 +814,12 @@ body {
   grid-template-columns: auto 1fr;
   gap: 3px 10px;
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .approval-fields dt {
-  font: 400 10px / 1.5 var(--mono);
-  letter-spacing: 0.08em;
+  font: 400 10px / 1.6 var(--mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
@@ -630,17 +836,17 @@ body {
   padding: 10px;
   max-height: 168px;
   overflow-y: auto;
-  background: var(--paper);
+  background: var(--surface-2);
   border: 1px solid var(--hairline);
   border-radius: 6px;
-  font: 400 12px / 1.6 var(--mono);
+  font: 400 13px / 1.6 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .approval-warning {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--danger);
 }
 
@@ -656,18 +862,18 @@ body {
 }
 
 .approval-note {
-  font: 400 12.5px / 1 var(--ui);
+  font: 400 14px / 1.2 var(--ui);
   color: var(--ink);
-  background: var(--paper);
+  background: var(--surface-2);
   border: 1px solid var(--hairline);
   border-radius: 6px;
-  padding: 9px 10px;
+  padding: 10px;
 }
 
 .btn {
-  font: 500 12px / 1 var(--ui);
-  border-radius: 6px;
-  padding: 9px 14px;
+  font: 500 13px / 1 var(--ui);
+  border-radius: 7px;
+  padding: 10px 15px;
   cursor: pointer;
   border: 1px solid transparent;
   transition:
@@ -680,16 +886,15 @@ body {
   color: var(--accent-ink);
 }
 .btn-primary:hover {
-  background: color-mix(in srgb, var(--accent) 86%, black);
+  filter: brightness(1.12);
 }
 
 .btn-quiet {
   background: transparent;
   color: var(--ink-2);
-  border-color: var(--hairline);
+  border-color: var(--hairline-strong);
 }
 .btn-quiet:hover {
-  border-color: var(--hairline-strong);
   color: var(--ink);
 }
 
@@ -702,44 +907,57 @@ body {
 
 .rail-error {
   padding: 12px 14px;
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
 }
 
 .rail-error-message {
   margin: 0 0 3px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--danger);
 }
 .rail-error-hint {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-2);
 }
 
-/* The task bar spans the scene only, so the rail keeps its full height. */
-.taskbar {
-  max-width: none;
-  width: auto;
-  margin: 0 20px 20px;
+/* ── shared ──────────────────────────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
-@media (max-width: 1100px) {
+@media (prefers-reduced-motion: reduce) {
+  /* biome-ignore-start lint/complexity/noImportantStyles: honouring the viewer's
+     setting has to beat every component's own transition, which is the one case
+     where !important is the correct tool. */
+  * {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+  /* biome-ignore-end lint/complexity/noImportantStyles: as above. */
+}
+
+@media (max-width: 1180px) {
   .hud-body {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 250px minmax(0, 1fr);
   }
   .rail {
     display: none;
   }
 }
 
-/* Below this the office is the point and the cards are in the way. */
-@media (max-width: 720px) {
-  .cards {
+/* Below this the office is the point and the panels are in the way. */
+@media (max-width: 760px) {
+  .left {
     display: none;
   }
   .hud-body {
-    padding: 0;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
   }
 }

@@ -47,14 +47,14 @@ export function TaskBar({
         className="taskbar-input"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Write a two-line tagline for a bakery"
+        placeholder="Ask for something. Try: write a two-line tagline for the new bakery."
         aria-label="What needs doing"
         data-testid="task-input"
         autoComplete="off"
       />
 
       <button className="taskbar-send" type="submit" disabled={disabled || empty}>
-        {disabled ? "Reconnecting" : "Send it"}
+        {disabled ? "Reconnecting" : "Send"}
       </button>
     </form>
   );

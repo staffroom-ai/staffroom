@@ -18,9 +18,16 @@ export interface Point {
   z: number;
 }
 
-/** Pods sit at 0, 60, 120 ... degrees, starting at the far side and going clockwise. */
-export function podPosition(pod: number): Point {
-  const angle = (pod / POD_COUNT) * Math.PI * 2;
+/**
+ * Pods are spread evenly around the ring, dividing the floor by however many
+ * departments the office actually has rather than always by six. Three
+ * departments sit at 0, 120 and 240 degrees and use the whole plate; with a fixed
+ * sixth-of-a-circle they clustered on one side and the office read as abandoned.
+ * `pod` is still the department's index from core; only where it lands is decided
+ * here, which is a render-layer question.
+ */
+export function podPosition(pod: number, podCount: number = POD_COUNT): Point {
+  const angle = (pod / Math.max(1, podCount)) * Math.PI * 2;
   return {
     x: round(Math.sin(angle) * POD_RING_RADIUS),
     z: round(-Math.cos(angle) * POD_RING_RADIUS),
@@ -28,8 +35,8 @@ export function podPosition(pod: number): Point {
 }
 
 /** Which way a pod faces: always inward, towards the Brain. */
-export function podFacing(pod: number): number {
-  return (pod / POD_COUNT) * Math.PI * 2;
+export function podFacing(pod: number, podCount: number = POD_COUNT): number {
+  return (pod / Math.max(1, podCount)) * Math.PI * 2;
 }
 
 const DESK_SPREAD = 2.4;
@@ -39,9 +46,9 @@ const DESK_ROW_GAP = 1.6;
  * Desks are two rows of three, facing the Brain. Seat order matches the roster, so
  * the first agent listed sits nearest the front left.
  */
-export function seatPosition(pod: number, seat: number): Point {
-  const centre = podPosition(pod);
-  const facing = podFacing(pod);
+export function seatPosition(pod: number, seat: number, podCount: number = POD_COUNT): Point {
+  const centre = podPosition(pod, podCount);
+  const facing = podFacing(pod, podCount);
 
   const column = seat % 3;
   const row = Math.floor(seat / 3);
