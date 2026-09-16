@@ -4,7 +4,7 @@
  * Zero UI, zero HTTP, zero file watchers. Everything here can run in a test.
  */
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 export type { BrainIndexOptions } from "./brain/index.js";
 // Brain

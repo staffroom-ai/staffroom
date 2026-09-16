@@ -30,7 +30,7 @@ import { say } from "./log.js";
 import { OfficeWatchers } from "./watch/index.js";
 import { SocketHub } from "./ws/socket.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 export interface ServerOptions {
   officeDir: string;

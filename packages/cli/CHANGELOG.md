@@ -1,5 +1,20 @@
 # staffroom
 
+## 0.1.1
+
+### Patch Changes
+
+- Fixed: 0.1.0 of `staffroom`, `@staffroom/server` and `@staffroom/web` could not be
+  installed. They were published with `npm publish`, which ships pnpm's
+  `workspace:*` literally instead of rewriting it to a version, so every install
+  failed with `Unsupported URL Type "workspace:"`.
+
+  `prepublishOnly` now refuses any publish that is not pnpm, in every package.
+
+- Updated dependencies []:
+  - @staffroom/server@0.1.1
+  - @staffroom/templates@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

@@ -12,7 +12,7 @@ import { doctor } from "./commands/doctor.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { start } from "./commands/start.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 async function run(): Promise<void> {
   const nodeProblem = checkNodeVersion();

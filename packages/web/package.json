@@ -1,6 +1,6 @@
 {
   "name": "@staffroom/web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Staffroom web: the 3D office and HUD.",
   "type": "module",
   "license": "Apache-2.0",
@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "e2e": "playwright test",
-    "size": "size-limit"
+    "size": "size-limit",
+    "prepublishOnly": "node ../../scripts/guard-publish.mjs"
   },
   "publishConfig": {
     "access": "public"
