@@ -46,9 +46,15 @@ export class ToolNameConflict extends Error {
   }
 }
 
-/** Replaced by the real whitelist in SR-054. Says no to everything for now. */
+/**
+ * Permissions the owner has already given. A whitelist that is absent says no to
+ * everything, which is the right default: an office with no recorded permissions
+ * asks about every write.
+ */
 export interface Whitelist {
-  allows(tool: Tool, input: unknown, fingerprint: string): boolean;
+  allows(tool: Tool, input: unknown, fingerprint: string, agentId: string): boolean;
+  /** True when a row exists but was suspended because the tool changed. */
+  changedSinceAllowed?(agentId: string, tool: string, input: unknown): boolean;
 }
 
 export const DENY_ALL: Whitelist = { allows: () => false };
@@ -72,6 +78,8 @@ export interface ApprovalRequest {
 export interface ToolRegistryOptions {
   config: OfficeConfig;
   whitelist?: Whitelist;
+  /** Called when the owner chooses "approve and always allow". */
+  onGrant?: (grant: { agentId: string; tool: string; input: unknown; fingerprint: string }) => void;
   /** Called when a write needs the owner. The server turns this into events and a card. */
   onApprovalNeeded?: (request: ApprovalRequest) => void;
   /** Called for a local write, which is recorded but never blocks. */
@@ -168,6 +176,22 @@ export class ToolRegistry extends EventEmitter {
    * Resolves a pending approval. Called by the server when the owner clicks, and
    * by the boot sequence when an approval is expired.
    */
+  /**
+   * The card, plus the one thing the owner cannot see for themselves: that they
+   * allowed this before and the tool is not what it was.
+   */
+  private previewFor(tool: Tool, input: unknown, agentId: string): ApprovalPreview {
+    const preview = buildPreview(tool, input);
+    const changed = this.whitelist.changedSinceAllowed?.(agentId, tool.name, input) === true;
+    return changed
+      ? {
+          ...preview,
+          changedSinceAllowed:
+            "You allowed this before, but the tool has changed since. Please look again.",
+        }
+      : preview;
+  }
+
   resolve(approvalId: string, decision: ApprovalDecision, by: ApprovalBy, note?: string): boolean {
     const pending = this.waiting.get(approvalId);
     if (pending === undefined) return false;
@@ -258,7 +282,7 @@ export class ToolRegistry extends EventEmitter {
       toolCallId: ctx.toolCallId ?? "unknown",
       tool: { name: tool.name, source: tool.source, scope: "write" },
       input,
-      preview: buildPreview(tool, input),
+      preview: this.previewFor(tool, input, ctx.agentId),
       requestedAt: Date.now(),
       expiresAt: Date.now() + this.config.approvals.expiry_hours * 3_600_000,
     };
@@ -270,7 +294,7 @@ export class ToolRegistry extends EventEmitter {
       return undefined;
     }
 
-    if (this.whitelist.allows(tool, input, fingerprint)) {
+    if (this.whitelist.allows(tool, input, fingerprint, ctx.agentId)) {
       this.options.onLocalWrite?.(request);
       return undefined;
     }
@@ -301,7 +325,21 @@ export class ToolRegistry extends EventEmitter {
 
     switch (outcome.decision) {
       case "approve":
+        return undefined;
       case "approve_always":
+        // Recorded first, then the call proceeds. If writing the permission
+        // fails the call still goes through: the owner said yes, and refusing
+        // it because a file could not be written would be its own surprise.
+        try {
+          this.options.onGrant?.({
+            agentId: ctx.agentId,
+            tool: tool.name,
+            input,
+            fingerprint,
+          });
+        } catch {
+          // Reported by whoever owns the file, not by failing the call.
+        }
         return undefined;
       case "deny":
         return {

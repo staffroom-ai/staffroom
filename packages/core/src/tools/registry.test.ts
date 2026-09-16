@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { AgentConfig } from "../config/agents.js";
@@ -12,6 +15,7 @@ import {
   ToolRegistry,
 } from "./registry.js";
 import { scopeWasAssumed, type Tool, type ToolContext, ToolNameInvalid, tool } from "./tool.js";
+import { FileWhitelist } from "./whitelist.js";
 
 const brain: BrainReader = {
   search: () => Promise.resolve([]),
@@ -519,5 +523,51 @@ describe("buildPreview", () => {
 
   it("says so when there is no input at all", () => {
     expect(buildPreview(writeTool(), {}).body).toBe("(no input)");
+  });
+});
+
+describe("approve and always allow", () => {
+  it("records the permission, and the next identical call is not asked about", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "staffroom-grant-"));
+    writeFileSync(join(dir, "approvals.yaml"), "allow: []\n", "utf8");
+
+    const whitelist = new FileWhitelist(dir);
+    const asked: ApprovalRequest[] = [];
+    const registry = new ToolRegistry({
+      config: ConfigSchema.parse({ version: 1 }),
+      whitelist,
+      onApprovalNeeded: (request) => asked.push(request),
+      onGrant: ({ agentId, tool, input, fingerprint }) => {
+        const to = (input as { to?: string }).to as string;
+        whitelist.grant({ agentId, tool, fingerprint, match: { to } });
+      },
+    });
+    registry.register(writeTool({ name: "send_email" }));
+
+    const as = ctx({ agentId: "priya" });
+
+    // First call: the owner is asked, and says always.
+    const first = registry.invoke("send_email", { to: "a@acme.com", body: "Hello" }, as);
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    registry.resolve(asked[0]?.approvalId as string, "approve_always", "owner");
+    expect((await first).ok).toBe(true);
+
+    // Second call, same recipient: no question this time. This is the whole
+    // point of the feature — an office that asks again is an office nobody
+    // leaves running.
+    const second = await registry.invoke(
+      "send_email",
+      // A different body: the permission is to the recipient, not to one message.
+      { to: "a@acme.com", body: "A different message" },
+      as,
+    );
+    expect(second.ok).toBe(true);
+    expect(asked).toHaveLength(1);
+
+    // A different recipient is still a decision the owner has not made.
+    void registry.invoke("send_email", { to: "someone@else.com", body: "Hello" }, as);
+    await vi.waitFor(() => expect(asked).toHaveLength(2));
+
+    rmSync(dir, { recursive: true, force: true });
   });
 });

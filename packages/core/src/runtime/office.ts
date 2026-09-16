@@ -24,6 +24,7 @@ import { brainTools } from "../tools/builtins/brain.js";
 import { webSearchTool } from "../tools/builtins/web-search.js";
 import { type LoadFailure, loadCustomTools } from "../tools/loader.js";
 import { ToolRegistry } from "../tools/registry.js";
+import { FileWhitelist } from "../tools/whitelist.js";
 import type { RunStore } from "./events.js";
 import { assignTool, renameAgent, revealNote, setProviderKey } from "./office-edits.js";
 import { Runner } from "./runner.js";
@@ -50,6 +51,27 @@ export interface Office {
   setProviderKey(provider: string, key: string): boolean;
   revealNote(noteId: string): boolean;
   close(): void;
+}
+
+/**
+ * The part of an input a permission should be pinned to.
+ *
+ * "Approve and always allow" on an email means "to this person". Recording the
+ * whole input would make the permission useless — the next email has a different
+ * body — and recording nothing would make it far too wide.
+ */
+const DESTINATION_FIELDS = ["to", "recipient", "email", "address", "channel", "url", "phone"];
+
+function destinationMatch(input: unknown): Record<string, string> | undefined {
+  if (typeof input !== "object" || input === null) return undefined;
+  const record = input as Record<string, unknown>;
+  const match: Record<string, string> = {};
+
+  for (const field of DESTINATION_FIELDS) {
+    const value = record[field];
+    if (typeof value === "string" && value.length > 0) match[field] = value;
+  }
+  return Object.keys(match).length === 0 ? undefined : match;
 }
 
 export interface CreateOfficeOptions {
@@ -179,8 +201,25 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     });
   };
 
+  // Permissions the owner gave earlier, read from their own approvals.yaml.
+  const whitelist = new FileWhitelist(officeDir, {
+    whitelistDays: loaded.config.approvals.whitelist_days,
+  });
+
   const tools = new ToolRegistry({
     config: loaded.config,
+    whitelist,
+    onGrant: ({ agentId, tool, input, fingerprint }) => {
+      // Only the fields the preview treats as a destination become the match, so
+      // "always allow" means "to this recipient", not "with any input at all".
+      const match = destinationMatch(input);
+      whitelist.grant({
+        agentId,
+        tool,
+        fingerprint,
+        ...(match === undefined ? { allowAnyRecipient: true } : { match }),
+      });
+    },
     onApprovalNeeded: recordApproval,
     // A local write never blocks, but the pair is still recorded so the audit
     // trail reads the same whether the owner was asked or not.

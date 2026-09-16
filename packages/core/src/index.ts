@@ -232,3 +232,10 @@ export {
 } from "./tools/registry.js";
 export type { Tool, ToolContext, ToolDefinition, ToolScope } from "./tools/tool.js";
 export { MCP_TOOL_NAME, scopeWasAssumed, TOOL_NAME, ToolNameInvalid, tool } from "./tools/tool.js";
+export type { AllowRow, ApprovalsFile } from "./tools/whitelist.js";
+export {
+  approvalsPath,
+  FileWhitelist,
+  inputMatches,
+  valueMatches,
+} from "./tools/whitelist.js";
