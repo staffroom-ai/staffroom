@@ -20,7 +20,15 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { join } from "node:path";
 import { addRedactionSecrets } from "../redact.js";
 
-/** Only the owner: the directory and the files in it. */
+/**
+ * Only the owner: the directory and the files in it.
+ *
+ * On Windows these are not enforced — NTFS has no POSIX mode bits, and chmod
+ * there is close to a no-op. The file is still inside the owner's own office
+ * folder, which on a normal install sits under their user profile and inherits
+ * its ACL, but that is the operating system's protection rather than ours. Said
+ * plainly here because a comment claiming 0600 on every platform would be a lie.
+ */
 const DIR_MODE = 0o700;
 const FILE_MODE = 0o600;
 

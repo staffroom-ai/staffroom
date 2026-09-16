@@ -6,7 +6,7 @@
  * where a token is written, who is allowed to complete a sign-in, and whether
  * the value can ever reach a log.
  */
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -41,8 +41,12 @@ const TOKENS = {
   refresh_token: "rt-0123456789abcdefghijklmnop",
 };
 
+const POSIX = process.platform !== "win32";
+
 describe("where tokens are written", () => {
-  it("is a file only the owner can read, in a folder only the owner can open", () => {
+  // NTFS has no POSIX mode bits, so this can only be asserted where it is real.
+  // On Windows the file relies on the ACL it inherits from the user's profile.
+  it.skipIf(!POSIX)("is a file only the owner can read, in a folder only they can open", () => {
     const dir = office();
     saveTokens(dir, "notion", TOKENS);
 
@@ -50,6 +54,13 @@ describe("where tokens are written", () => {
     // published.
     expect(statSync(tokenPath(dir, "notion")).mode & 0o777).toBe(0o600);
     expect(statSync(secretsDir(dir)).mode & 0o777).toBe(0o700);
+  });
+
+  it("writes the token inside the office folder, wherever it runs", () => {
+    const dir = office();
+    saveTokens(dir, "notion", TOKENS);
+    expect(tokenPath(dir, "notion").startsWith(dir)).toBe(true);
+    expect(existsSync(tokenPath(dir, "notion"))).toBe(true);
   });
 
   it("round-trips what it saved", () => {
@@ -242,6 +253,6 @@ describe("the provider the SDK drives", () => {
     expect(provider.tokens()).toBeUndefined();
     provider.saveTokens(TOKENS);
     expect(provider.tokens()?.access_token).toBe(TOKENS.access_token);
-    expect(statSync(tokenPath(dir, "notion")).mode & 0o777).toBe(0o600);
+    if (POSIX) expect(statSync(tokenPath(dir, "notion")).mode & 0o777).toBe(0o600);
   });
 });
