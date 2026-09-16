@@ -11,7 +11,7 @@
  * application; a process is only ever spawned when the owner clicks.
  */
 import { describe, expect, it } from "vitest";
-import { detectEditors, openCommandFor } from "./editors.js";
+import { candidatesFor, detectEditors, openCommandFor } from "./editors.js";
 
 describe("detecting editors", () => {
   it("returns a list, whatever this machine has", () => {
@@ -61,5 +61,50 @@ describe("opening a note in one", () => {
       // nothing here builds a string a shell would have to re-split.
       expect(command?.args).toContain("/tmp/a note.md");
     }
+  });
+});
+
+describe("the paths it looks in", () => {
+  // Checked from any machine, because a path list only ever exercised on the OS
+  // it belongs to is a list nobody has read since the day it was written.
+  const platforms: NodeJS.Platform[] = ["darwin", "win32", "linux"];
+
+  it("knows the same three editors on every platform", () => {
+    for (const os of platforms) {
+      expect(candidatesFor(os, "/home/someone").map((c) => c.id)).toEqual([
+        "obsidian",
+        "vscode",
+        "typora",
+      ]);
+    }
+  });
+
+  it("gives every one somewhere to look", () => {
+    for (const os of platforms) {
+      for (const candidate of candidatesFor(os, "/home/someone")) {
+        expect(candidate.paths.length).toBeGreaterThan(0);
+        for (const path of candidate.paths) expect(path.length).toBeGreaterThan(1);
+      }
+    }
+  });
+
+  it("looks in the app folder on a Mac", () => {
+    const paths = candidatesFor("darwin", "/Users/someone").flatMap((c) => c.paths);
+    expect(paths.some((p) => p.includes("/Applications/Obsidian.app"))).toBe(true);
+  });
+
+  it("looks where Windows actually installs them", () => {
+    const paths = candidatesFor("win32", "C:\\Users\\someone").flatMap((c) => c.paths);
+    // Obsidian installs per-user, VS Code either way.
+    expect(paths.some((p) => p.includes("Obsidian.exe"))).toBe(true);
+    expect(paths.some((p) => p.includes("Code.exe"))).toBe(true);
+  });
+
+  it("looks on PATH and in Flatpak on Linux", () => {
+    const paths = candidatesFor("linux", "/home/someone").flatMap((c) => c.paths);
+    expect(paths.some((p) => p === "/usr/bin/obsidian")).toBe(true);
+    expect(paths.some((p) => p.includes("flatpak"))).toBe(true);
+    // A user-local install too: not everyone can write to /usr/bin.
+    expect(paths.some((p) => p.startsWith("/home/someone/.local/bin"))).toBe(true);
   });
 });

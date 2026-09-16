@@ -21,7 +21,7 @@ export interface DetectedEditor {
   label: string;
 }
 
-interface Candidate extends DetectedEditor {
+export interface Candidate extends DetectedEditor {
   /** Absolute paths that mean it is installed. Checked in order. */
   paths: string[];
   /** The command to run, when it is not the path itself. */
@@ -33,11 +33,12 @@ interface Candidate extends DetectedEditor {
  *
  * Order is the order the spec names, and it is also the order of least surprise:
  * somebody with Obsidian installed keeps their notes in it.
+ *
+ * The platform is a parameter rather than a lookup so the other two lists can be
+ * checked from any machine. A path list that is only ever exercised on the OS it
+ * belongs to is a path list nobody has read since it was written.
  */
-function candidates(): Candidate[] {
-  const home = homedir();
-  const os = platform();
-
+export function candidatesFor(os: NodeJS.Platform, home = homedir()): Candidate[] {
   if (os === "darwin") {
     return [
       { id: "obsidian", label: "Obsidian", paths: ["/Applications/Obsidian.app"] },
@@ -97,7 +98,7 @@ function candidates(): Candidate[] {
 /** Every editor found, in preference order. Empty means no button is offered. */
 export function detectEditors(): DetectedEditor[] {
   const found: DetectedEditor[] = [];
-  for (const candidate of candidates()) {
+  for (const candidate of candidatesFor(platform())) {
     if (!candidate.paths.some((path) => existsSync(path))) continue;
     found.push({ id: candidate.id, label: candidate.label });
   }
@@ -109,7 +110,7 @@ export function openCommandFor(
   editorId: string,
   path: string,
 ): { command: string; args: string[] } | undefined {
-  const candidate = candidates().find((c) => c.id === editorId);
+  const candidate = candidatesFor(platform()).find((c) => c.id === editorId);
   if (candidate === undefined) return undefined;
   const installed = candidate.paths.find((p) => existsSync(p));
   if (installed === undefined) return undefined;
