@@ -34,7 +34,12 @@ export type WatchEvent =
       /** Everyone who could be given it, for the card's checkboxes. */
       agents?: { id: string; name: string }[];
     }
-  | { type: "brain.changed"; path: string };
+  /**
+   * `removed` matters: the office pushes a different message either way, and the
+   * one for a deleted note has to be sent after it has left the index so the
+   * links that now dangle are real rather than predicted.
+   */
+  | { type: "brain.changed"; path: string; noteId: string; removed: boolean };
 
 export interface WatchOptions {
   officeDir: string;
@@ -228,9 +233,10 @@ export class OfficeWatchers {
     if (!path.endsWith(".md")) return;
     this.debounce(path, this.options.debounceMs ?? BRAIN_DEBOUNCE_MS, () => {
       // An editor writing a file produces several events; only the last matters.
+      const noteId = this.options.office.brain.idFor(path);
       if (removed) this.options.office.brain.removeFile(path);
       else this.options.office.brain.reindexFile(path);
-      this.options.onEvent({ type: "brain.changed", path });
+      this.options.onEvent({ type: "brain.changed", path, noteId, removed });
     });
   }
 

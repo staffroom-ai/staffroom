@@ -524,7 +524,9 @@ describe("other handlers", () => {
     const server = await start([[text("# T\n\nb"), stop()]]);
     const client = await Client.connect(server);
     await client.hello(server);
-    client.send({ type: "brain.graph.get", reqId: "g1" });
+    // brain.graph.get used to be the example here; SR-061 implemented it, so
+    // the check moved to one that genuinely has not landed yet.
+    client.send({ type: "office.reload", reqId: "g1" });
     const error = await client.waitFor("error", (m) => m.type === "error" && m.reqId === "g1");
     expect(error.hint).toBe("Not available in this version.");
     client.close();

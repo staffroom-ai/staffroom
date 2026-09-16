@@ -9,8 +9,10 @@
  */
 import { platform } from "node:os";
 import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
+import { buildGraph, noteIndexedDelta, noteRemovedDelta } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
+import { fromNoteWarning, pinnedTruncatedWarning } from "./brain-warnings.js";
 import { handle } from "./handlers.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { PROTOCOL_VERSION } from "./protocol.js";
@@ -67,6 +69,7 @@ export class SocketHub {
   private stateTimer: NodeJS.Timeout | undefined;
   private readonly timers: NodeJS.Timeout[] = [];
   private unsubscribe: (() => void) | undefined;
+  private unwatchBrain: (() => void) | undefined;
 
   constructor(options: SocketHubOptions) {
     this.options = options;
@@ -80,8 +83,22 @@ export class SocketHub {
       // in a few hundred milliseconds; with everything coalesced at 250 ms the
       // browser could receive its first snapshot after the work was already done
       // and never show anyone working at all.
+      // SR-061: the pinned set is the only context every agent gets without
+      // asking for it, so a note that fell out of it is an agent working without
+      // something the owner believed it had. The run event fires once per run,
+      // which is exactly how often this should be said.
+      if (envelope.event.type === "brain_pinned_truncated") {
+        this.broadcastBrainWarning(pinnedTruncatedWarning(envelope.event.noteIds));
+      }
+
       if (LIFECYCLE.has(envelope.event.type)) this.pushStateNow();
       else this.scheduleState();
+    });
+
+    // Warnings raised while indexing: a note with front matter that will not
+    // parse is indexed anyway, and the owner is the only one who can fix it.
+    this.unwatchBrain = options.office.brain.subscribeWarnings((warning) => {
+      this.broadcastBrainWarning(fromNoteWarning(warning));
     });
 
     this.every(SILENT_SOCKET_MS / 2, () => this.dropSilentSockets());
@@ -148,6 +165,21 @@ export class SocketHub {
 
     if (message.type === "runs.replay") {
       await this.replay(client, message.reqId, message.runId);
+      return;
+    }
+
+    /*
+     * SR-061: the graph goes to the one tab that asked, not to everybody.
+     *
+     * It is a whole snapshot — every note, every arrow — so broadcasting it
+     * because one person opened a panel would send it to tabs that are looking
+     * at something else entirely.
+     */
+    if (message.type === "brain.graph.get") {
+      const graph = await buildGraph(this.options.office.brain, this.options.office.store, {
+        includeReads: message.includeReads === true,
+      });
+      this.send(client, { type: "brain.graph", reqId: message.reqId, seq: this.next(), graph });
       return;
     }
 
@@ -223,6 +255,42 @@ export class SocketHub {
       }
     }
     this.send(client, { type: "replay", reqId, seq: this.next(), runId, events: page, done: true });
+  }
+
+  /**
+   * One note changed on disk.
+   *
+   * A delta rather than a new graph: this fires from a file watcher, and sending
+   * every note in the brain because somebody saved one of them in Obsidian would
+   * be a snapshot per keystroke.
+   */
+  broadcastNoteIndexed(noteId: string): void {
+    const delta = noteIndexedDelta(this.options.office.brain, noteId);
+    if (delta === undefined) return;
+    this.push({ type: "brain.note.indexed", seq: 0, node: delta.node, edges: delta.edges });
+    this.scheduleState();
+  }
+
+  /** Call after the note has left the index, so the dangling links are real. */
+  broadcastNoteRemoved(noteId: string): void {
+    const delta = noteRemovedDelta(this.options.office.brain, noteId);
+    this.push({
+      type: "brain.note.removed",
+      seq: 0,
+      noteId: delta.id,
+      ...(delta.nowMissing === undefined ? {} : { nowMissing: delta.nowMissing }),
+      edges: delta.edges,
+    });
+    this.scheduleState();
+  }
+
+  broadcastBrainWarning(warning: {
+    scope: "note" | "index" | "pinned";
+    noteId?: string;
+    reason: string;
+    message: string;
+  }): void {
+    this.push({ type: "brain.warning", seq: 0, ...warning });
   }
 
   /** Coalesced, so a burst of events produces one snapshot rather than twenty. */
@@ -303,6 +371,7 @@ export class SocketHub {
 
   close(): void {
     this.unsubscribe?.();
+    this.unwatchBrain?.();
     for (const timer of this.timers) clearInterval(timer);
     if (this.stateTimer !== undefined) clearTimeout(this.stateTimer);
     for (const client of this.clients) client.socket.close(1001, "server closing");

@@ -5,7 +5,15 @@
  * ack or error; server pushes carry a monotonic seq so a reconnecting tab can say
  * what it last saw and be given only what it missed.
  */
-import type { ConfigError, OfficeState, RunErrorCode, RunEventEnvelope } from "@staffroom/core";
+import type {
+  BrainGraph,
+  BrainGraphEdge,
+  BrainGraphNode,
+  ConfigError,
+  OfficeState,
+  RunErrorCode,
+  RunEventEnvelope,
+} from "@staffroom/core";
 
 export const PROTOCOL_VERSION = 1;
 
@@ -106,7 +114,29 @@ export type ServerMessage =
       agents?: { id: string; name: string }[];
     }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
-  | { type: "brain.warning"; seq: number; scope: "note"; id: string; reason: string }
+  | { type: "brain.graph"; reqId: string; seq: number; graph: BrainGraph }
+  /** One note changed on disk, with the arrows that touch it. */
+  | { type: "brain.note.indexed"; seq: number; node: BrainGraphNode; edges: BrainGraphEdge[] }
+  /**
+   * A note is gone. `nowMissing` and `edges` are what has to be redrawn: anything
+   * that linked to it is pointing at a hole now, and the picture has to say so.
+   */
+  | {
+      type: "brain.note.removed";
+      seq: number;
+      noteId: string;
+      nowMissing?: BrainGraphNode;
+      edges: BrainGraphEdge[];
+    }
+  | {
+      type: "brain.warning";
+      seq: number;
+      scope: "note" | "index" | "pinned";
+      noteId?: string;
+      reason: string;
+      /** Owner-facing, already a sentence. */
+      message: string;
+    }
   | { type: "pong"; reqId: string; seq: number };
 
 /** Messages whose handlers arrive in a later milestone. */
@@ -114,7 +144,6 @@ export const NOT_YET: ReadonlySet<ClientMessage["type"]> = new Set([
   "routine.upsert",
   "routine.delete",
   "routine.run_now",
-  "brain.graph.get",
   "office.reload",
 ]);
 

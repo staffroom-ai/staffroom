@@ -5,7 +5,14 @@
  * server package: the browser bundle would drag in node built-ins. The shapes the
  * office actually renders come from @staffroom/core as types.
  */
-import type { ConfigError, OfficeState, RunEventEnvelope } from "@staffroom/core";
+import type {
+  BrainGraph,
+  BrainGraphEdge,
+  BrainGraphNode,
+  ConfigError,
+  OfficeState,
+  RunEventEnvelope,
+} from "@staffroom/core";
 
 export type ClientMessage =
   | { type: "hello"; reqId: string; protocol: 1; token: string; resumeFrom?: number }
@@ -30,6 +37,7 @@ export type ClientMessage =
     }
   | { type: "agent.rename"; reqId: string; agentId: string; name: string }
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
+  | { type: "brain.graph.get"; reqId: string; includeReads?: boolean }
   | { type: "runs.replay"; reqId: string; runId: string }
   | { type: "note.reveal"; reqId: string; noteId: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
@@ -84,5 +92,22 @@ export type ServerMessage =
       agents?: { id: string; name: string }[];
     }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
-  | { type: "brain.warning"; seq: number; scope: "note"; id: string; reason: string }
+  | { type: "brain.graph"; reqId: string; seq: number; graph: BrainGraph }
+  | { type: "brain.note.indexed"; seq: number; node: BrainGraphNode; edges: BrainGraphEdge[] }
+  | {
+      type: "brain.note.removed";
+      seq: number;
+      noteId: string;
+      nowMissing?: BrainGraphNode;
+      edges: BrainGraphEdge[];
+    }
+  | {
+      type: "brain.warning";
+      seq: number;
+      scope: "note" | "index" | "pinned";
+      noteId?: string;
+      reason: string;
+      /** Owner-facing, already a sentence. */
+      message: string;
+    }
   | { type: "pong"; reqId: string; seq: number };

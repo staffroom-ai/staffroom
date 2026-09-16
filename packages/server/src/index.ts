@@ -25,7 +25,9 @@ import {
 } from "./auth.js";
 import { boot } from "./boot.js";
 import { DEMO_BANNER, setDemoSpeed } from "./demo/demo.js";
+import { boundaryOf, firstFilePart } from "./http/multipart.js";
 import { resolveBrainPath } from "./http/paths.js";
+import { MAX_UPLOAD_BYTES, storeUpload } from "./http/upload.js";
 import { say } from "./log.js";
 import { OfficeWatchers } from "./watch/index.js";
 import { SocketHub } from "./ws/socket.js";
@@ -117,6 +119,29 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   const token = newSessionToken();
   const startedAt = Date.now();
 
+  /**
+   * The whole body, refusing anything over the cap while it arrives.
+   *
+   * Checked as it streams rather than after: a caller who ignores the limit
+   * should not be able to make the office hold their file in memory first.
+   */
+  const readBody = (request: IncomingMessage, limit: number): Promise<Buffer> =>
+    new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      request.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > limit) {
+          request.destroy();
+          reject(new Error("too large"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      request.on("end", () => resolve(Buffer.concat(chunks)));
+      request.on("error", reject);
+    });
+
   const http: Server = createHttpServer((request, response) => {
     void handleRequest(request, response);
   });
@@ -192,6 +217,60 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
       return;
     }
 
+    /*
+     * SR-061: adding a file to the brain from the browser.
+     *
+     * The only route that writes a file the owner did not type. checkRequest has
+     * already refused anything that is not a same-origin POST carrying the
+     * session token; upload.ts decides everything else, and lands it in
+     * brain/inbox/ where it is indexed at half weight and never pinned.
+     */
+    if (url.pathname === "/api/brain/upload") {
+      if (request.method !== "POST") {
+        send(response, 405, JSON.stringify({ error: "post a file here" }));
+        return;
+      }
+
+      const boundary = boundaryOf(request.headers["content-type"]);
+      if (boundary === undefined) {
+        send(response, 400, JSON.stringify({ error: "send the file as multipart/form-data" }));
+        return;
+      }
+
+      let body: Buffer;
+      try {
+        body = await readBody(request, MAX_UPLOAD_BYTES);
+      } catch {
+        send(
+          response,
+          413,
+          JSON.stringify({ error: `files are limited to ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB` }),
+        );
+        return;
+      }
+
+      const part = firstFilePart(body, boundary);
+      if (part === undefined) {
+        send(response, 400, JSON.stringify({ error: "no file was attached" }));
+        return;
+      }
+
+      const brainDir = join(options.officeDir, office.config.brain.dir);
+      const stored = storeUpload(brainDir, part);
+      if (!stored.ok) {
+        send(response, stored.status, JSON.stringify({ error: stored.error }));
+        return;
+      }
+
+      // Indexed here rather than left to the watcher, so the answer to the
+      // upload is true by the time the browser reads it, with or without one.
+      office.brain.reindexFile(stored.path);
+      hub.broadcastNoteIndexed(stored.noteId);
+
+      send(response, 201, JSON.stringify({ ok: true, noteId: stored.noteId, name: stored.name }));
+      return;
+    }
+
     if (url.pathname === "/api/brain/file") {
       const brainDir = join(options.officeDir, office.config.brain.dir);
       const target = resolveBrainPath(brainDir, url.searchParams.get("path") ?? "");
@@ -256,7 +335,12 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
         if (event.type === "config.reloaded") hub.broadcastConfigReloaded(event.file);
         else if (event.type === "config.error") hub.broadcastConfigError(event.errors);
         else if (event.type === "tools.reloaded") hub.broadcastToolsReloaded(event);
-        else hub.scheduleState();
+        // SR-061: a note the owner wrote in Obsidian appears in the graph
+        // without a reload, and one they deleted takes its arrows with it.
+        else if (event.type === "brain.changed") {
+          if (event.removed) hub.broadcastNoteRemoved(event.noteId);
+          else hub.broadcastNoteIndexed(event.noteId);
+        } else hub.scheduleState();
       },
     });
     watchers.start();

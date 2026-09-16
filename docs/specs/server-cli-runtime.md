@@ -394,7 +394,7 @@ export type ServerMessage =
   | { type: "brain.results"; reqId: string; seq: number; hits: BrainSearchHit[] }
   | { type: "brain.graph"; reqId: string; seq: number; graph: BrainGraph }
   | { type: "brain.note.indexed"; seq: number; node: BrainGraphNode; edges: BrainGraphEdge[] }
-  | { type: "brain.note.removed"; seq: number; noteId: string }
+  | { type: "brain.note.removed"; seq: number; noteId: string; nowMissing?: BrainGraphNode; edges: BrainGraphEdge[] }   // edges that now point at a hole, so the picture can be redrawn
   | { type: "brain.warning"; seq: number; scope: "note" | "index" | "pinned"; noteId?: string; reason: string; message: string }
   | { type: "pong"; reqId: string; seq: number };
 ```

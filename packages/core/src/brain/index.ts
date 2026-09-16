@@ -72,6 +72,14 @@ export class BrainIndex {
   private readonly db: Database.Database;
   private readonly brainDir: string;
   private readonly onWarning: ((w: NoteWarning) => void) | undefined;
+  /**
+   * Added after the index is open, unlike the constructor's `onWarning`.
+   *
+   * The office builds its brain before the server exists, and the server is what
+   * turns a warning into something the owner can see. Without this the office
+   * would have to be told about the socket at construction, which is backwards.
+   */
+  private readonly watchers = new Set<(w: NoteWarning) => void>();
 
   private constructor(brainDir: string, options: BrainIndexOptions) {
     this.brainDir = brainDir;
@@ -211,8 +219,32 @@ export class BrainIndex {
     });
     // A note marked private is not skipped from the index, it is absent from it.
     if (note.frontMatter.private === true) return undefined;
-    for (const warning of note.warnings) this.onWarning?.(warning);
+    for (const warning of note.warnings) this.warn(warning);
     return note;
+  }
+
+  /** Returns an unsubscribe, so a closed socket stops being told. */
+  subscribeWarnings(fn: (warning: NoteWarning) => void): () => void {
+    this.watchers.add(fn);
+    return () => {
+      this.watchers.delete(fn);
+    };
+  }
+
+  private warn(warning: NoteWarning): void {
+    this.onWarning?.(warning);
+    for (const watcher of this.watchers) {
+      try {
+        watcher(warning);
+      } catch {
+        // A listener that throws is not a reason to stop indexing the note.
+      }
+    }
+  }
+
+  /** The note id a file in this brain would have. */
+  idFor(path: string): string {
+    return noteIdFor(relative(this.brainDir, path).split(sep).join("/"));
   }
 
   reindexFile(path: string): void {
