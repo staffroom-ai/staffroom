@@ -679,6 +679,8 @@ body::before {
 
 .taskbar {
   pointer-events: auto;
+  /* Relative, because the when-picker hangs above it. */
+  position: relative;
   display: flex;
   align-items: stretch;
   width: 100%;
@@ -2257,4 +2259,177 @@ body::before {
 .notes-missing {
   color: var(--ink-3);
   text-decoration: line-through;
+}
+
+/* ── saying when ─────────────────────────────────────────────────────────── */
+
+/*
+ * The schedule control sits inside the task bar rather than beside it, because
+ * "do it" and "do it every morning" are the same sentence with a time attached.
+ * Quiet until something is chosen, and then it says what was chosen: an icon
+ * alone tells the owner there is something about time here and nothing about
+ * what they picked.
+ */
+.taskbar-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: none;
+  color: var(--ink-3);
+  font: 400 12px / 1 var(--ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.taskbar-when:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.taskbar-when.is-set {
+  color: var(--accent);
+}
+
+.taskbar-when-text {
+  font-variant-numeric: tabular-nums;
+}
+
+.when-picker {
+  position: absolute;
+  right: 8px;
+  /* Above the bar: the bar sits at the bottom of the office. */
+  bottom: calc(100% + 8px);
+  z-index: 50;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.when-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.when-label {
+  flex: 0 0 44px;
+  font: 400 11px / 1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.when-row select,
+.when-row input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 13px / 1.2 var(--ui);
+}
+
+/* What was actually chosen, in one line, so three controls read as one answer. */
+.when-summary {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+  font: 500 12px / 1.4 var(--ui);
+  color: var(--ink);
+}
+
+/* ── what runs on its own ────────────────────────────────────────────────── */
+
+.routines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.routine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* A paused routine still reads, but does not look like it is about to do anything. */
+.routine.is-paused {
+  opacity: 0.6;
+}
+
+.routine-what {
+  flex: 1;
+  min-width: 0;
+}
+
+.routine-label {
+  margin: 0;
+  font: 500 13px / 1.3 var(--ui);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.routine-when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 3px 0 0;
+  font: 400 11px / 1.4 var(--mono);
+  color: var(--ink-3);
+}
+
+.routine-next {
+  color: var(--ink-2);
+}
+
+.routine-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.routine-confirm {
+  font: 400 12px / 1.3 var(--ui);
+  color: var(--ink-2);
+}
+
+/* Delete is the one thing here that cannot be undone from this screen. */
+.btn-danger {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--danger);
+  color: var(--surface);
+  font: 500 12px / 1 var(--ui);
+  cursor: pointer;
+}
+
+.routines-empty {
+  margin: 0;
+  font: 400 13px / 1.5 var(--ui);
+  color: var(--ink-2);
+}
+
+.settings-heading {
+  margin: 22px 0 10px;
+  font: 600 14px / 1.2 var(--ui);
+  color: var(--ink);
 }

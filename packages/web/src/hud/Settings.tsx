@@ -6,7 +6,9 @@
  * The field is write-only on purpose: an office that can display your key is an
  * office that can leak it.
  */
+import type { RoutineView } from "@staffroom/core";
 import { type ReactElement, useEffect, useState } from "react";
+import { Routines, type RoutinesProps } from "./Routines.js";
 
 export interface ProviderRow {
   id: string;
@@ -109,11 +111,15 @@ function Row({
 export function Settings({
   mode,
   states,
+  routines,
+  routineActions,
   onSave,
   onClose,
 }: {
   mode: "live" | "demo";
   states: Record<string, SaveState>;
+  routines: RoutineView[];
+  routineActions: Omit<RoutinesProps, "routines">;
   onSave: (providerId: string, value: string) => void;
   onClose: () => void;
 }): ReactElement {
@@ -158,6 +164,11 @@ export function Settings({
         <p className="settings-foot">
           The office reads keys when it starts, so restart it to begin using one.
         </p>
+
+        {/* Unattended work is the part of this that happens while nobody is
+            looking, so it is listed where somebody can turn it off. */}
+        <h3 className="settings-heading">Routines</h3>
+        <Routines routines={routines} {...routineActions} />
       </div>
     </aside>
   );

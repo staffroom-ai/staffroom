@@ -15,7 +15,7 @@ import { DepartmentCard, summarise } from "./hud/DepartmentCard.js";
 import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
-import { type SaveState, Settings } from "./hud/Settings.js";
+import type { SaveState } from "./hud/Settings.js";
 import { StoppedBanner } from "./hud/StoppedBanner.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
@@ -47,6 +47,15 @@ const Scene = lazy(async () => ({ default: (await import("./scene/Scene.js")).Sc
 const GraphOverlay = lazy(async () => ({
   default: (await import("./hud/GraphOverlay.js")).GraphOverlay,
 }));
+
+/**
+ * Settings is loaded when it is opened.
+ *
+ * It is a modal nobody sees on a first visit — the provider rows, the routine
+ * list and their wording are several kilobytes of a budget every visitor pays
+ * whether or not they ever open it.
+ */
+const Settings = lazy(async () => ({ default: (await import("./hud/Settings.js")).Settings }));
 
 import { useOfficeStore } from "./store.js";
 import { OfficeSocket, readToken } from "./ws.js";
@@ -247,6 +256,25 @@ export function App(): ReactElement {
       if (said !== undefined) setAnnouncement(said);
     }
   }, [busy]);
+
+  /*
+   * The three things that can be done to a routine.
+   *
+   * Written once and handed to both the rail and the list view: they are the
+   * same routines and the same actions, and two copies would be two places for
+   * a wording change to be half-applied.
+   */
+  const routineActions = useMemo(
+    () => ({
+      onPause: (id: string, paused: boolean) =>
+        socket?.send({ type: "routine.upsert", reqId: reqId(), routine: { id, paused } }),
+      onRunNow: (id: string) =>
+        socket?.send({ type: "routine.run_now", reqId: reqId(), routineId: id }),
+      onDelete: (id: string) =>
+        socket?.send({ type: "routine.delete", reqId: reqId(), routineId: id }),
+    }),
+    [socket],
+  );
 
   const departments = useMemo(
     () => (store.state === undefined ? [] : summarise(store.state, dark)),
@@ -476,15 +504,24 @@ export function App(): ReactElement {
                     .getState()
                     .addToolNotice({ kind: "brain", file: "", ok: false, message })
                 }
+                routineActions={routineActions}
               />
             )}
             <TaskBar
               state={state}
               disabled={store.connection !== "open"}
-              onSubmit={(department, text) => {
+              onSubmit={(department, text, schedule) => {
                 const id = reqId();
-                useOfficeStore.getState().trackTask(id);
-                socket?.send({ type: "task.create", reqId: id, department, text });
+                // A scheduled task is not a task in flight, so it is not tracked
+                // as one: nothing is going to happen now for the office to show.
+                if (schedule === undefined) useOfficeStore.getState().trackTask(id);
+                socket?.send({
+                  type: "task.create",
+                  reqId: id,
+                  department,
+                  text,
+                  ...(schedule === undefined ? {} : { schedule }),
+                });
               }}
             />
           </section>
@@ -530,17 +567,21 @@ export function App(): ReactElement {
       </div>
 
       {settingsOpen && (
-        <Settings
-          mode={store.mode}
-          states={keyStates}
-          onClose={() => setSettingsOpen(false)}
-          onSave={(provider, value) => {
-            const id = reqId();
-            keyReqs.current.set(id, provider);
-            setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saving" } }));
-            socket?.send({ type: "provider.set_key", reqId: id, provider, key: value });
-          }}
-        />
+        <Suspense fallback={null}>
+          <Settings
+            mode={store.mode}
+            states={keyStates}
+            routines={state.routines}
+            routineActions={routineActions}
+            onClose={() => setSettingsOpen(false)}
+            onSave={(provider, value) => {
+              const id = reqId();
+              keyReqs.current.set(id, provider);
+              setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saving" } }));
+              socket?.send({ type: "provider.set_key", reqId: id, provider, key: value });
+            }}
+          />
+        </Suspense>
       )}
       {graphOpen && (
         <Suspense fallback={null}>

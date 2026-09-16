@@ -21,6 +21,14 @@ export type ClientMessage =
       reqId: string;
       department: string;
       text: string;
+      /** Makes this a routine rather than something that happens now. */
+      schedule?: {
+        cadence: "daily" | "weekdays" | "weekly" | "monthly";
+        time: string;
+        weekday?: string;
+        day?: number;
+        label?: string;
+      };
       agentId?: string;
       modelOverride?: string;
     }
@@ -38,6 +46,10 @@ export type ClientMessage =
   | { type: "agent.rename"; reqId: string; agentId: string; name: string }
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
   | { type: "brain.graph.get"; reqId: string; includeReads?: boolean }
+  /** A whole routine, or a change to one; the server merges when the id exists. */
+  | { type: "routine.upsert"; reqId: string; routine: Record<string, unknown> }
+  | { type: "routine.delete"; reqId: string; routineId: string }
+  | { type: "routine.run_now"; reqId: string; routineId: string }
   | { type: "runs.replay"; reqId: string; runId: string }
   | { type: "note.reveal"; reqId: string; noteId: string; app?: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }

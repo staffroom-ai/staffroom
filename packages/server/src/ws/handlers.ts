@@ -330,7 +330,22 @@ export async function handle(
         const scheduler = deps.scheduler;
         if (scheduler === undefined) return noScheduler();
 
-        const parsed = RoutineSchema.safeParse(message.routine);
+        /*
+         * Merged onto the one that is already there, when there is one.
+         *
+         * This is what "upsert" means, and it is what makes Pause possible: the
+         * browser is sent a routine's label and cadence, never its task or its
+         * agent, so it cannot send back a whole routine and must not have to.
+         */
+        const incoming = (message.routine ?? {}) as { id?: unknown };
+        const existing =
+          typeof incoming.id === "string"
+            ? scheduler.list().find((r) => r.id === incoming.id)
+            : undefined;
+
+        const parsed = RoutineSchema.safeParse(
+          existing === undefined ? message.routine : { ...existing, ...message.routine },
+        );
         if (!parsed.success) {
           return {
             ok: false,

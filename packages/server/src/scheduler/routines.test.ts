@@ -370,3 +370,18 @@ routines:
     expect(loaded.problems[0]?.message).toContain("not supported yet");
   });
 });
+
+describe("an id made from a long sentence", () => {
+  it("does not end in a dash", () => {
+    // Cutting a label to length lands on a dash about as often as not, and
+    // `a-long-label-` is a scruffy thing to leave in somebody's file.
+    const id = idFromLabel("Summarise anything new in the inbox and file it as a note.");
+
+    expect(id.endsWith("-")).toBe(false);
+    expect(id).toMatch(/^[a-z][a-z0-9-]{1,39}$/);
+  });
+
+  it("is still a usable id for a label that is all punctuation once trimmed", () => {
+    expect(idFromLabel("--- !!! ---")).toBe("routine");
+  });
+});

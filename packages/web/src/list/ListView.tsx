@@ -12,6 +12,7 @@
  */
 import type { Agent, BrainGraph, OfficeState } from "@staffroom/core";
 import type { ReactElement } from "react";
+import { Routines, type RoutinesProps } from "../hud/Routines.js";
 import { NotesTable } from "./NotesTable.js";
 
 const STATUS_WORD: Record<string, string> = {
@@ -73,6 +74,7 @@ export function ListView({
   onOpenNote,
   onUpload,
   onRefuse,
+  routineActions,
 }: {
   state: OfficeState;
   /** Undefined until the office has been asked for it. */
@@ -81,6 +83,7 @@ export function ListView({
   onOpenNote: (noteId: string) => void;
   onUpload?: ((file: File) => void) | undefined;
   onRefuse?: ((message: string) => void) | undefined;
+  routineActions?: Omit<RoutinesProps, "routines"> | undefined;
 }): ReactElement {
   const departments = [...state.departments].sort((a, b) => a.pod - b.pod);
   // A run nobody has picked up yet: it belongs to the office, not to a person.
@@ -118,6 +121,17 @@ export function ListView({
           narrow window this is the only view there is room for. */}
       {onUpload !== undefined && onRefuse !== undefined && (
         <NotesTable graph={graph} onOpenNote={onOpenNote} onUpload={onUpload} onRefuse={onRefuse} />
+      )}
+
+      {/* The same routines and the same actions as Settings: unattended work
+          should be stoppable from wherever the owner happens to be looking. */}
+      {routineActions !== undefined && state.routines.length > 0 && (
+        <section aria-labelledby="routines-heading">
+          <h2 id="routines-heading" className="list-heading">
+            Runs on its own
+          </h2>
+          <Routines routines={state.routines} {...routineActions} />
+        </section>
       )}
 
       {departments.map((department) => {

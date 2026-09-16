@@ -225,9 +225,12 @@ export function idFromLabel(label: string, taken: ReadonlySet<string> = new Set(
     label
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
       .replace(/^[^a-z]+/, "")
-      .slice(0, 36) || "routine";
+      .slice(0, 36)
+      // Trimmed after the slice as well as before it: cutting a long label to
+      // length lands on a dash about as often as not, and `a-long-label-` is a
+      // scruffy thing to put in somebody's file.
+      .replace(/^-+|-+$/g, "") || "routine";
 
   if (!taken.has(base)) return base;
   for (let n = 2; n < 1_000; n++) {

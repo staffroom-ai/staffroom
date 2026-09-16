@@ -19,6 +19,9 @@ import type { RoutineInput } from "../scheduler/routines.js";
 
 export const PROTOCOL_VERSION = 1;
 
+/** A change to a routine that already exists. The id says which. */
+export type RoutinePatch = { id: string } & Partial<RoutineInput>;
+
 /**
  * What a schedule picker produces: the part of a routine that is about when.
  *
@@ -68,7 +71,14 @@ export type ClientMessage =
     }
   | { type: "agent.rename"; reqId: string; agentId: string; name: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
-  | { type: "routine.upsert"; reqId: string; routine: RoutineInput }
+  /**
+   * A whole routine, or a change to one that is already there.
+   *
+   * Merged on the server when the id exists, so a Pause can be `{ id, paused }`:
+   * the browser is never sent a routine's task or its agent, so it cannot send
+   * them back.
+   */
+  | { type: "routine.upsert"; reqId: string; routine: RoutineInput | RoutinePatch }
   | { type: "routine.delete"; reqId: string; routineId: string }
   | { type: "routine.run_now"; reqId: string; routineId: string }
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
