@@ -3,6 +3,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
+    // The same reason the server package raises it: most of these tests are
+    // arithmetic, but a good few open a real office — SQLite, the run store,
+    // esbuild compiling a custom tool, a spawned MCP server. Five seconds is
+    // sized for the arithmetic, and on a shared Windows runner it has failed
+    // three of the office tests while the code was doing the right thing.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
