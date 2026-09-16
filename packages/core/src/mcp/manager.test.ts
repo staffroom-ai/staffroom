@@ -60,13 +60,22 @@ function stdio(env: Record<string, string> = {}) {
 }
 
 /** The manager never blocks, so tests wait for a state rather than an await. */
-async function until(check: () => boolean, ms = 8_000): Promise<void> {
+/**
+ * Waits for something a spawned MCP server has to do.
+ *
+ * Generous, because every one of these starts a real node process and completes
+ * a handshake with it: on a shared Windows runner that has taken longer than
+ * eight seconds while the code was doing exactly the right thing. The vitest
+ * timeout is the real backstop; this one exists to fail with a message that says
+ * what was being waited for.
+ */
+async function until(check: () => boolean, ms = 15_000, what = "a condition"): Promise<void> {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
     if (check()) return;
     await new Promise((done) => setTimeout(done, 50));
   }
-  throw new Error("timed out waiting");
+  throw new Error(`timed out after ${ms}ms waiting for ${what}`);
 }
 
 describe.skipIf(!canSpawn)("connecting to a server", () => {
@@ -247,7 +256,7 @@ describe.skipIf(!canSpawn)("a server that changes its tools", () => {
     // Asking again is what the discovery TTL does on a timer; doing it directly
     // keeps the test off the clock.
     await manager.reconnectTools("echo");
-    await until(() => changes.length > 0);
+    await until(() => changes.length > 0, 15_000, "the tools-changed report");
 
     const change = changes[0] as {
       added: string[];
