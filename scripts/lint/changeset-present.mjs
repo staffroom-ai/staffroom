@@ -24,6 +24,34 @@ try {
   process.exit(0);
 }
 
+// `main...HEAD` is empty when HEAD *is* origin/main, which is exactly what happens
+// when work is committed straight to main and pushed. The check then passed on
+// every commit while an entire week of changes went unrecorded, and the release
+// notes would have omitted all of it. On main, compare against the last tag
+// instead: the range that actually matters is "everything since the last release".
+if (changed.length === 0) {
+  let lastTag = "";
+  try {
+    lastTag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    // No tags yet: nothing has been released, so there is nothing to compare to.
+  }
+
+  if (lastTag !== "") {
+    changed = execFileSync("git", ["diff", "--name-only", `${lastTag}...HEAD`], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split("\n")
+      .filter(Boolean);
+  }
+}
+
 const touchedPackage = changed.some((f) => f.startsWith("packages/") && !f.includes("/test"));
 const addedChangeset = changed.some(
   (f) => f.startsWith(".changeset/") && f.endsWith(".md") && !f.endsWith("README.md"),

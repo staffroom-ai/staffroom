@@ -90,11 +90,35 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Every package packs
+      - name: Every package packs, and installs
+        # pnpm pack, not npm pack: only pnpm rewrites `workspace:*` into a real
+        # version. `npm pack` produced a tarball nobody could install and said
+        # nothing, so this step passed while shipping something broken.
         run: |
-          for p in packages/cli packages/core packages/server packages/web packages/templates; do
-            (cd "$p" && npm pack --dry-run)
+          mkdir -p /tmp/tarballs
+          for p in packages/core packages/templates packages/web packages/server packages/cli; do
+            (cd "$p" && pnpm pack --pack-destination /tmp/tarballs)
           done
+          for t in /tmp/tarballs/*.tgz; do
+            if tar -xzOf "$t" package/package.json | grep -q '"workspace:'; then
+              echo "$t still contains a workspace: dependency"
+              exit 1
+            fi
+          done
+
+      - name: The published CLI actually runs
+        # Installed from the tarballs into an empty directory, the way a user
+        # gets it. This is the only check that sees what they see: an optional
+        # peer that is present in this repo and absent everywhere else made every
+        # installed copy fail on launch, while every other job stayed green.
+        run: |
+          mkdir -p /tmp/fresh && cd /tmp/fresh
+          npm init -y > /dev/null
+          npm install /tmp/tarballs/*.tgz > /dev/null
+          ./node_modules/.bin/staffroom --version
+          ./node_modules/.bin/staffroom init --dir ./office --tools > /dev/null
+          ./node_modules/.bin/staffroom doctor --office ./office
+          ./node_modules/.bin/staffroom demo --no-open --port 0 --office ./office --exit-when-ready
 
   e2e:
     runs-on: ubuntu-latest

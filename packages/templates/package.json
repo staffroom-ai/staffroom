@@ -1,6 +1,6 @@
 {
   "name": "@staffroom/templates",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Staffroom office templates: studio, agency, ecommerce, clinic, consultant.",
   "type": "module",
   "license": "Apache-2.0",
