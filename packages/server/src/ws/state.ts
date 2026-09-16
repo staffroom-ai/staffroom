@@ -15,6 +15,7 @@ import type {
   Office,
   OfficeState,
   PendingApprovalView,
+  RoutineView,
   Run,
 } from "@staffroom/core";
 import {
@@ -24,6 +25,7 @@ import {
   resolveModel,
   webSearchStatus,
 } from "@staffroom/core";
+import type { RoutineStatus } from "../scheduler/scheduler.js";
 
 /** Brain tools are omitted from an agent's list: everyone has them. */
 const IMPLIED = new Set(["brain_search", "brain_read", "brain_write", "brain_list"]);
@@ -39,6 +41,8 @@ export interface BuildStateOptions {
   approvals: PendingApprovalView[];
   deliverables: DeliverableSummary[];
   now?: Date;
+  /** Absent in an office that is not running routines; the list is then empty. */
+  scheduler?: { status(): RoutineStatus[] } | undefined;
 }
 
 /**
@@ -59,6 +63,20 @@ const MCP_HEALTH: Record<McpState, Connector["health"]> = {
 export function buildOfficeState(options: BuildStateOptions): OfficeState {
   const { office, activeRuns, approvals, deliverables } = options;
   const now = options.now ?? new Date();
+
+  // SR-063: what the office does without being asked, and when it is next due.
+  // A paused routine has no next time, which is the honest answer rather than a
+  // date that is not going to happen.
+  const routines: RoutineView[] = (options.scheduler?.status() ?? []).map(
+    ({ routine, nextRunAt }) => ({
+      id: routine.id,
+      label: routine.label,
+      cadence: routine.cadence,
+      at: routine.time,
+      nextRunAt: nextRunAt === undefined ? null : new Date(nextRunAt).toISOString(),
+      enabled: !routine.paused,
+    }),
+  );
 
   const departments: DepartmentView[] = office.roster.departments.map((d) => ({
     id: d.id,
@@ -177,7 +195,9 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
   const runs: ActiveRun[] = activeRuns.map((run) => ({
     id: run.id,
     kind: run.kind,
-    task: run.prompt.slice(0, 140),
+    // The run's own name when it has one — a catch-up says so — and otherwise
+    // what it was asked to do, which is what it has always shown.
+    task: (run.label ?? run.prompt).slice(0, 140),
     departmentId: run.department,
     agentId: run.agentId,
     status: run.status as ActiveRun["status"],
@@ -198,7 +218,7 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
     connectors: [...mcpConnectors, ...connectors],
     runs,
     approvals,
-    routines: [],
+    routines,
     latestDeliverables: deliverables,
   };
 }
@@ -206,7 +226,11 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
 /**
  * Reads everything the snapshot needs out of the store.
  */
-export async function collectState(office: Office, now?: Date): Promise<OfficeState> {
+export async function collectState(
+  office: Office,
+  now?: Date,
+  scheduler?: { status(): RoutineStatus[] },
+): Promise<OfficeState> {
   const activeRuns = await office.store.list({
     status: ["queued", "running", "waiting_approval"],
     limit: 50,
@@ -255,5 +279,6 @@ export async function collectState(office: Office, now?: Date): Promise<OfficeSt
     approvals,
     deliverables,
     ...(now === undefined ? {} : { now }),
+    ...(scheduler === undefined ? {} : { scheduler }),
   });
 }

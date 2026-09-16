@@ -168,6 +168,7 @@ export {
 } from "./runtime/errors.js";
 export type {
   Deliverable,
+  NewRun,
   PendingApproval,
   Run,
   RunEvent,

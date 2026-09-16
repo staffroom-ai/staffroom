@@ -5,6 +5,7 @@
  * ack or error; server pushes carry a monotonic seq so a reconnecting tab can say
  * what it last saw and be given only what it missed.
  */
+
 import type {
   BrainGraph,
   BrainGraphEdge,
@@ -14,12 +15,26 @@ import type {
   RunErrorCode,
   RunEventEnvelope,
 } from "@staffroom/core";
+import type { RoutineInput } from "../scheduler/routines.js";
 
 export const PROTOCOL_VERSION = 1;
 
+/**
+ * What a schedule picker produces: the part of a routine that is about when.
+ *
+ * `monthly` and `weekday` were missing from the stub this replaces, so the
+ * popover could not express two of the cadences a routine already supported.
+ */
 export interface ScheduleSpec {
-  cadence: "daily" | "weekdays" | "weekly";
-  at: string;
+  cadence: "daily" | "weekdays" | "weekly" | "monthly";
+  /** "HH:MM" on the office's own clock. */
+  time: string;
+  weekday?: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+  /** 1 to 28, for a monthly routine. */
+  day?: number;
+  /** Shown in the routine list. Falls back to the task itself. */
+  label?: string;
+  /** Ask before anything leaves the machine. Defaults to yes; see RoutineSchema. */
   approvalRequired?: boolean;
 }
 
@@ -30,9 +45,16 @@ export type ClientMessage =
       reqId: string;
       department: string;
       text: string;
+      /**
+       * Turns this into a routine rather than running it now.
+       *
+       * The task bar's schedule popover sends this; the server makes the routine
+       * and answers with its id, so one control does "do it" and "do it every
+       * morning" without the owner learning a second concept.
+       */
+      schedule?: ScheduleSpec;
       agentId?: string;
       modelOverride?: string;
-      schedule?: ScheduleSpec;
     }
   | { type: "task.cancel"; reqId: string; runId: string }
   | { type: "chat.send"; reqId: string; agentId: string; text: string; modelOverride?: string }
@@ -46,7 +68,7 @@ export type ClientMessage =
     }
   | { type: "agent.rename"; reqId: string; agentId: string; name: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
-  | { type: "routine.upsert"; reqId: string; routine: unknown }
+  | { type: "routine.upsert"; reqId: string; routine: RoutineInput }
   | { type: "routine.delete"; reqId: string; routineId: string }
   | { type: "routine.run_now"; reqId: string; routineId: string }
   | { type: "brain.search"; reqId: string; query: string; limit?: number }
@@ -147,12 +169,7 @@ export type ServerMessage =
   | { type: "pong"; reqId: string; seq: number };
 
 /** Messages whose handlers arrive in a later milestone. */
-export const NOT_YET: ReadonlySet<ClientMessage["type"]> = new Set([
-  "routine.upsert",
-  "routine.delete",
-  "routine.run_now",
-  "office.reload",
-]);
+export const NOT_YET: ReadonlySet<ClientMessage["type"]> = new Set(["office.reload"]);
 
 export const NOT_YET_HINT = "Not available in this version.";
 

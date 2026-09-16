@@ -18,6 +18,7 @@ import { ulid } from "ulid";
 import { redactSecrets } from "../redact.js";
 import type {
   Deliverable,
+  NewRun,
   PendingApproval,
   Run,
   RunEvent,
@@ -26,7 +27,14 @@ import type {
   RunStore,
 } from "./events.js";
 
-const SCHEMA_VERSION = 1;
+/**
+ * Bumped for every additive migration in `migrations/`.
+ *
+ * The run log is append-only history, so migrations here only ever add: a
+ * column an older build did not write is null for the rows it wrote, which is
+ * what every reader of this file is expected to handle.
+ */
+const SCHEMA_VERSION = 2;
 const CHUNK_FLUSH_MS = 100;
 
 /**
@@ -34,6 +42,9 @@ const CHUNK_FLUSH_MS = 100;
  * beside this file; in the published bundle everything is flattened to dist/, so
  * it sits one level up. Both are tried rather than assuming either.
  */
+/** In order. The index of a file is the version it upgrades from. */
+const MIGRATIONS = ["001-initial.sql", "002-run-label.sql"];
+
 function findMigrations(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   for (const candidate of [join(here, "migrations"), join(here, "..", "migrations")]) {
@@ -51,6 +62,7 @@ interface RunRow {
   department: string;
   model: string;
   prompt: string;
+  label: string | null;
   parent_run_id: string | null;
   routine_id: string | null;
   sample: number;
@@ -78,6 +90,7 @@ function toRun(row: RunRow): Run {
     department: row.department,
     model: { provider: row.model.slice(0, slash), model: row.model.slice(slash + 1) },
     prompt: row.prompt,
+    label: row.label,
     parentRunId: row.parent_run_id,
     routineId: row.routine_id,
     sample: row.sample === 1,
@@ -126,21 +139,36 @@ export class SqliteRunStore implements RunStore {
       | { version: number }
       | undefined;
 
+    const dir = findMigrations();
+
     if (row === undefined) {
-      this.db.exec(readFileSync(join(findMigrations(), "001-initial.sql"), "utf8"));
+      for (const step of MIGRATIONS) this.db.exec(readFileSync(join(dir, step), "utf8"));
       this.db.prepare("INSERT INTO schema_version (version) VALUES (?)").run(SCHEMA_VERSION);
       return;
     }
-    if (row.version !== SCHEMA_VERSION) {
+
+    if (row.version > SCHEMA_VERSION) {
+      // Written by a newer Staffroom. Guessing at a format we do not know would
+      // be worse than saying so.
       throw new Error(
         `runs.sqlite was written by schema version ${row.version}, this build expects ${SCHEMA_VERSION}. ` +
-          "Move the file aside; it is a log, not configuration.",
+          "Update Staffroom, or move the file aside; it is a log, not configuration.",
       );
     }
+
+    // Additive only, so an older log is brought forward rather than moved aside:
+    // this file is the owner's history of everything their office has done.
+    for (let version = row.version; version < SCHEMA_VERSION; version++) {
+      const step = MIGRATIONS[version];
+      if (step === undefined) break;
+      this.db.exec(readFileSync(join(dir, step), "utf8"));
+    }
+    this.db.prepare("UPDATE schema_version SET version = ?").run(SCHEMA_VERSION);
   }
 
-  create(run: Omit<Run, "status" | "finishedAt" | "usage" | "costUsd">): Promise<Run> {
+  create(run: NewRun): Promise<Run> {
     const full: Run = {
+      label: null,
       ...run,
       status: "queued",
       finishedAt: null,
@@ -149,8 +177,8 @@ export class SqliteRunStore implements RunStore {
     };
     this.db
       .prepare(
-        `INSERT INTO runs (id, kind, agent_id, department, model, prompt, parent_run_id, routine_id, sample, status, created_at)
-         VALUES (@id, @kind, @agentId, @department, @model, @prompt, @parentRunId, @routineId, @sample, @status, @createdAt)`,
+        `INSERT INTO runs (id, kind, agent_id, department, model, prompt, label, parent_run_id, routine_id, sample, status, created_at)
+         VALUES (@id, @kind, @agentId, @department, @model, @prompt, @label, @parentRunId, @routineId, @sample, @status, @createdAt)`,
       )
       .run({
         id: full.id,
@@ -159,6 +187,7 @@ export class SqliteRunStore implements RunStore {
         department: full.department,
         model: `${full.model.provider}/${full.model.model}`,
         prompt: full.prompt,
+        label: full.label ?? null,
         parentRunId: full.parentRunId,
         routineId: full.routineId,
         sample: full.sample ? 1 : 0,

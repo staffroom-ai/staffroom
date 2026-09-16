@@ -13,7 +13,10 @@ import { type ConfigError, loadCustomTools, type Office } from "@staffroom/core"
 import { type FSWatcher, watch } from "chokidar";
 
 export type WatchEvent =
-  | { type: "config.reloaded"; file: "agents.yaml" | "config.yaml" | ".env" | "approvals.yaml" }
+  | {
+      type: "config.reloaded";
+      file: "agents.yaml" | "config.yaml" | "routines.yaml" | ".env" | "approvals.yaml";
+    }
   | { type: "config.error"; errors: ConfigError[] }
   | {
       type: "tools.reloaded";
@@ -75,6 +78,8 @@ export class OfficeWatchers {
           // Deleting a row here takes a permission back, and should not need a
           // restart to do it.
           join(officeDir, "approvals.yaml"),
+          // A routine paused in a text editor should stop firing without one either.
+          join(officeDir, "routines.yaml"),
         ],
         {
           ignoreInitial: true,
@@ -113,7 +118,9 @@ export class OfficeWatchers {
         ? ("config.yaml" as const)
         : path.endsWith("approvals.yaml")
           ? ("approvals.yaml" as const)
-          : (".env" as const);
+          : path.endsWith("routines.yaml")
+            ? ("routines.yaml" as const)
+            : (".env" as const);
 
     this.debounce(path, 100, () => {
       try {

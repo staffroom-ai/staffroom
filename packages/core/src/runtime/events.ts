@@ -22,6 +22,15 @@ export interface Run {
   model: ModelId;
   /** What the owner typed, or the brief the lead wrote when routing. */
   prompt: string;
+  /**
+   * A name for this run, when it has one that is not its instruction.
+   *
+   * A routine catching up is titled `Catch-up: Morning inbox summary` while the
+   * agent still receives exactly the task the owner wrote — putting the marker
+   * in the prompt would change what was asked for. Null for everything else,
+   * which falls back to the prompt as it always did.
+   */
+  label: string | null;
   parentRunId: string | null;
   routineId: string | null;
   /** True for runs shipped inside a template, so demo content is distinguishable. */
@@ -125,8 +134,19 @@ export interface RunListFilter {
   limit?: number;
 }
 
+/**
+ * What `create` is given.
+ *
+ * `label` is optional here and required on `Run`: almost no run has a name of
+ * its own, so making every caller write `label: null` would be noise, while
+ * every reader should be handed the field without having to check.
+ */
+export type NewRun = Omit<Run, "status" | "finishedAt" | "usage" | "costUsd" | "label"> & {
+  label?: string | null;
+};
+
 export interface RunStore {
-  create(run: Omit<Run, "status" | "finishedAt" | "usage" | "costUsd">): Promise<Run>;
+  create(run: NewRun): Promise<Run>;
   /** `at` is only for replaying history; leave it out for anything happening now. */
   append(runId: string, event: RunEvent, at?: number): Promise<RunEventEnvelope>;
   events(runId: string): AsyncIterable<RunEventEnvelope>;

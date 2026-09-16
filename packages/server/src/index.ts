@@ -29,6 +29,7 @@ import { boundaryOf, firstFilePart } from "./http/multipart.js";
 import { resolveBrainPath } from "./http/paths.js";
 import { MAX_UPLOAD_BYTES, storeUpload } from "./http/upload.js";
 import { say } from "./log.js";
+import { Scheduler } from "./scheduler/scheduler.js";
 import { OfficeWatchers } from "./watch/index.js";
 import { SocketHub } from "./ws/socket.js";
 
@@ -326,6 +327,28 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
 
   // Watching is on unless asked otherwise: an owner editing agents.yaml expects
   // the office to notice without a restart.
+  /*
+   * SR-063: the routines, ticking.
+   *
+   * Only when the office is watching. An office opened with --no-watch is
+   * somebody inspecting a folder, and starting unattended work in it — sending
+   * email, writing notes — because they looked at it is not something to do
+   * quietly.
+   */
+  let scheduler: Scheduler | undefined;
+  if (options.watch !== false && options.office === undefined) {
+    scheduler = new Scheduler({
+      officeDir: options.officeDir,
+      office,
+      onNotice: (message) => hub.broadcastRoutineNotice(message),
+    });
+    hub.useScheduler(scheduler);
+    scheduler.start();
+    // Straight away as well as on the tick, so a laptop opened after a week
+    // does not wait thirty seconds to notice.
+    void scheduler.tick();
+  }
+
   let watchers: OfficeWatchers | undefined;
   if (options.watch !== false && options.office === undefined) {
     watchers = new OfficeWatchers({
@@ -360,6 +383,10 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
     hub,
     setDemoSpeed: (factor: 1 | 2 | 4) => setDemoSpeed(office.providers, factor),
     close: async () => {
+      // Stopped first, then drained: no new routine starts while the office is
+      // closing, and one already running is not cut in half.
+      scheduler?.stop();
+      await scheduler?.drain();
       await watchers?.close();
       hub.close();
       wss.close();

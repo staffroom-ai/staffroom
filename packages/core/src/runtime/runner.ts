@@ -48,6 +48,8 @@ export interface SubmitTaskInput {
   modelOverride?: string;
   source?: "taskbar" | "routine";
   routineId?: string;
+  /** A name for the run, when it is not the prompt. See Run.label. */
+  label?: string;
 }
 
 export class Runner {
@@ -190,6 +192,7 @@ export class Runner {
     prompt: string;
     parentRunId?: string | null;
     routineId?: string | null;
+    label?: string | null;
   }): Promise<Run> {
     return this.deps.store.create({
       id: newRunId(),
@@ -198,6 +201,7 @@ export class Runner {
       department: args.agent.department,
       model: { provider: args.resolved.provider, model: args.resolved.model },
       prompt: args.prompt,
+      label: args.label ?? null,
       parentRunId: args.parentRunId ?? null,
       routineId: args.routineId ?? null,
       sample: false,
@@ -222,13 +226,23 @@ export class Runner {
 
     const routineId = input.routineId ?? null;
     const workerKind: RunKind = input.source === "routine" ? "routine" : "task";
+    // The run's name, when it has one that is not its instruction. It goes on
+    // the run that does the work, never on the lead's routing run.
+    const label = input.label ?? null;
 
     // Named agent, or a department of one: no routing to do.
     const direct = input.agentId !== undefined ? this.deps.roster.agent(input.agentId) : undefined;
     if (direct !== undefined || members.length === 1) {
       const agent = direct ?? (members[0] as AgentConfig);
       const resolved = this.resolve(agent, input.modelOverride);
-      const run = await this.createRun({ kind: workerKind, agent, resolved, prompt, routineId });
+      const run = await this.createRun({
+        kind: workerKind,
+        agent,
+        resolved,
+        prompt,
+        routineId,
+        label,
+      });
       const controller = new AbortController();
       const ctx = this.buildContext({ run, agent, resolved, prompt, controller });
       return { routeRunId: null, runId: run.id, finished: this.start(ctx, controller) };
@@ -310,6 +324,7 @@ export class Runner {
       prompt: decision.brief,
       parentRunId: routeRun.id,
       routineId,
+      label,
     });
 
     await this.deps.store.append(routeRun.id, {

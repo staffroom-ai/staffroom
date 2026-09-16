@@ -6,6 +6,8 @@
  */
 import type { Office, RunError } from "@staffroom/core";
 import { RunError as CoreRunError } from "@staffroom/core";
+import { idFromLabel, RoutineSchema, removeRoutine, upsertRoutine } from "../scheduler/routines.js";
+import type { Scheduler } from "../scheduler/scheduler.js";
 import type { ClientMessage } from "./protocol.js";
 import { NOT_YET, NOT_YET_HINT } from "./protocol.js";
 
@@ -45,7 +47,31 @@ export function splitRevise(text: string): { isRevise: boolean; instructions: st
     : { isRevise: true, instructions: text.slice(match[0].length) };
 }
 
-export async function handle(office: Office, message: ClientMessage): Promise<HandlerResult> {
+/**
+ * The scheduler, when the office has one.
+ *
+ * Optional because an office started with `watch: false` in a test has no
+ * scheduler and should still answer everything else. A routine message without
+ * one says so rather than pretending it worked.
+ */
+export interface Handlers {
+  scheduler?: Scheduler | undefined;
+}
+
+const noScheduler = (): HandlerResult => ({
+  ok: false,
+  error: {
+    code: "INTERNAL",
+    message: "This office is not running routines.",
+    hint: "Routines need the office started normally, not with --no-watch.",
+  },
+});
+
+export async function handle(
+  office: Office,
+  message: ClientMessage,
+  deps: Handlers = {},
+): Promise<HandlerResult> {
   if (NOT_YET.has(message.type)) return notYet();
 
   try {
@@ -54,7 +80,51 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
         return { ok: true };
 
       case "task.create": {
-        if (message.schedule !== undefined) return notYet();
+        /*
+         * SR-063: "do it" and "do it every morning" are one control.
+         *
+         * The schedule popover sends the same message with a `schedule`, and
+         * the office turns it into a routine rather than making the owner learn
+         * a second concept. Nothing runs now: they asked for a schedule.
+         */
+        if (message.schedule !== undefined) {
+          const scheduler = deps.scheduler;
+          if (scheduler === undefined) return noScheduler();
+
+          const agentId = message.agentId ?? office.roster.leadFor(message.department)?.id;
+          if (agentId === undefined) {
+            return {
+              ok: false,
+              error: {
+                code: "BAD_ROUTING",
+                message: `There is nobody in ${message.department} to give this to.`,
+                hint: "Check office/agents.yaml.",
+              },
+            };
+          }
+
+          const schedule = message.schedule;
+          const label = schedule.label ?? message.text.slice(0, 80);
+          const taken = new Set(scheduler.list().map((r) => r.id));
+
+          const routine = RoutineSchema.parse({
+            id: idFromLabel(label, taken),
+            label,
+            agent: agentId,
+            task: message.text,
+            cadence: schedule.cadence,
+            time: schedule.time,
+            ...(schedule.weekday === undefined ? {} : { weekday: schedule.weekday }),
+            ...(schedule.day === undefined ? {} : { day: schedule.day }),
+            ...(schedule.approvalRequired === undefined
+              ? {}
+              : { approval_before_send: schedule.approvalRequired }),
+          });
+
+          scheduler.save(upsertRoutine(scheduler.list(), routine));
+          return { ok: true, result: { routineId: routine.id, scheduled: true } };
+        }
+
         const { routeRunId, runId } = await office.runner.submitTask({
           department: message.department,
           prompt: message.text,
@@ -247,6 +317,92 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
             ...(failed.length === 0 ? {} : { failed }),
           },
         };
+      }
+
+      /*
+       * SR-063: the three ways a routine is changed from the office.
+       *
+       * All three go through the scheduler rather than the file directly, so
+       * the running schedule and routines.yaml can never disagree about what is
+       * due next.
+       */
+      case "routine.upsert": {
+        const scheduler = deps.scheduler;
+        if (scheduler === undefined) return noScheduler();
+
+        const parsed = RoutineSchema.safeParse(message.routine);
+        if (!parsed.success) {
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: parsed.error.issues
+                .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+                .join("; "),
+              hint: "Check the routine against the example in office/routines.yaml.",
+            },
+          };
+        }
+
+        // A routine naming nobody would fail every morning in silence, so it is
+        // refused now, while somebody is looking at the screen.
+        if (office.roster.agent(parsed.data.agent) === undefined) {
+          return {
+            ok: false,
+            error: {
+              code: "AGENT_FIELD_MISSING",
+              message: `There is nobody called ${parsed.data.agent} in this office.`,
+              hint: "Check office/agents.yaml.",
+            },
+          };
+        }
+
+        scheduler.save(upsertRoutine(scheduler.list(), parsed.data));
+        return { ok: true, result: { id: parsed.data.id } };
+      }
+
+      case "routine.delete": {
+        const scheduler = deps.scheduler;
+        if (scheduler === undefined) return noScheduler();
+
+        const before = scheduler.list();
+        const after = removeRoutine(before, message.routineId);
+        if (after.length === before.length) {
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: `There is no routine called ${message.routineId}.`,
+              hint: "Check office/routines.yaml.",
+            },
+          };
+        }
+
+        scheduler.save(after);
+        return { ok: true, result: { id: message.routineId } };
+      }
+
+      case "routine.run_now": {
+        const scheduler = deps.scheduler;
+        if (scheduler === undefined) return noScheduler();
+
+        // Not awaited: a routine can take minutes, and the owner clicked a
+        // button rather than asking to wait. The run shows up in the office the
+        // same way every other run does.
+        const found = scheduler.list().some((r) => r.id === message.routineId);
+        if (!found) {
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: `There is no routine called ${message.routineId}.`,
+              hint: "Check office/routines.yaml.",
+            },
+          };
+        }
+
+        void scheduler.runNow(message.routineId);
+        return { ok: true, result: { id: message.routineId } };
       }
 
       // SR-043: shows the note in Finder or Explorer, so the owner can see that

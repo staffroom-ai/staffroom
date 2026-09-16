@@ -12,6 +12,7 @@ import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
 import { buildGraph, detectEditors, noteIndexedDelta, noteRemovedDelta } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
+import type { Scheduler } from "../scheduler/scheduler.js";
 import { fromNoteWarning, pinnedTruncatedWarning } from "./brain-warnings.js";
 import { handle } from "./handlers.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
@@ -71,6 +72,7 @@ export class SocketHub {
   private unsubscribe: (() => void) | undefined;
   private unwatchBrain: (() => void) | undefined;
   private readonly editors = detectEditors();
+  private scheduler: Scheduler | undefined;
 
   constructor(options: SocketHubOptions) {
     this.options = options;
@@ -184,7 +186,7 @@ export class SocketHub {
       return;
     }
 
-    const result = await handle(this.options.office, message);
+    const result = await handle(this.options.office, message, { scheduler: this.scheduler });
     if (result.ok) {
       this.send(client, {
         type: "ack",
@@ -202,6 +204,11 @@ export class SocketHub {
        * longer what is on disk, so the change is announced by whoever made it.
        */
       if (message.type === "tools.assign") this.broadcastConfigReloaded("agents.yaml");
+      // The same rule for routines: whoever changed the file announces it, so
+      // every other tab follows without waiting on a watcher.
+      if (message.type.startsWith("routine.") || message.type === "task.create") {
+        if (this.scheduler !== undefined) this.broadcastConfigReloaded("routines.yaml");
+      }
       this.scheduleState();
     } else {
       const error = result.error as { code: string; message: string; hint: string };
@@ -210,7 +217,7 @@ export class SocketHub {
   }
 
   private async welcome(client: Client, reqId: string, resumeFrom?: number): Promise<void> {
-    const state = await collectState(this.options.office);
+    const state = await collectState(this.options.office, undefined, this.scheduler);
     const missed = resumeFrom === undefined ? [] : this.since(resumeFrom);
     // A gap wider than the ring means we cannot prove what they missed, so they
     // get a fresh snapshot instead of a partial and misleading catch-up.
@@ -288,6 +295,21 @@ export class SocketHub {
     this.scheduleState();
   }
 
+  /** Handed over once the office has one, so handlers and state can reach it. */
+  useScheduler(scheduler: Scheduler): void {
+    this.scheduler = scheduler;
+  }
+
+  /**
+   * Something a routine did, or could not do.
+   *
+   * It goes in the feed rather than a log file: unattended work that failed
+   * quietly is the failure mode the whole feature has to avoid.
+   */
+  broadcastRoutineNotice(message: string): void {
+    this.push({ type: "brain.warning", seq: 0, scope: "index", reason: "routine", message });
+  }
+
   broadcastBrainWarning(warning: {
     scope: "note" | "index" | "pinned";
     noteId?: string;
@@ -319,7 +341,11 @@ export class SocketHub {
 
   private async pushState(): Promise<void> {
     if (this.clients.size === 0) return;
-    this.push({ type: "state", seq: 0, state: await collectState(this.options.office) });
+    this.push({
+      type: "state",
+      seq: 0,
+      state: await collectState(this.options.office, undefined, this.scheduler),
+    });
   }
 
   private next(): number {
@@ -350,7 +376,9 @@ export class SocketHub {
   }
 
   /** Announced so an open tab reloads the roster rather than showing a stale one. */
-  broadcastConfigReloaded(file: "agents.yaml" | "config.yaml" | ".env" | "approvals.yaml"): void {
+  broadcastConfigReloaded(
+    file: "agents.yaml" | "config.yaml" | "routines.yaml" | ".env" | "approvals.yaml",
+  ): void {
     this.push({ type: "config.reloaded", seq: 0, file });
     this.scheduleState();
   }
