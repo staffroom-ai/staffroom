@@ -41,6 +41,13 @@ function agentsYaml(dir: string): string {
   return readFileSync(join(dir, "agents.yaml"), "utf8");
 }
 
+function commentsIn(yaml: string): string[] {
+  return yaml
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("#"));
+}
+
 /** Real assignments only: the template mentions lookup_order in a comment. */
 function assignmentCount(dir: string, tool: string): number {
   return agentsYaml(dir)
@@ -84,8 +91,10 @@ describe("tools.assign", () => {
 
   it("keeps the rest of the owner's file, comments and all", async () => {
     const { server, dir } = await office();
-    const before = agentsYaml(dir);
-    const comments = before.split("\n").filter((line) => line.trim().startsWith("#"));
+    // Trimmed, because the yaml writer normalises line endings and on Windows
+    // the template arrives with CRLF. What is protected here is the owner's
+    // comments surviving the write, not which bytes end their lines.
+    const comments = commentsIn(agentsYaml(dir));
     const id = server.office.agentsFile.agents[0]?.id as string;
 
     await handle(server.office, {
@@ -95,10 +104,7 @@ describe("tools.assign", () => {
       agentIds: [id],
     });
 
-    const after = agentsYaml(dir)
-      .split("\n")
-      .filter((line) => line.trim().startsWith("#"));
-    expect(after).toEqual(comments);
+    expect(commentsIn(agentsYaml(dir))).toEqual(comments);
   });
 
   it("reports the names that did not take, and still assigns the rest", async () => {
