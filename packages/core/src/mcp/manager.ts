@@ -24,6 +24,7 @@ import type { McpConfig } from "../config/config.js";
 import type { ApprovalPreview } from "../shared/types.js";
 import { mcpPreview } from "../tools/preview.js";
 import type { Tool } from "../tools/tool.js";
+import { OfficeOAuthProvider, PendingAuthorizations } from "./oauth.js";
 
 export type McpState = "connecting" | "ready" | "unavailable" | "denied" | "needs_auth" | "stopped";
 
@@ -62,6 +63,10 @@ export interface McpManagerOptions {
    * broken server does not respawn for the length of the run.
    */
   autoReconnect?: boolean;
+  /** Where OAuth tokens are kept. Without it a server cannot be signed in to. */
+  officeDir?: string;
+  /** The loopback URL an OAuth provider sends the browser back to. */
+  oauthRedirectUrl?: string;
 }
 
 const CONNECT_TIMEOUT_MS = 15_000;
@@ -143,6 +148,9 @@ export class McpManager {
   private readonly options: McpManagerOptions;
   private readonly connections = new Map<string, Connection>();
   private config: McpConfig;
+  /** Sign-ins in flight. The server claims from this when a browser comes back. */
+  readonly pending = new PendingAuthorizations();
+  private readonly providers = new Map<string, OfficeOAuthProvider>();
   private registerTool: (tool: Tool) => void = () => {};
   private unregisterTool: (name: string) => void = () => {};
   private stopped = false;
@@ -225,12 +233,67 @@ export class McpManager {
     await this.open(name);
   }
 
-  /** Until SR-053 this only says what would happen. */
-  beginOAuth(name: string): { supported: false; message: string } {
-    return {
-      supported: false,
-      message: `Signing in to ${name} is not part of this version yet.`,
-    };
+  /**
+   * Starts a sign-in and returns the URL the owner has to visit.
+   *
+   * Nothing is opened here: the office has no browser, and the CLI might be on a
+   * machine with no display. The URL goes back to whoever asked.
+   */
+  async beginOAuth(
+    name: string,
+  ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+    const server = this.config.servers[name];
+    if (server === undefined || !("url" in server)) {
+      return { ok: false, message: `${name} is not a remote MCP server.` };
+    }
+    const officeDir = this.options.officeDir;
+    const redirectUrl = this.options.oauthRedirectUrl;
+    if (officeDir === undefined || redirectUrl === undefined) {
+      return { ok: false, message: "This office cannot sign in to servers." };
+    }
+
+    let authorizationUrl: URL | undefined;
+    const provider = new OfficeOAuthProvider({
+      officeDir,
+      server: name,
+      redirectUrl,
+      pending: this.pending,
+      onAuthorizationUrl: (url) => {
+        authorizationUrl = url;
+      },
+    });
+    this.providers.set(name, provider);
+
+    try {
+      const { auth } = await import("@modelcontextprotocol/sdk/client/auth.js");
+      await auth(provider as never, { serverUrl: server.url });
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+
+    if (authorizationUrl === undefined) {
+      // Already authorised: the SDK found usable tokens and did not need a visit.
+      await this.reconnect(name);
+      return { ok: false, message: `${name} is already signed in.` };
+    }
+    return { ok: true, url: authorizationUrl.href };
+  }
+
+  /** Completes a sign-in with the code the provider sent back, then reconnects. */
+  async finishOAuth(name: string, code: string): Promise<boolean> {
+    const provider = this.providers.get(name);
+    const server = this.config.servers[name];
+    if (provider === undefined || server === undefined || !("url" in server)) return false;
+
+    try {
+      const { auth } = await import("@modelcontextprotocol/sdk/client/auth.js");
+      await auth(provider as never, { serverUrl: server.url, authorizationCode: code });
+    } catch {
+      return false;
+    }
+
+    await this.reconnect(name);
+    return true;
   }
 
   private markDenied(name: string): void {
@@ -385,8 +448,9 @@ export class McpManager {
     } catch (error) {
       if (connection.closed) return;
       const detail = error instanceof Error ? error.message : String(error);
+      const needsAuth = detail.includes("401") || detail.includes("403");
       this.setStatus(connection, {
-        state: detail.includes("401") || detail.includes("403") ? "needs_auth" : "unavailable",
+        state: needsAuth ? "needs_auth" : "unavailable",
         detail:
           detail === "connect timed out"
             ? `It did not answer within ${Math.round(deadline / 1000)} seconds.`
@@ -415,7 +479,9 @@ export class McpManager {
       } catch {
         // Same.
       }
-      this.scheduleReconnect(name);
+      // A server asking for credentials will keep asking. Retrying achieves
+      // nothing until the owner has actually signed in, so we stop and wait.
+      if (!needsAuth) this.scheduleReconnect(name);
     }
   }
 

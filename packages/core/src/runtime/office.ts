@@ -13,6 +13,7 @@ import { loadAgentsFile, loadConfig } from "../config/load.js";
 import { Roster } from "../config/roster.js";
 import { type ConfigErrorLike, validateAgents } from "../config/validate-types.js";
 import { McpManager } from "../mcp/manager.js";
+import { loadAllTokens } from "../mcp/oauth.js";
 import { AnthropicAdapter } from "../providers/anthropic.js";
 import { OllamaAdapter } from "../providers/ollama.js";
 import { OpenAIAdapter } from "../providers/openai.js";
@@ -59,6 +60,8 @@ export interface CreateOfficeOptions {
   skipCustomTools?: boolean;
   /** Skips connecting to MCP servers, for tests that do not need them. */
   skipMcp?: boolean;
+  /** Loopback URL an OAuth provider sends the owner's browser back to. */
+  oauthRedirectUrl?: string;
   /**
    * Says outright whether this is a demo. Inferring it from the adapter count is
    * wrong the moment demo mode injects one: a replaying office would report
@@ -227,7 +230,15 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
   // MCP servers are started without being waited for. One on the other side of a
   // slow network, or one that never answers, must not hold the office closed:
   // it shows as unavailable on the connector strip and the staff carry on.
-  const mcp = new McpManager({ config: loaded.config.mcp });
+  const mcp = new McpManager({
+    config: loaded.config.mcp,
+    officeDir,
+    // Filled in by the server once it knows its own port; without it a remote
+    // server simply cannot be signed in to, which beginOAuth says plainly.
+    ...(options.oauthRedirectUrl === undefined
+      ? {}
+      : { oauthRedirectUrl: options.oauthRedirectUrl }),
+  });
   mcp.wire(
     (tool) => {
       try {
@@ -239,6 +250,9 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     },
     (name) => tools.unregister(name),
   );
+  // Any token saved by a previous session is registered for redaction before a
+  // single run can start, so one cannot reach a log on the way to being used.
+  loadAllTokens(officeDir, Object.keys(loaded.config.mcp.servers));
   if (options.skipMcp !== true) mcp.start();
 
   // Checked after the tools exist, so a roster naming a custom tool validates.

@@ -23,6 +23,17 @@ export function configureRedaction(secrets: Iterable<string>): void {
     .sort((a, b) => b.length - a.length);
 }
 
+/**
+ * Adds secrets to the ones already configured, rather than replacing them.
+ *
+ * An OAuth token arrives long after the office read config.yaml, and calling
+ * configureRedaction again with only the new value would stop redacting every
+ * key from the config file.
+ */
+export function addRedactionSecrets(secrets: Iterable<string>): void {
+  configureRedaction([...configured, ...secrets]);
+}
+
 export function clearRedaction(): void {
   configured = [];
 }

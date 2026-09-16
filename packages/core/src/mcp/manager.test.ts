@@ -337,11 +337,27 @@ describe.skipIf(!canSpawn)("applyConfig", () => {
 });
 
 describe("signing in to a server", () => {
-  it("says it is not in this version rather than failing obscurely", () => {
+  it("refuses a server that is not a remote one", async () => {
+    const { manager } = harness({ local: stdio() });
+    const result = await manager.beginOAuth("local");
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.message).toContain("not a remote");
+  });
+
+  it("refuses when the office has nowhere to keep a token", async () => {
+    // Without an office folder there is no 0600 file to write, and a token held
+    // only in memory would vanish on the next restart without saying so.
+    const { manager } = harness({
+      remote: { url: "https://mcp.example.com/x", auth: "oauth", headers: {} },
+    });
+    const result = await manager.beginOAuth("remote");
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.message).toContain("cannot sign in");
+  });
+
+  it("does nothing for a callback naming a server it never started", async () => {
     const { manager } = harness({});
-    const result = manager.beginOAuth("notion");
-    expect(result.supported).toBe(false);
-    expect(result.message).toContain("notion");
+    expect(await manager.finishOAuth("notion", "a-code")).toBe(false);
   });
 });
 
@@ -473,4 +489,73 @@ describe("departments", () => {
     // Absent means everywhere; present means exactly these.
     for (const tool of registered.values()) expect(tool.departments).toEqual(["marketing"]);
   });
+});
+
+describe.skipIf(!canSpawn)("stopping and restarting", () => {
+  it("takes the tools away when a server is stopped, and brings them back", async () => {
+    const { manager, registered } = harness({ echo: stdio() });
+    manager.start();
+    await until(() => registered.size >= 2);
+
+    await manager.reconnect("echo");
+    await until(() => registered.size >= 2);
+    expect(manager.status().find((s) => s.server === "echo")?.state).toBe("ready");
+  });
+
+  it("reconnecting a server that was never configured does nothing", async () => {
+    const { manager } = harness({});
+    await expect(manager.reconnect("nope")).resolves.toBeUndefined();
+  });
+
+  it("can be stopped twice without complaint", async () => {
+    const { manager, registered } = harness({ echo: stdio() });
+    manager.start();
+    await until(() => registered.size >= 2);
+    await manager.stop();
+    await expect(manager.stop()).resolves.toBeUndefined();
+  });
+
+  it("opens again when started after a stop", async () => {
+    const { manager, registered } = harness({ echo: stdio() });
+    manager.start();
+    await until(() => registered.size >= 2);
+
+    await manager.stop();
+    expect(registered.size).toBe(0);
+
+    // stop() means the office closed, not that this manager is spent: starting
+    // it again is how an office reopens without rebuilding everything.
+    manager.start();
+    await until(() => registered.size >= 2);
+    expect(manager.status().find((s) => s.server === "echo")?.state).toBe("ready");
+  });
+});
+
+describe("applyConfig on servers that never connect", () => {
+  it("adds a server that was not there before", async () => {
+    const { manager } = harness({});
+    await manager.applyConfig({
+      servers: { remote: { url: "https://example.invalid/x", auth: "none", headers: {} } as never },
+      deny: [],
+      departments: {},
+    });
+    await until(() => manager.status().length > 0, 12_000);
+    expect(manager.status()[0]?.server).toBe("remote");
+  }, 20_000);
+
+  it("brings a server back when it stops being denied", async () => {
+    const { manager } = harness(
+      { remote: { url: "https://example.invalid/x", auth: "none", headers: {} } },
+      { deny: ["remote"] },
+    );
+    manager.start();
+    expect(manager.status()[0]?.state).toBe("denied");
+
+    await manager.applyConfig({
+      servers: { remote: { url: "https://example.invalid/x", auth: "none", headers: {} } as never },
+      deny: [],
+      departments: {},
+    });
+    await until(() => manager.status()[0]?.state !== "denied", 12_000);
+  }, 20_000);
 });

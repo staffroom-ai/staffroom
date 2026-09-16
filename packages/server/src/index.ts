@@ -95,6 +95,14 @@ function servePage(response: ServerResponse, token: string): void {
   send(response, 200, withToken, "text/html; charset=utf-8");
 }
 
+/** A plain page for the browser tab the owner is sent back to. */
+function oauthPage(message: string): string {
+  const safe = message.replace(/[<>&]/g, (c) =>
+    c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;",
+  );
+  return `<!doctype html><meta charset="utf-8"><title>Staffroom</title><body style="font:16px/1.5 system-ui;margin:3rem auto;max-width:34rem;color:#12171d"><p>${safe}</p></body>`;
+}
+
 export async function createServer(options: ServerOptions): Promise<StaffroomServer> {
   const host = options.host ?? "127.0.0.1";
   const booted =
@@ -139,6 +147,47 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
           office: office.roster.officeName,
           uptimeSec: Math.round((Date.now() - startedAt) / 1000),
         }),
+      );
+      return;
+    }
+
+    // Where an OAuth provider sends the owner's browser back after they sign in
+    // to an MCP server. It carries no session token, because the redirect comes
+    // from somebody else's site, so the `state` is the only proof that this
+    // callback belongs to a sign-in the office actually started.
+    if (url.pathname === "/api/mcp/oauth/callback") {
+      const state = url.searchParams.get("state") ?? "";
+      const code = url.searchParams.get("code") ?? "";
+      const failure = url.searchParams.get("error");
+
+      if (failure !== null) {
+        send(response, 400, oauthPage(`The server refused the sign-in: ${failure}`), "text/html");
+        return;
+      }
+
+      const claimed = state === "" ? undefined : office.mcp.pending.claim(state);
+      if (claimed === undefined || code === "") {
+        // Nothing is stored and nothing is retried: an unrecognised state is
+        // either a stale tab or somebody else's redirect.
+        send(
+          response,
+          400,
+          oauthPage("That sign-in link is not one this office is waiting for."),
+          "text/html",
+        );
+        return;
+      }
+
+      void office.mcp
+        .finishOAuth(claimed.server, code)
+        .then(() => undefined)
+        .catch(() => undefined);
+
+      send(
+        response,
+        200,
+        oauthPage(`Signed in to ${claimed.server}. You can close this tab.`),
+        "text/html",
       );
       return;
     }

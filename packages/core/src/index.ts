@@ -66,6 +66,17 @@ export type {
   McpToolsChanged,
 } from "./mcp/manager.js";
 export { capDescription, capSchema, fingerprint, McpManager } from "./mcp/manager.js";
+export type { ProviderOptions, StoredTokens } from "./mcp/oauth.js";
+export {
+  loadAllTokens,
+  loadTokens,
+  OfficeOAuthProvider,
+  PendingAuthorizations,
+  saveTokens,
+  secretsDir,
+  secretsOf,
+  tokenPath,
+} from "./mcp/oauth.js";
 // What the office looks like
 export type {
   ActiveRun,
@@ -117,6 +128,7 @@ export type {
 export { TOOL_NAME_PATTERN } from "./providers/types.js";
 // Redaction
 export {
+  addRedactionSecrets,
   clearRedaction,
   configuredSecretCount,
   configureRedaction,
