@@ -19,7 +19,14 @@ import type {
 } from "../shared/types.js";
 import { buildResolver, type Link, linksFrom } from "./links.js";
 import { isSkipped, noteIdFor, parseNote } from "./parse.js";
-import type { BrainSearchHit, NoteFrontMatter, NoteWarning, ParsedNote } from "./types.js";
+import type {
+  BrainNoteRecord,
+  BrainSearchHit,
+  NoteFrontMatter,
+  NoteTrust,
+  NoteWarning,
+  ParsedNote,
+} from "./types.js";
 
 const SCHEMA_VERSION = 1;
 
@@ -310,6 +317,47 @@ export class BrainIndex {
       )
       .all() as NoteRow[];
     return rows.map((r) => toRef(r));
+  }
+
+  /**
+   * Everything the graph needs about a note, in one pass.
+   *
+   * `list()` returns the thin ref the tools hand to an agent. The graph needs
+   * what the owner wrote about the note — when, by whom, pinned or not, its
+   * status — and pulling that one note at a time over a few hundred notes is a
+   * query per node for no reason.
+   */
+  records(): BrainNoteRecord[] {
+    const rows = this.db
+      .prepare("SELECT id, title, front_matter, mtime, word_count, trust, sample FROM notes")
+      .all() as Array<{
+      id: string;
+      title: string;
+      front_matter: string;
+      mtime: number;
+      word_count: number;
+      trust: string;
+      sample: number;
+    }>;
+
+    return rows.map((row) => {
+      let frontMatter: NoteFrontMatter;
+      try {
+        frontMatter = JSON.parse(row.front_matter) as NoteFrontMatter;
+      } catch {
+        // A note is never dropped for bad metadata; it just has less of it.
+        frontMatter = { title: row.title, created: "", written_by: "owner" };
+      }
+      return {
+        id: row.id,
+        title: row.title,
+        frontMatter,
+        mtime: row.mtime,
+        wordCount: row.word_count,
+        trust: row.trust as NoteTrust,
+        sample: row.sample === 1,
+      };
+    });
   }
 
   links(): Link[] {

@@ -6,6 +6,20 @@
 
 export const VERSION = "0.1.1";
 
+export type {
+  BrainGraph,
+  BrainGraphEdge,
+  BrainGraphNode,
+  BuildGraphOptions,
+} from "./brain/graph.js";
+export {
+  brainRevisions,
+  buildGraph,
+  missingId,
+  nodeKind,
+  noteIndexedDelta,
+  noteRemovedDelta,
+} from "./brain/graph.js";
 export type { BrainIndexOptions } from "./brain/index.js";
 // Brain
 export { BrainIndex } from "./brain/index.js";
@@ -14,6 +28,7 @@ export { buildResolver, linksFrom, resolveTarget } from "./brain/links.js";
 export type { ParseOptions } from "./brain/parse.js";
 export { isSkipped, noteIdFor, parseNote, weightFor } from "./brain/parse.js";
 export type {
+  BrainNoteRecord,
   BrainSearchHit,
   NoteFrontMatter,
   NoteTrust,

@@ -53,6 +53,24 @@ export interface NoteWarning {
   reason: "missing_created" | "invalid_front_matter" | "missing_title";
 }
 
+/**
+ * A note as the graph needs it: what the owner wrote about it, not its body.
+ *
+ * Separate from `ParsedNote` because that carries the full text and is what the
+ * indexer produces from a file; this is what comes back out of the index for
+ * every note at once.
+ */
+export interface BrainNoteRecord {
+  id: string;
+  title: string;
+  frontMatter: NoteFrontMatter;
+  /** Last modified, in epoch milliseconds. */
+  mtime: number;
+  wordCount: number;
+  trust: NoteTrust;
+  sample: boolean;
+}
+
 export interface BrainSearchHit {
   id: string;
   title: string;
