@@ -5,12 +5,13 @@
  * actually happened. Everything reads from the store, which holds the office's own
  * account of itself; nothing here decides anything on its own.
  */
-import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { revealLabel } from "./hud/Chat.js";
 import { DepartmentCard, summarise } from "./hud/DepartmentCard.js";
 import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
+import { type SaveState, Settings } from "./hud/Settings.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
 import { Scene } from "./scene/Scene.js";
@@ -37,6 +38,10 @@ export function App(): ReactElement {
   const dark = usePrefersDark();
   const [tab, setTab] = useState<RailTab>("activity");
   const [openNote, setOpenNote] = useState<string | undefined>(undefined);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [keyStates, setKeyStates] = useState<Record<string, SaveState>>({});
+  /** reqId -> provider, so an ack or error lands on the row that asked. */
+  const keyReqs = useRef(new Map<string, string>());
   const token = useMemo(() => readToken(), []);
 
   const socket = useMemo(() => {
@@ -60,9 +65,30 @@ export function App(): ReactElement {
           case "event":
             state.applyEvent(message.event);
             break;
-          case "error":
+          case "ack": {
+            const provider = keyReqs.current.get(message.reqId);
+            if (provider !== undefined) {
+              keyReqs.current.delete(message.reqId);
+              setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saved" } }));
+            }
+            break;
+          }
+          case "error": {
+            // A failed key belongs under its own row, not in the rail's error slot.
+            const failedReqId = message.reqId;
+            const provider =
+              failedReqId === undefined ? undefined : keyReqs.current.get(failedReqId);
+            if (provider !== undefined && failedReqId !== undefined) {
+              keyReqs.current.delete(failedReqId);
+              setKeyStates((prev) => ({
+                ...prev,
+                [provider]: { kind: "failed", message: message.message, hint: message.hint },
+              }));
+              break;
+            }
             state.applyError({ code: message.code, message: message.message, hint: message.hint });
             break;
+          }
           default:
             break;
         }
@@ -129,7 +155,12 @@ export function App(): ReactElement {
       <Scene state={state} />
 
       <div className="hud">
-        <TopBar state={state} mode={store.mode} connection={store.connection} />
+        <TopBar
+          state={state}
+          mode={store.mode}
+          connection={store.connection}
+          onSettings={() => setSettingsOpen(true)}
+        />
 
         <div className="hud-body">
           <div className="left">
@@ -209,6 +240,20 @@ export function App(): ReactElement {
           />
         </div>
       </div>
+
+      {settingsOpen && (
+        <Settings
+          mode={store.mode}
+          states={keyStates}
+          onClose={() => setSettingsOpen(false)}
+          onSave={(provider, value) => {
+            const id = reqId();
+            keyReqs.current.set(id, provider);
+            setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saving" } }));
+            socket?.send({ type: "provider.set_key", reqId: id, provider, key: value });
+          }}
+        />
+      )}
 
       {openNote !== undefined && (
         <NoteSheet

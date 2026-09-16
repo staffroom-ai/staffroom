@@ -40,10 +40,12 @@ export function TopBar({
   state,
   mode,
   connection,
+  onSettings,
 }: {
   state: OfficeState;
   mode: "live" | "demo";
   connection: Connection;
+  onSettings: () => void;
 }): ReactElement {
   const warning = CONNECTION_TEXT[connection];
   const waiting = state.approvals.length;
@@ -74,7 +76,14 @@ export function TopBar({
           <span className="dot" />
           {mode === "demo" ? "Demo" : "Live"}
         </span>
-        <span className="meta-item">{state.defaultModel ?? "No model"}</span>
+        <button
+          type="button"
+          className="meta-item meta-button"
+          onClick={onSettings}
+          title="Connect a model"
+        >
+          {state.defaultModel ?? "No model"}
+        </button>
       </div>
 
       <time className="topbar-clock" dateTime={state.clock}>
