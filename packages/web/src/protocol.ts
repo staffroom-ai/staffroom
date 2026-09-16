@@ -42,6 +42,7 @@ export type ServerMessage =
       protocol: 1;
       version: string;
       mode: "live" | "demo";
+      platform: "mac" | "windows" | "linux";
       resumed: boolean;
       state: OfficeState;
     }

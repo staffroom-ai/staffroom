@@ -6,7 +6,9 @@
  * account of itself; nothing here decides anything on its own.
  */
 import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { revealLabel } from "./hud/Chat.js";
 import { DepartmentCard, summarise } from "./hud/DepartmentCard.js";
+import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
 import { TaskBar } from "./hud/TaskBar.js";
@@ -34,6 +36,8 @@ export function App(): ReactElement {
   const store = useOfficeStore();
   const dark = usePrefersDark();
   const [tab, setTab] = useState<RailTab>("activity");
+  const [openNote, setOpenNote] = useState<string | undefined>(undefined);
+  const token = useMemo(() => readToken(), []);
 
   const socket = useMemo(() => {
     const token = readToken();
@@ -48,7 +52,7 @@ export function App(): ReactElement {
         const state = useOfficeStore.getState();
         switch (message.type) {
           case "welcome":
-            state.applyWelcome(message.state, message.mode, message.version);
+            state.applyWelcome(message.state, message.mode, message.version, message.platform);
             break;
           case "state":
             state.applyState(message.state);
@@ -81,6 +85,21 @@ export function App(): ReactElement {
     if ((store.state?.approvals.length ?? 0) > 0) setTab("activity");
   }, [store.state?.approvals.length]);
 
+  // Alt+C/A/P move between the rail's sections without reaching for the mouse.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (!event.altKey || event.metaKey || event.ctrlKey) return;
+      const key = event.key.toLowerCase();
+      const wanted: RailTab | undefined =
+        key === "c" ? "chat" : key === "a" ? "activity" : key === "p" ? "results" : undefined;
+      if (wanted === undefined) return;
+      event.preventDefault();
+      setTab(wanted);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (store.state === undefined) {
     return (
       <main className="loading">
@@ -92,6 +111,18 @@ export function App(): ReactElement {
   }
 
   const state = store.state;
+  const selectedAgent = state.agents.find((a) => a.id === store.selectedAgentId);
+  const turns =
+    selectedAgent === undefined
+      ? []
+      : Object.entries(store.chats)
+          .filter(([runId]) => store.runAgents[runId] === selectedAgent.id)
+          .flatMap(([, list]) => list)
+          .sort((a, b) => a.at - b.at);
+  const lastDeliverable =
+    selectedAgent === undefined
+      ? undefined
+      : state.latestDeliverables.find((d) => d.agentId === selectedAgent.id);
 
   return (
     <>
@@ -124,7 +155,16 @@ export function App(): ReactElement {
               </div>
             </section>
 
-            <Roster state={state} dark={dark} />
+            <Roster
+              state={state}
+              dark={dark}
+              selectedId={store.selectedAgentId}
+              onSelect={(agentId) => {
+                const store_ = useOfficeStore.getState();
+                store_.selectAgent(store_.selectedAgentId === agentId ? null : agentId);
+                if (store_.selectedAgentId !== agentId) setTab("chat");
+              }}
+            />
           </div>
 
           <div className="stage">
@@ -154,10 +194,31 @@ export function App(): ReactElement {
                 ...(note === undefined || note.length === 0 ? {} : { note }),
               })
             }
-            onOpenNote={(noteId) => socket?.send({ type: "note.reveal", reqId: reqId(), noteId })}
+            onOpenNote={(noteId) => setOpenNote(noteId)}
+            onReveal={(noteId) => socket?.send({ type: "note.reveal", reqId: reqId(), noteId })}
+            agent={selectedAgent}
+            turns={turns}
+            deliverable={lastDeliverable}
+            platform={store.platform}
+            onRename={(agentId, name) =>
+              socket?.send({ type: "agent.rename", reqId: reqId(), agentId, name })
+            }
+            onSend={(agentId, text) =>
+              socket?.send({ type: "chat.send", reqId: reqId(), agentId, text })
+            }
           />
         </div>
       </div>
+
+      {openNote !== undefined && (
+        <NoteSheet
+          noteId={openNote}
+          token={token}
+          revealLabel={revealLabel(store.platform)}
+          onReveal={() => socket?.send({ type: "note.reveal", reqId: reqId(), noteId: openNote })}
+          onClose={() => setOpenNote(undefined)}
+        />
+      )}
     </>
   );
 }

@@ -196,7 +196,13 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
 
       <Ground dark={dark} />
       <Brain dark={dark} />
-      <Pods state={state} dark={dark} />
+      {/*
+        Pod labels are drawn in HTML over the canvas, which is full-bleed behind
+        the panels. Close in on one desk and the other pods' labels slide out of
+        the stage and sit on top of the left column, so they are dropped while the
+        camera is somewhere other than the overview.
+      */}
+      <Pods state={state} dark={dark} labels={selectedAgentId === null && focusedPod === null} />
       <Desks state={state} dark={dark} />
       <Agents state={state} reducedMotion={reducedMotion} dark={dark} />
     </Canvas>

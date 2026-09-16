@@ -60,6 +60,8 @@ export type ServerMessage =
       protocol: 1;
       version: string;
       mode: "live" | "demo";
+      /** So the browser can say "Show in Finder" or "Show in Explorer" correctly. */
+      platform: "mac" | "windows" | "linux";
       resumed: boolean;
       state: OfficeState;
     }

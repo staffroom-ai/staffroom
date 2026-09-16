@@ -8,12 +8,14 @@
  * Approvals come first whenever there are any. Everything else can wait; that
  * cannot.
  */
-import type { DeliverableSummary, OfficeState, PendingApprovalView } from "@staffroom/core";
+import type { Agent, DeliverableSummary, OfficeState, PendingApprovalView } from "@staffroom/core";
 import { type ReactElement, useEffect, useRef } from "react";
 import type { ActivityLine } from "../cues.js";
+import type { ChatTurn } from "../store.js";
 import { ApprovalCard } from "./ApprovalCard.js";
+import { Chat } from "./Chat.js";
 
-export type RailTab = "activity" | "results";
+export type RailTab = "chat" | "activity" | "results";
 
 function timeOf(at: number | string): string {
   return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -61,7 +63,14 @@ export function Rail({
   onTab,
   onDecide,
   onOpenNote,
+  onReveal,
   error,
+  agent,
+  turns,
+  deliverable,
+  platform,
+  onRename,
+  onSend,
 }: {
   state: OfficeState;
   activity: ActivityLine[];
@@ -69,7 +78,14 @@ export function Rail({
   onTab: (tab: RailTab) => void;
   onDecide: (approval: PendingApprovalView, decision: "approve" | "deny", note?: string) => void;
   onOpenNote: (noteId: string) => void;
+  onReveal: (noteId: string) => void;
   error: { code: string; message: string; hint: string } | undefined;
+  agent: Agent | undefined;
+  turns: ChatTurn[];
+  deliverable: DeliverableSummary | undefined;
+  platform: "mac" | "windows" | "linux";
+  onRename: (agentId: string, name: string) => void;
+  onSend: (agentId: string, text: string) => void;
 }): ReactElement {
   const feed = useRef<HTMLDivElement>(null);
 
@@ -111,6 +127,14 @@ export function Rail({
       <nav className="rail-tabs" aria-label="Rail sections">
         <button
           type="button"
+          className={`rail-tab${tab === "chat" ? " is-on" : ""}`}
+          onClick={() => onTab("chat")}
+          aria-pressed={tab === "chat"}
+        >
+          Chat
+        </button>
+        <button
+          type="button"
           className={`rail-tab${tab === "activity" ? " is-on" : ""}`}
           onClick={() => onTab("activity")}
           aria-pressed={tab === "activity"}
@@ -130,7 +154,20 @@ export function Rail({
         </button>
       </nav>
 
-      {tab === "activity" ? (
+      {tab === "chat" && (
+        <Chat
+          agent={agent}
+          turns={turns}
+          deliverable={deliverable}
+          platform={platform}
+          onRename={onRename}
+          onSend={onSend}
+          onOpenNote={onOpenNote}
+          onReveal={onReveal}
+        />
+      )}
+
+      {tab === "activity" && (
         <div className="rail-feed" ref={feed} aria-live="polite">
           {activity.length === 0 ? (
             <Empty hint="Pick a department in the bar below, say what you need in a sentence, and every step they take shows up here.">
@@ -145,7 +182,9 @@ export function Rail({
             ))
           )}
         </div>
-      ) : (
+      )}
+
+      {tab === "results" && (
         <div className="rail-feed">
           {state.latestDeliverables.length === 0 ? (
             <Empty hint="Every finished piece of work is saved as a file in your notes folder, and listed here so you can open it.">

@@ -25,7 +25,17 @@ const STATE_CLASS: Record<string, string> = {
   error: " is-error",
 };
 
-export function Roster({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
+export function Roster({
+  state,
+  dark,
+  selectedId,
+  onSelect,
+}: {
+  state: OfficeState;
+  dark: boolean;
+  selectedId: string | null;
+  onSelect: (agentId: string) => void;
+}): ReactElement {
   const people = [...state.agents]
     .map((agent) => ({
       agent,
@@ -47,7 +57,14 @@ export function Roster({ state, dark }: { state: OfficeState; dark: boolean }): 
 
       <div className="roster-list">
         {people.map(({ agent, pod }) => (
-          <div key={agent.id} className="person">
+          <button
+            key={agent.id}
+            type="button"
+            className={`person${selectedId === agent.id ? " is-selected" : ""}`}
+            onClick={() => onSelect(agent.id)}
+            aria-pressed={selectedId === agent.id}
+            aria-label={`Talk to ${agent.name ?? agent.id}, ${agent.role}`}
+          >
             <span
               className="person-pip"
               style={{ ["--pencil" as string]: podPencil(pod, dark, podCount) }}
@@ -60,7 +77,7 @@ export function Roster({ state, dark }: { state: OfficeState; dark: boolean }): 
             <span className={`person-state${STATE_CLASS[agent.status] ?? ""}`}>
               {STATE_WORD[agent.status] ?? "Free"}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </section>

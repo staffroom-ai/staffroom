@@ -7,6 +7,7 @@
  * minute is closed, because a laptop that went to sleep should not hold a
  * connection the office thinks is live.
  */
+import { platform } from "node:os";
 import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
@@ -14,6 +15,14 @@ import { handle } from "./handlers.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { PROTOCOL_VERSION } from "./protocol.js";
 import { collectState } from "./state.js";
+
+/** The three names the file manager has, so the browser need not guess. */
+function platformName(): "mac" | "windows" | "linux" {
+  const os = platform();
+  if (os === "darwin") return "mac";
+  if (os === "win32") return "windows";
+  return "linux";
+}
 
 /** How many pushes to remember for reconnecting tabs. */
 const RING_SIZE = 5000;
@@ -152,6 +161,7 @@ export class SocketHub {
       protocol: PROTOCOL_VERSION,
       version: this.options.version,
       mode: this.options.office.mode,
+      platform: platformName(),
       resumed,
       state,
     });

@@ -110,7 +110,15 @@ export function Brain({ dark }: { dark: boolean }): ReactElement {
  * and edged in a solid band of it. This is what makes "who works here" a one-glance
  * question: the floor itself is the org chart.
  */
-export function Pods({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
+export function Pods({
+  state,
+  dark,
+  labels = true,
+}: {
+  state: OfficeState;
+  dark: boolean;
+  labels?: boolean;
+}): ReactElement {
   return (
     <>
       {state.departments.map((department) => {
@@ -148,7 +156,7 @@ export function Pods({ state, dark }: { state: OfficeState; dark: boolean }): Re
               />
             </mesh>
 
-            {department !== undefined && (
+            {labels && (
               <Html
                 position={[
                   (outward.x / unit) * (WEDGE_OUTER - 3.4),

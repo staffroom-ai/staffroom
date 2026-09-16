@@ -27,6 +27,8 @@ export interface OfficeStore {
   state: OfficeState | undefined;
   mode: "live" | "demo";
   version: string;
+  /** From `welcome`, so the UI can name the file manager the owner actually has. */
+  platform: "mac" | "windows" | "linux";
 
   selectedAgentId: string | null;
   focusedPod: number | null;
@@ -43,7 +45,12 @@ export interface OfficeStore {
   lastError: { code: string; message: string; hint: string } | undefined;
 
   setConnection: (connection: Connection) => void;
-  applyWelcome: (state: OfficeState, mode: "live" | "demo", version: string) => void;
+  applyWelcome: (
+    state: OfficeState,
+    mode: "live" | "demo",
+    version: string,
+    platform?: "mac" | "windows" | "linux",
+  ) => void;
   applyState: (state: OfficeState) => void;
   applyEvent: (envelope: RunEventEnvelope, reducedMotion?: boolean) => void;
   applyError: (error: { code: string; message: string; hint: string }) => void;
@@ -61,6 +68,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   state: undefined,
   mode: "demo",
   version: "",
+  platform: "mac",
 
   selectedAgentId: null,
   focusedPod: null,
@@ -78,7 +86,14 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
 
   // A welcome replaces everything: it is the office's own account of itself, and
   // anything this tab had inferred is stale by definition.
-  applyWelcome: (state, mode, version) => set({ state, mode, version, connection: "open" }),
+  applyWelcome: (state, mode, version, platform) =>
+    set({
+      state,
+      mode,
+      version,
+      connection: "open",
+      ...(platform === undefined ? {} : { platform }),
+    }),
 
   applyState: (state) => set({ state }),
 
