@@ -41,6 +41,7 @@ jobs:
       # Opens or updates a "Version Packages" pull request while changesets are
       # pending. Publishing is done below, not here.
       - name: Version
+        id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
@@ -49,21 +50,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Published with npm, not pnpm. Trusted publishing is an npm CLI feature
-      # (11.5.1+) and `pnpm changeset publish` publishes with pnpm, which was
-      # refused with "OIDC permission denied". Dependency order by hand, because
-      # each package must exist before the ones that depend on it.
+      # Only once the Version pull request has been merged.
+      #
+      # While changesets are still pending, the step above has just bumped
+      # versions in the working tree for the pull request. Publishing them here
+      # would put versions on npm that are not on main and that nobody has
+      # looked at — which is what this workflow did until now.
       - name: Publish to npm
+        if: steps.changesets.outputs.hasChangesets == 'false'
         run: |
           set -e
+
+          # Packed with pnpm and published with npm, because each does one half.
+          #
+          # npm leaves pnpm's "workspace:*" in the tarball, and every install of
+          # that fails with `Unsupported URL Type "workspace:"` — which is how
+          # 0.1.0 shipped three uninstallable packages. pnpm rewrites it to a
+          # real version. But trusted publishing is an npm CLI feature, and
+          # publishing with pnpm is refused with "OIDC permission denied".
+          #
+          # So: pnpm builds the tarball, npm publishes it.
+          mkdir -p /tmp/tarballs
+
+          # In dependency order by hand: each package must exist on the registry
+          # before the ones that depend on it can install.
           for p in core templates web server cli; do
             dir="packages/$p"
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
+
             if npm view "$name@$version" version > /dev/null 2>&1; then
               echo "$name@$version is already published"
               continue
             fi
-            echo "Publishing $name@$version"
-            (cd "$dir" && npm publish --access public --provenance)
+
+            echo "Packing $name@$version"
+            (cd "$dir" && pnpm pack --pack-destination /tmp/tarballs)
+
+            tarball=$(ls -t /tmp/tarballs/*.tgz | head -1)
+            echo "Publishing $tarball"
+            npm publish "$tarball" --access public --provenance
           done
