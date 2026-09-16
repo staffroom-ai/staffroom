@@ -102,7 +102,6 @@ export const NOT_YET: ReadonlySet<ClientMessage["type"]> = new Set([
   "routine.delete",
   "routine.run_now",
   "brain.graph.get",
-  "mcp.reconnect",
   "mcp.oauth.begin",
   "office.reload",
 ]);

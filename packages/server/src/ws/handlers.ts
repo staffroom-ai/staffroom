@@ -82,13 +82,28 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
       }
 
       case "approval.decide": {
-        // approve_always needs the whitelist, which is M2.
-        if (message.decision === "approve_always") return notYet();
+        // "Always allow" has to say what it is allowing. Without a match it means
+        // "any input to this tool from now on", which is almost never what
+        // somebody clicking a button on one message intends.
+        if (message.decision === "approve_always" && message.match === undefined) {
+          return {
+            ok: false,
+            error: {
+              code: "MATCH_REQUIRED",
+              message: "Say what to always allow.",
+              hint: "Allow it for a specific recipient, or approve this one call instead.",
+            },
+          };
+        }
+
         const resolved = office.tools.resolve(
           message.approvalId,
           message.decision,
           "owner",
           message.note,
+          message.decision === "approve_always" && message.match !== undefined
+            ? { match: message.match }
+            : undefined,
         );
         if (!resolved) {
           return {
@@ -100,6 +115,23 @@ export async function handle(office: Office, message: ClientMessage): Promise<Ha
             },
           };
         }
+        return { ok: true };
+      }
+
+      // SR-055: a connector the owner has fixed — a key pasted, a server
+      // restarted — should come back without restarting the whole office.
+      case "mcp.reconnect": {
+        if (!(message.server in office.config.mcp.servers)) {
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: `There is no MCP server called ${message.server}.`,
+              hint: "Check the name against office/config.yaml.",
+            },
+          };
+        }
+        await office.mcp.reconnect(message.server);
         return { ok: true };
       }
 

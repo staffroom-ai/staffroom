@@ -42,6 +42,8 @@ export interface Office {
   mode: "live" | "demo";
   /** Connections to MCP servers, and their health. */
   mcp: McpManager;
+  /** Permissions the owner has already given. */
+  whitelist: FileWhitelist;
   /** Problems that did not stop the office opening. */
   warnings: ConfigErrorLike[];
   toolFailures: LoadFailure[];
@@ -209,15 +211,18 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
   const tools = new ToolRegistry({
     config: loaded.config,
     whitelist,
-    onGrant: ({ agentId, tool, input, fingerprint }) => {
-      // Only the fields the preview treats as a destination become the match, so
-      // "always allow" means "to this recipient", not "with any input at all".
-      const match = destinationMatch(input);
+    onGrant: ({ agentId, tool, input, fingerprint, match, allowAnyRecipient }) => {
+      // The owner's own choice wins. Without one, only the fields the preview
+      // treats as a destination become the match, so "always allow" means "to
+      // this recipient" rather than "with any input at all".
+      const chosen = match ?? destinationMatch(input);
       whitelist.grant({
         agentId,
         tool,
         fingerprint,
-        ...(match === undefined ? { allowAnyRecipient: true } : { match }),
+        ...(chosen === undefined
+          ? { allowAnyRecipient: allowAnyRecipient === true }
+          : { match: chosen }),
       });
     },
     onApprovalNeeded: recordApproval,
@@ -342,6 +347,7 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     warnings,
     toolFailures,
     mcp,
+    whitelist,
     close: () => {
       void mcp.stop();
       store.close();

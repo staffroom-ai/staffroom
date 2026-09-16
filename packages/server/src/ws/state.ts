@@ -5,6 +5,7 @@
  * truth, and at 35 agents the whole thing is a few kilobytes. Coalesced at 250 ms
  * so a burst of events produces one push rather than twenty.
  */
+
 import type {
   ActiveRun,
   Agent,
@@ -16,7 +17,7 @@ import type {
   PendingApprovalView,
   Run,
 } from "@staffroom/core";
-import { modelStatusFor, resolveModel } from "@staffroom/core";
+import { type McpState, modelStatusFor, redactSecrets, resolveModel } from "@staffroom/core";
 
 /** Brain tools are omitted from an agent's list: everyone has them. */
 const IMPLIED = new Set(["brain_search", "brain_read", "brain_write", "brain_list"]);
@@ -33,6 +34,21 @@ export interface BuildStateOptions {
   deliverables: DeliverableSummary[];
   now?: Date;
 }
+
+/**
+ * What a connection's state means to somebody looking at the connector strip.
+ *
+ * Deliberately a table rather than a chain of conditions: these are the only six
+ * states a server can be in, and a reader should be able to see all six at once.
+ */
+const MCP_HEALTH: Record<McpState, Connector["health"]> = {
+  connecting: "starting",
+  ready: "ok",
+  unavailable: "down",
+  denied: "denied",
+  needs_auth: "auth_required",
+  stopped: "grey",
+};
 
 export function buildOfficeState(options: BuildStateOptions): OfficeState {
   const { office, activeRuns, approvals, deliverables } = options;
@@ -102,13 +118,30 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
     };
   });
 
+  // An MCP server is one connector, not one per tool it happens to expose. Its
+  // health is the connection's, so a server that is down reads as down even
+  // though the tools it last offered are no longer registered at all.
+  const mcpConnectors: Connector[] = office.mcp.status().map((status) => ({
+    id: status.server,
+    kind: "mcp" as const,
+    label: status.server,
+    health: MCP_HEALTH[status.state],
+    // Through redaction: a connection failure can quote a URL with a token in it.
+    message: status.detail === undefined ? null : redactSecrets(status.detail),
+    toolCount: status.toolCount,
+    departments: office.config.mcp.departments[status.server] ?? "all",
+    lastUsedAt: null,
+    pulse: 0,
+  }));
+
   const connectors: Connector[] = office.tools
     .list()
     .filter(({ tool }) => !IMPLIED.has(tool.name))
+    // MCP tools are represented by their server above.
+    .filter(({ tool }) => tool.source.kind !== "mcp")
     .map(({ tool }) => {
       const kind = tool.source.kind;
-      const denied =
-        tool.source.kind === "mcp" && office.config.mcp.deny.includes(tool.source.server);
+      const denied = false;
       const unconfigured =
         tool.name === "web_search" && office.config.tools.web.provider === "none";
       return {
@@ -147,7 +180,7 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
     defaultModel: office.agentsFile.default_model ?? null,
     departments,
     agents,
-    connectors,
+    connectors: [...mcpConnectors, ...connectors],
     runs,
     approvals,
     routines: [],

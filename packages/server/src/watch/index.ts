@@ -53,7 +53,14 @@ export class OfficeWatchers {
 
     this.watchers.push(
       watch(
-        [join(officeDir, "agents.yaml"), join(officeDir, "config.yaml"), join(officeDir, ".env")],
+        [
+          join(officeDir, "agents.yaml"),
+          join(officeDir, "config.yaml"),
+          join(officeDir, ".env"),
+          // Deleting a row here takes a permission back, and should not need a
+          // restart to do it.
+          join(officeDir, "approvals.yaml"),
+        ],
         {
           ignoreInitial: true,
           usePolling,
@@ -89,10 +96,15 @@ export class OfficeWatchers {
       ? ("agents.yaml" as const)
       : path.endsWith("config.yaml")
         ? ("config.yaml" as const)
-        : (".env" as const);
+        : path.endsWith("approvals.yaml")
+          ? ("approvals.yaml" as const)
+          : (".env" as const);
 
     this.debounce(path, 100, () => {
       try {
+        // Permissions are read from the file on every check, so re-reading it is
+        // all that taking one back requires.
+        if (file === "approvals.yaml") this.options.office.whitelist.reload();
         // Reloading is core's job; this only decides what to tell the office.
         this.options.onEvent({ type: "config.reloaded", file });
       } catch (error) {

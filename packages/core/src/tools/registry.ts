@@ -79,7 +79,15 @@ export interface ToolRegistryOptions {
   config: OfficeConfig;
   whitelist?: Whitelist;
   /** Called when the owner chooses "approve and always allow". */
-  onGrant?: (grant: { agentId: string; tool: string; input: unknown; fingerprint: string }) => void;
+  onGrant?: (grant: {
+    agentId: string;
+    tool: string;
+    input: unknown;
+    fingerprint: string;
+    /** What the owner chose to allow, when they chose explicitly. */
+    match?: Record<string, string>;
+    allowAnyRecipient?: boolean;
+  }) => void;
   /** Called when a write needs the owner. The server turns this into events and a card. */
   onApprovalNeeded?: (request: ApprovalRequest) => void;
   /** Called for a local write, which is recorded but never blocks. */
@@ -95,7 +103,12 @@ export interface ToolRegistryOptions {
 }
 
 interface Waiting {
-  resolve: (outcome: { decision: ApprovalDecision; by: ApprovalBy; note?: string }) => void;
+  resolve: (outcome: {
+    decision: ApprovalDecision;
+    by: ApprovalBy;
+    note?: string;
+    grant?: { match?: Record<string, string>; allowAnyRecipient?: boolean };
+  }) => void;
   request: ApprovalRequest;
 }
 
@@ -192,7 +205,13 @@ export class ToolRegistry extends EventEmitter {
       : preview;
   }
 
-  resolve(approvalId: string, decision: ApprovalDecision, by: ApprovalBy, note?: string): boolean {
+  resolve(
+    approvalId: string,
+    decision: ApprovalDecision,
+    by: ApprovalBy,
+    note?: string,
+    grant?: { match?: Record<string, string>; allowAnyRecipient?: boolean },
+  ): boolean {
     const pending = this.waiting.get(approvalId);
     if (pending === undefined) return false;
     this.waiting.delete(approvalId);
@@ -203,7 +222,12 @@ export class ToolRegistry extends EventEmitter {
       by,
       ...(note === undefined ? {} : { note }),
     });
-    pending.resolve(note === undefined ? { decision, by } : { decision, by, note });
+    pending.resolve({
+      decision,
+      by,
+      ...(note === undefined ? {} : { note }),
+      ...(grant === undefined ? {} : { grant }),
+    });
     return true;
   }
 
@@ -305,6 +329,7 @@ export class ToolRegistry extends EventEmitter {
       decision: ApprovalDecision;
       by: ApprovalBy;
       note?: string;
+      grant?: { match?: Record<string, string>; allowAnyRecipient?: boolean };
     }>((resolve) => {
       this.waiting.set(request.approvalId, { resolve, request });
       // A cancelled run must not leave a tool waiting forever.
@@ -336,6 +361,10 @@ export class ToolRegistry extends EventEmitter {
             tool: tool.name,
             input,
             fingerprint,
+            // What the owner actually chose to allow. Absent means "work it out
+            // from the input", which is what the office does for a click with no
+            // explicit choice behind it.
+            ...(outcome.grant === undefined ? {} : outcome.grant),
           });
         } catch {
           // Reported by whoever owns the file, not by failing the call.
