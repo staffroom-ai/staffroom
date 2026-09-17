@@ -16,27 +16,29 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Draw calls: under 950 with thirty-five people.
+ * Draw calls: under 60, whatever the headcount.
  *
- * The plan asked for under 60, which was written as an aspiration rather than
- * from a measurement. What the scene actually costs, measured here:
+ * This is the plan's own figure, which was written as an aspiration and is now
+ * a measurement. Before and after instancing the people and the desks:
  *
- *   4 agents   108 calls    11,892 triangles
- *   35 agents  821 calls    91,872 triangles
+ *   4 agents    108 calls  ->  37 calls    11,892 triangles
+ *   35 agents   821 calls  ->  37 calls    91,872 triangles
  *
- * That is 23 draw calls per person and a fixed cost of about 16 — nothing in
- * the scene is instanced, and with soft shadows every casting mesh is drawn
- * again for the shadow map. Sixty is unreachable without an InstancedMesh
- * rewrite of the agents, which is a real piece of work and does not belong
- * inside a ticket about measuring.
+ * The number that matters is not 821 to 37, it is that the second column no
+ * longer has two different numbers in it. The scene used to cost 23 draw calls
+ * per person — a body, a head, a beacon, a desk, a chair, a screen, each its own
+ * object and most of them drawn a second time for the shadow map — so the office
+ * got more expensive with every hire. Instanced, the room costs the same to draw
+ * whether it seats four people or forty, and the count only moves when somebody
+ * starts work: a lit screen and its pool of floor light are two more meshes, for
+ * the whole office rather than per person, which is why a busy office measures
+ * 40 rather than 37.
  *
- * So the budget is set from the measurement with headroom. It still does the
- * job it exists for: at 23 per person, anything that pushes an agent to 27 or
- * adds a whole extra pass fails here. Instancing the agents is filed
- * separately, and when it lands this number should drop to something like the
- * sixty the plan wanted — at which point tighten it.
+ * Sixty is therefore a real ceiling rather than a padded one. Un-instance any
+ * single part and thirty-five people put it over immediately, which is exactly
+ * the regression this exists to catch.
  */
-const MAX_DRAW_CALLS = 950;
+const MAX_DRAW_CALLS = 60;
 
 /**
  * Triangles: under 150,000.
@@ -52,10 +54,10 @@ const MAX_TRIANGLES = 150_000;
  * Two kinds of number, and only one of them is a gate.
  *
  * Draw calls and triangles are deterministic. The same scene produces the same
- * counts on a laptop and on a shared CI VM — 821 and 91,872 on both, measured —
- * so they are asserted identically everywhere, and they are what this test is
- * for: an agent that stopped being instanced, a material built per frame, a
- * model somebody dropped in without looking.
+ * counts on a laptop and on a shared CI VM — measured as the same numbers on
+ * both — so they are asserted identically everywhere, and they are what this
+ * test is for: a part that stopped being instanced, a material built per frame,
+ * a model somebody dropped in without looking.
  *
  * Timing on the CI runner is not a gate, because it is not repeatable. Two runs
  * of the identical commit on macos-14:
@@ -182,7 +184,7 @@ test("the office stays cheap to draw with thirty-five people in it", async ({ pa
 
   // Everywhere: the scene drew something, and it costs what it should.
   expect(frames, "the scene barely rendered").toBeGreaterThan(MIN_FRAMES);
-  expect(calls, "each person costs more to draw than they used to").toBeLessThan(MAX_DRAW_CALLS);
+  expect(calls, "the office costs more to draw than it used to").toBeLessThan(MAX_DRAW_CALLS);
   expect(triangles, "too many triangles for this scene").toBeLessThan(MAX_TRIANGLES);
 
   // Only where the same machine gives the same answer twice. See the note above
