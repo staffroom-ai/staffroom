@@ -13,7 +13,6 @@ import { doctor } from "./commands/doctor.js";
 import { exportOffice } from "./commands/export.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { migrateCommand } from "./commands/migrate.js";
-import { setup } from "./commands/setup-prompts.js";
 import { start } from "./commands/start.js";
 import { templateApply, templateList } from "./commands/template.js";
 import { addTool, listExampleTools, newTool } from "./commands/tools.js";
@@ -230,6 +229,15 @@ async function run(): Promise<void> {
     .option("--web-search-key <key>", "Key for the web search provider")
     .option("--telemetry", "Send anonymous usage counts. Off unless you pass this")
     .action(async (options) => {
+      /*
+       * Imported here rather than at the top of the file.
+       *
+       * @inquirer/prompts is only needed by this one command, and every other
+       * run of the CLI — including `start`, which is the one with an install
+       * time budget on it — would otherwise pay to load a prompt library it
+       * never uses.
+       */
+      const { setup } = await import("./commands/setup-prompts.js");
       await setup(options);
     });
 
