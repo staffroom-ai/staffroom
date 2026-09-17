@@ -130,7 +130,13 @@ export const ApprovalsConfigSchema = z
   })
   .strict();
 
-export const TelemetryConfigSchema = z.object({ enabled: z.boolean().default(false) }).strict();
+export const TelemetryConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    /** Overridable so a self-hoster can point it at their own collector. */
+    endpoint: z.string().url().default("https://t.staffroom.so/v1"),
+  })
+  .strict();
 
 export const ServerConfigSchema = z
   .object({

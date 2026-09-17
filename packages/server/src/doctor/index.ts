@@ -12,8 +12,21 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
-import { ConfigInvalid, loadAgentsFile, loadConfig, printConfigErrors } from "@staffroom/core";
+import {
+  ConfigInvalid,
+  loadAgentsFile,
+  loadConfig,
+  printConfigErrors,
+  Telemetry,
+} from "@staffroom/core";
 import { checkNodeVersion } from "../boot.js";
+
+/**
+ * Repeated rather than imported from the package index, which imports this
+ * module: a cycle for one string would be a poor trade. The version-constants
+ * lint gate keeps it honest.
+ */
+const SERVER_VERSION = "0.2.0";
 
 export type DoctorStatus = "ok" | "warn" | "fail";
 
@@ -41,7 +54,14 @@ export interface DoctorResult {
 /** The lines an office's .gitignore needs so secrets and databases stay put. */
 export const GITIGNORE_LINES = [".env", "runs.sqlite*", "brain.index.sqlite*", ".staffroom/"];
 
-const ok = (id: string, message: string): DoctorCheck => ({ id, status: "ok", message });
+// A passing check can still have something worth saying — how to turn a thing
+// off, most often. That is not a warning, so it does not become one.
+const ok = (id: string, message: string, hint?: string): DoctorCheck => ({
+  id,
+  status: "ok",
+  message,
+  ...(hint === undefined ? {} : { hint }),
+});
 const warn = (id: string, message: string, hint?: string): DoctorCheck => ({
   id,
   status: "warn",
@@ -88,6 +108,65 @@ function checkGitignore(officeDir: string, fix: boolean): DoctorCheck {
     "office.gitignore",
     `.gitignore is missing ${missing.join(", ")}.`,
     "Run npx staffroom doctor --fix to add them, or your keys could end up in a commit.",
+  );
+}
+
+/**
+ * The telemetry payload, printed whole.
+ *
+ * Built from the office's own numbers where they can be read, so what it shows
+ * is this office rather than an example. A config that will not parse falls back
+ * to zeros: the point is the shape and the absence of anything identifying, and
+ * that is visible either way.
+ */
+async function telemetryCheck(officeDir: string): Promise<DoctorCheck> {
+  let enabled = false;
+  let providers: string[] = [];
+  let agentCount = 0;
+  const custom = 0;
+  let mcp = 0;
+
+  try {
+    const loaded = loadConfig(officeDir);
+    enabled = loaded.config.telemetry.enabled;
+    providers = Object.keys(loaded.config.providers);
+    mcp = Object.keys(loaded.config.mcp.servers).length;
+    agentCount = loadAgentsFile(officeDir).agents.length;
+  } catch {
+    // Reported properly by the config checks above; this one still answers.
+  }
+
+  const telemetry = new Telemetry({
+    officeDir,
+    // Built, never recorded, so nothing is queued and no id file is written by
+    // somebody merely asking what would be sent.
+    enabled: false,
+    version: SERVER_VERSION,
+    mode: "live",
+    providers,
+    agentCount,
+    toolSources: { mcp, custom },
+  });
+
+  const payload = JSON.stringify(
+    telemetry.build("run_done", {
+      runDurationMs: 4_200,
+      runOutcome: "done",
+      approvalUsed: false,
+    }),
+  );
+
+  if (!enabled) {
+    return ok(
+      "telemetry",
+      `Off. Nothing is sent. If you turned it on, one event per start and per finished run would look like: ${payload}`,
+    );
+  }
+
+  return ok(
+    "telemetry",
+    `On, batched every ten minutes. A finished run looks like: ${payload}`,
+    "Set telemetry.enabled to false in office/config.yaml to turn it off, or STAFFROOM_TELEMETRY=0 for this machine.",
   );
 }
 
@@ -220,6 +299,17 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorResult> {
       checks.push(ok("tools.custom", `${result.tools.length} tool(s) of your own.`));
     }
   }
+
+  /*
+   * SR-071: what would be sent, in full, rather than a promise that it is fine.
+   *
+   * "Telemetry is anonymous" is a claim, and a claim about somebody's business
+   * data is worth exactly as much as their ability to check it. So this prints
+   * the actual payload — the same object the sender would post — and when it is
+   * off it prints the one it would send if it were on, because the question
+   * people want answered before turning it on is what it would say about them.
+   */
+  checks.push(await telemetryCheck(officeDir));
 
   const port = options.port ?? 4242;
   checks.push(

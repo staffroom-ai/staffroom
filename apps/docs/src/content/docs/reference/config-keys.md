@@ -47,6 +47,7 @@ here is refused by name when the office starts, rather than ignored quietly.
 | `approvals.whitelist_days` | integer |  | `90` | 1 to 365 |
 | **`telemetry`** | block |  | | |
 | `telemetry.enabled` | boolean |  | `false` |  |
+| `telemetry.endpoint` | string |  | `"https://t.staffroom.so/v1"` |  |
 | **`server`** | block |  | | |
 | `server.port` | integer |  | `4242` | 1 to 65535 |
 | `server.log_level` | string |  | `"info"` | one of `debug`, `info`, `warn`, `error` |

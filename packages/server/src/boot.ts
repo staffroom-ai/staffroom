@@ -6,13 +6,22 @@
  * file that will not parse: an office running on a roster the owner did not write
  * is worse than one that will not start and says why.
  */
-import { ConfigInvalid, createOffice, type Office, printConfigErrors } from "@staffroom/core";
+import {
+  ConfigInvalid,
+  checkForUpdate,
+  createOffice,
+  type Office,
+  printConfigErrors,
+  Telemetry,
+} from "@staffroom/core";
 import { demoAdapters, shouldUseDemo } from "./demo/demo.js";
 import { say } from "./log.js";
 import { migrateLines, migrateOffice } from "./migrate/index.js";
 
 export interface BootOptions {
   officeDir: string;
+  /** What to report as this build's version, and what to compare against npm. */
+  version?: string;
   demo?: boolean;
   demoRunsDir?: string;
   env?: NodeJS.ProcessEnv;
@@ -24,6 +33,8 @@ export interface BootResult {
   office: Office;
   /** Lines worth showing the owner at startup. */
   notices: string[];
+  /** Off unless the office asked for it. Close it to flush what is queued. */
+  telemetry: Telemetry;
 }
 
 export const MINIMUM_NODE = 22;
@@ -137,6 +148,45 @@ export async function boot(options: BootOptions): Promise<BootResult> {
     );
   }
 
+  /*
+   * SR-071: counts, and the once-a-day update line. Both off unless asked for.
+   *
+   * Built here rather than in createServer so an office opened with --no-watch,
+   * or by a test, gets the same answer: off is off everywhere, and there is one
+   * place to read to find out why.
+   */
+  const telemetry = new Telemetry({
+    officeDir: options.officeDir,
+    enabled: office.config.telemetry.enabled,
+    endpoint: office.config.telemetry.endpoint,
+    version: options.version ?? "0.0.0",
+    mode: office.mode,
+    providers: [...office.providers.keys()].filter((kind) => kind !== "demo"),
+    agentCount: office.agentsFile.agents.length,
+    toolSources: {
+      mcp: office.mcp.status().length,
+      custom: office.toolFailures.length + office.tools.list().length,
+    },
+    ...(options.env === undefined ? {} : { env: options.env }),
+  });
+  telemetry.record("start");
+
+  // Awaited, because the line is only useful before the banner. It returns
+  // immediately without a request in every case except one check a day.
+  //
+  // Gated on `telemetry.on` rather than on the config flag, so demo mode is
+  // covered by the same rule everything else is. Found by running it: with the
+  // flag on and no provider configured, telemetry correctly stayed silent and
+  // the update check reached npm anyway — which makes "demo mode never sends
+  // anything" false, and that sentence is one somebody decides to trust this on
+  // the strength of.
+  const update = await checkForUpdate({
+    current: options.version ?? "0.0.0",
+    telemetryEnabled: telemetry.on,
+    ...(options.env === undefined ? {} : { env: options.env }),
+  });
+  if (update !== undefined) notices.push(update);
+
   for (const notice of notices) log(notice);
-  return { office, notices };
+  return { office, notices, telemetry };
 }

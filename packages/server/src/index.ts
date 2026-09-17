@@ -15,6 +15,7 @@ import {
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Office } from "@staffroom/core";
+import { Telemetry } from "@staffroom/core";
 import { WebSocketServer } from "ws";
 import {
   type AuthConfig,
@@ -115,10 +116,26 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
     options.office === undefined
       ? await boot({
           officeDir: options.officeDir,
+          version: VERSION,
           ...(options.demo === undefined ? {} : { demo: options.demo }),
           ...(options.demoRunsDir === undefined ? {} : { demoRunsDir: options.demoRunsDir }),
+          ...(options.env === undefined ? {} : { env: options.env }),
         })
-      : { office: options.office, notices: [] };
+      : // An injected office is a test or demo mode; telemetry that is off
+        // needs no office folder and opens nothing.
+        {
+          office: options.office,
+          notices: [],
+          telemetry: new Telemetry({
+            officeDir: options.officeDir,
+            enabled: false,
+            version: VERSION,
+            mode: options.office.mode,
+            providers: [],
+            agentCount: 0,
+            toolSources: { mcp: 0, custom: 0 },
+          }),
+        };
   const office = booted.office;
   const token = newSessionToken();
   const startedAt = Date.now();
@@ -331,6 +348,37 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   // Watching is on unless asked otherwise: an owner editing agents.yaml expects
   // the office to notice without a restart.
   /*
+   * SR-071: one count per finished run.
+   *
+   * Subscribed to the run log rather than hooked into the runner, so it sees
+   * exactly what the office recorded — including runs that failed or were
+   * cancelled, which are the ones worth counting. Nothing about what the run
+   * was for travels: the event has no field it could go in.
+   */
+  const runBeganAt = new Map<string, number>();
+  const usedApproval = new Set<string>();
+  const unsubscribeTelemetry = booted.telemetry.on
+    ? office.store.subscribe((envelope) => {
+        const type = envelope.event.type;
+        if (type === "started") runBeganAt.set(envelope.runId, envelope.at);
+        if (type === "approval_resolved") usedApproval.add(envelope.runId);
+        // `cancelled` is in the event's type because it is a real outcome, but
+        // the log has no cancelled event today: a cancelled run ends as failed.
+        // The field is left for the day the store records one rather than
+        // inventing a mapping that would quietly miscount both.
+        if (type !== "done" && type !== "failed") return;
+
+        const began = runBeganAt.get(envelope.runId);
+        runBeganAt.delete(envelope.runId);
+        booted.telemetry.record("run_done", {
+          ...(began === undefined ? {} : { runDurationMs: envelope.at - began }),
+          runOutcome: type,
+          approvalUsed: usedApproval.delete(envelope.runId),
+        });
+      })
+    : undefined;
+
+  /*
    * SR-063: the routines, ticking.
    *
    * Only when the office is watching. An office opened with --no-watch is
@@ -418,6 +466,9 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
       hub.close();
       wss.close();
       await new Promise<void>((done) => http.close(() => done()));
+      unsubscribeTelemetry?.();
+      // Sends whatever is queued, and does nothing at all when it is off.
+      await booted.telemetry.close();
       if (options.office === undefined) office.close();
     },
   };

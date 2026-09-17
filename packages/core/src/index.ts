@@ -244,6 +244,16 @@ export type {
   BrainSearchOptions,
   ToolSource,
 } from "./shared/types.js";
+// Telemetry, and the update check that shares its switch
+export type { TelemetryEvent, TelemetryOptions } from "./telemetry.js";
+export {
+  DEFAULT_ENDPOINT,
+  FLUSH_INTERVAL_MS,
+  installId,
+  Telemetry,
+  telemetryAllowed,
+  telemetryIdPath,
+} from "./telemetry.js";
 export type { BrainToolsOptions } from "./tools/builtins/brain.js";
 // Built-in tools
 export { brainTools } from "./tools/builtins/brain.js";
@@ -285,3 +295,14 @@ export {
   rowKey,
   valueMatches,
 } from "./tools/whitelist.js";
+export type { UpdateCheckOptions, UpdateCheckState } from "./update-check.js";
+export {
+  CHECK_INTERVAL_MS,
+  checkForUpdate,
+  isNewer,
+  REGISTRY,
+  readUpdateCheck,
+  updateCheckPath,
+  updateLine,
+  writeUpdateCheck,
+} from "./update-check.js";
