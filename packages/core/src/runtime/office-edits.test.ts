@@ -7,14 +7,25 @@ import { loadAgentsFile, loadConfig, loadRoster } from "../config/load.js";
 import { Roster } from "../config/roster.js";
 import { buildAdapters } from "./office.js";
 import {
+  addAgent,
+  addDepartment,
   assignTool,
   envKeyFor,
   fileManagerFor,
   refreshAgents,
+  removeAgent,
+  removeDepartment,
+  removeMcpServer,
   renameAgent,
+  renameDepartment,
   revealNote,
   setDefaultModel,
+  setEnvValue,
+  setMcpDepartments,
+  setMcpServer,
+  setOfficeName,
   setProviderKey,
+  updateAgent,
 } from "./office-edits.js";
 
 const AGENTS = `# office/agents.yaml
@@ -335,5 +346,185 @@ describe("showing a file in the file manager", () => {
     expect(fileManagerFor("win32", "C:/o/a.md").command).toBe("explorer");
     expect(fileManagerFor("linux", "/o/a.md").command).toBe("xdg-open");
     expect(fileManagerFor("freebsd", "/o/a.md").command).toBe("xdg-open");
+  });
+});
+
+describe("editing the roster from outside the office", () => {
+  /*
+   * The same edits Settings makes, against a folder on disk. What matters at
+   * this level is that each one writes a file the loader will read back, and
+   * that a refusal comes back as a sentence rather than as a thrown error —
+   * these end up under a form field.
+   */
+  const HIRE = {
+    id: "support-lead",
+    department: "marketing",
+    role: "Support lead",
+    does: "Answers questions from customers about their orders.",
+  };
+
+  it("hires somebody the loader can read back", () => {
+    const dir = office();
+    expect(addAgent(dir, HIRE)).toEqual({ ok: true });
+    expect(loadAgentsFile(dir).agents.map((a) => a.id)).toContain("support-lead");
+  });
+
+  it("opens the department as part of the hire when asked to", () => {
+    const dir = office();
+    expect(addAgent(dir, { ...HIRE, department: "support", departmentLabel: "Support" })).toEqual({
+      ok: true,
+    });
+    expect(loadAgentsFile(dir).departments["support"]).toBe("Support");
+  });
+
+  it("passes the writer's refusal back rather than throwing", () => {
+    const dir = office();
+    const result = addAgent(dir, { ...HIRE, id: "copywriter" });
+    expect(result).toEqual({
+      ok: false,
+      reason: "There is already somebody with the id copywriter.",
+    });
+  });
+
+  it("says so when there is no agents.yaml to edit", () => {
+    // A path somebody mistyped, or an office folder that is not one.
+    const missing = mkdtempSync(join(tmpdir(), "staffroom-none-"));
+    const result = addAgent(missing, HIRE);
+    expect(result.ok).toBe(false);
+  });
+
+  it("removes, updates and renames", () => {
+    const dir = office();
+    addAgent(dir, HIRE);
+
+    expect(updateAgent(dir, "support-lead", { role: "Head of support" })).toEqual({ ok: true });
+    expect(loadAgentsFile(dir).agents.find((a) => a.id === "support-lead")?.role).toBe(
+      "Head of support",
+    );
+
+    expect(removeAgent(dir, "support-lead")).toEqual({ ok: true });
+    expect(loadAgentsFile(dir).agents.map((a) => a.id)).not.toContain("support-lead");
+
+    expect(setOfficeName(dir, "Chhabra Works")).toEqual({ ok: true });
+    expect(loadAgentsFile(dir).office.name).toBe("Chhabra Works");
+  });
+
+  it("refuses an office with no name", () => {
+    expect(setOfficeName(office(), "   ")).toEqual({
+      ok: false,
+      reason: "An office needs a name.",
+    });
+  });
+
+  it("opens, renames and closes a department", () => {
+    const dir = office();
+    expect(addDepartment(dir, "support", "Support")).toEqual({ ok: true });
+    expect(renameDepartment(dir, "support", "Customer support")).toEqual({ ok: true });
+    expect(loadAgentsFile(dir).departments["support"]).toBe("Customer support");
+
+    expect(removeDepartment(dir, "support")).toEqual({ ok: true });
+    expect(loadAgentsFile(dir).departments["support"]).toBeUndefined();
+  });
+
+  it("will not close a department somebody works in", () => {
+    const dir = office();
+    const result = removeDepartment(dir, "marketing");
+    expect(result.ok).toBe(false);
+    expect((result as { reason: string }).reason).toContain("Move them first");
+  });
+
+  it("refuses an id, a department and a name it does not know", () => {
+    const dir = office();
+    expect(removeAgent(dir, "nobody").ok).toBe(false);
+    expect(updateAgent(dir, "nobody", { role: "x" }).ok).toBe(false);
+    expect(updateAgent(dir, "copywriter", { department: "nowhere" }).ok).toBe(false);
+    expect(renameDepartment(dir, "nowhere", "X").ok).toBe(false);
+    expect(removeDepartment(dir, "nowhere").ok).toBe(false);
+  });
+});
+
+describe("storing a secret by name", () => {
+  /*
+   * An OAuth client secret is the same kind of thing as a model key: it belongs
+   * in office/.env, and config.yaml should carry only `$NAME`.
+   */
+  it("writes it to .env, where the redaction and the bundle already look", () => {
+    const dir = office();
+    expect(setEnvValue(dir, "GMAIL_OAUTH_CLIENT_SECRET", "shh")).toEqual({ ok: true });
+    expect(readFileSync(join(dir, ".env"), "utf8")).toContain("GMAIL_OAUTH_CLIENT_SECRET=shh");
+  });
+
+  it("replaces rather than stacking, so the old one cannot be read back", () => {
+    const dir = office();
+    setEnvValue(dir, "GMAIL_OAUTH_CLIENT_SECRET", "first");
+    setEnvValue(dir, "GMAIL_OAUTH_CLIENT_SECRET", "second");
+
+    const env = readFileSync(join(dir, ".env"), "utf8");
+    expect(env).toContain("second");
+    expect(env).not.toContain("first");
+  });
+
+  it("refuses a name that is not a variable name, and an empty value", () => {
+    const dir = office();
+    expect(setEnvValue(dir, "not a name", "x").ok).toBe(false);
+    expect(setEnvValue(dir, "lower_case", "x").ok).toBe(false);
+    expect(setEnvValue(dir, "FINE", "   ").ok).toBe(false);
+  });
+});
+
+describe("connectors in config.yaml", () => {
+  const CONFIG = "version: 2\nmcp:\n  servers: {}\n  deny: []\n  departments: {}\n";
+  const withConfig = (): string => {
+    const dir = office();
+    writeFileSync(join(dir, "config.yaml"), CONFIG, "utf8");
+    return dir;
+  };
+  const read = (dir: string) =>
+    parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { servers: Record<string, unknown>; departments: Record<string, unknown> };
+    };
+
+  it("adds a server and takes it away again", () => {
+    const dir = withConfig();
+    expect(setMcpServer(dir, "gmail", { url: "https://x/mcp", auth: "oauth" })).toEqual({
+      ok: true,
+    });
+    expect(read(dir).mcp.servers["gmail"]).toEqual({ url: "https://x/mcp", auth: "oauth" });
+
+    expect(removeMcpServer(dir, "gmail")).toEqual({ ok: true });
+    expect(read(dir).mcp.servers["gmail"]).toBeUndefined();
+  });
+
+  it("refuses a name that is not a connector name", () => {
+    expect(setMcpServer(withConfig(), "Not A Name", { url: "https://x/mcp" }).ok).toBe(false);
+  });
+
+  it("writes an empty department list as an absence, because that is what it means", () => {
+    // Absent is what the registry reads as "every department", so the file
+    // should say the same thing the office does rather than an empty array.
+    const dir = withConfig();
+    setMcpServer(dir, "gmail", { url: "https://x/mcp" });
+
+    setMcpDepartments(dir, "gmail", ["support"]);
+    expect(read(dir).mcp.departments["gmail"]).toEqual(["support"]);
+
+    setMcpDepartments(dir, "gmail", []);
+    expect(read(dir).mcp.departments["gmail"]).toBeUndefined();
+  });
+
+  it("takes the wiring away with the server", () => {
+    const dir = withConfig();
+    setMcpServer(dir, "gmail", { url: "https://x/mcp" });
+    setMcpDepartments(dir, "gmail", ["support"]);
+
+    removeMcpServer(dir, "gmail");
+    expect(read(dir).mcp.departments["gmail"]).toBeUndefined();
+  });
+
+  it("says so rather than throwing when there is no config.yaml", () => {
+    const bare = mkdtempSync(join(tmpdir(), "staffroom-noconfig-"));
+    expect(setMcpServer(bare, "gmail", { url: "https://x/mcp" }).ok).toBe(false);
+    expect(removeMcpServer(bare, "gmail").ok).toBe(false);
+    expect(setMcpDepartments(bare, "gmail", []).ok).toBe(false);
   });
 });

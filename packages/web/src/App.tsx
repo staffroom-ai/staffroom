@@ -5,7 +5,7 @@
  * actually happened. Everything reads from the store, which holds the office's own
  * account of itself; nothing here decides anything on its own.
  */
-import type { BrainGraph } from "@staffroom/core";
+import type { BrainGraph, OfficeState } from "@staffroom/core";
 import {
   lazy,
   type ReactElement,
@@ -25,7 +25,7 @@ import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
 import type { SaveState } from "./hud/Settings.js";
-import type { DoctorState, ModelsState } from "./hud/SettingsSections.js";
+import type { DoctorState, GmailState, ModelsState } from "./hud/SettingsSections.js";
 import { StoppedBanner } from "./hud/StoppedBanner.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
@@ -73,6 +73,38 @@ import { OfficeSocket, readToken } from "./ws.js";
 let nextReqId = 0;
 const reqId = (): string => `r${++nextReqId}`;
 
+/** The one connector Settings knows by name. */
+const GMAIL = "gmail";
+
+/**
+ * Gmail's row on the connector strip, plus who is allowed to use it.
+ *
+ * `departments: "all"` on the strip means the office has no wiring for it, which
+ * the panel shows as nothing ticked — the same thing said two ways.
+ */
+function gmailState(state: OfficeState): GmailState {
+  const row = state.connectors.find((c) => c.id === GMAIL);
+  const departments = row?.departments;
+
+  return {
+    ...(row === undefined
+      ? {}
+      : {
+          health: row.health as GmailState["health"],
+          message: row.message,
+          toolCount: row.toolCount,
+        }),
+    departments: Array.isArray(departments) ? departments : [],
+    agentIds: state.agents.filter((a) => a.tools.includes(GMAIL)).map((a) => a.id),
+    // The office's own address, which is what the provider has to be told to
+    // send the browser back to — port and all, so nobody has to guess it.
+    redirectUri: `${window.location.origin}/api/mcp/oauth/callback`,
+  };
+}
+
+/** Where the Gmail client secret is kept. config.yaml carries only this name. */
+const GMAIL_SECRET = "GMAIL_OAUTH_CLIENT_SECRET";
+
 function usePrefersDark(): boolean {
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -116,6 +148,20 @@ export function App(): ReactElement {
   const [keyStates, setKeyStates] = useState<Record<string, SaveState>>({});
   /** reqId -> provider, so an ack or error lands on the row that asked. */
   const keyReqs = useRef(new Map<string, string>());
+  /*
+   * Roster edits in flight, and the office's answer to the last one.
+   *
+   * Kept apart from the rail's error slot: a refused hire is about the form the
+   * person is looking at, and "there is already somebody with the id bookkeeper"
+   * belongs next to the field they typed it in.
+   */
+  const staffReqs = useRef(new Set<string>());
+  const [staffProblem, setStaffProblem] = useState<string | null>(null);
+  const staffReq = (): string => {
+    const id = reqId();
+    staffReqs.current.add(id);
+    return id;
+  };
   /** reqIds waiting on an authorisation URL to open. */
   const oauthReqs = useRef(new Set<string>());
   const token = useMemo(() => readToken(), []);
@@ -203,6 +249,7 @@ export function App(): ReactElement {
               keyReqs.current.delete(message.reqId);
               setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saved" } }));
             }
+            if (staffReqs.current.delete(message.reqId)) setStaffProblem(null);
             if (oauthReqs.current.delete(message.reqId)) {
               // Opened here rather than by the office: the sign-in stays on the
               // owner's own click, and `noopener` keeps the provider's page from
@@ -225,6 +272,10 @@ export function App(): ReactElement {
                 ...prev,
                 [provider]: { kind: "failed", message: message.message, hint: message.hint },
               }));
+              break;
+            }
+            if (failedReqId !== undefined && staffReqs.current.delete(failedReqId)) {
+              setStaffProblem(message.message);
               break;
             }
             state.applyError({ code: message.code, message: message.message, hint: message.hint });
@@ -644,6 +695,81 @@ export function App(): ReactElement {
               socket?.send({ type: "demo.samples", reqId: reqId(), remove });
             }}
             onClose={() => setSettingsOpen(false)}
+            staff={{
+              agents: state.agents.map((agent) => ({
+                id: agent.id,
+                // An unnamed agent is named by their lead the first time work
+                // reaches them, so the state carries null as well as undefined.
+                ...(agent.name == null ? {} : { name: agent.name }),
+                role: agent.role,
+                does: agent.does,
+                departmentId: agent.departmentId,
+              })),
+              departments: state.departments.map((d) => ({ id: d.id, label: d.name })),
+              officeName: state.officeName,
+              problem: staffProblem,
+            }}
+            staffActions={{
+              onRenameOffice: (name) =>
+                socket?.send({ type: "office.rename", reqId: staffReq(), name }),
+              onAddAgent: (agent) =>
+                socket?.send({ type: "agent.create", reqId: staffReq(), agent }),
+              onUpdateAgent: (agentId, fields) =>
+                socket?.send({ type: "agent.update", reqId: staffReq(), agentId, fields }),
+              onRemoveAgent: (agentId) =>
+                socket?.send({ type: "agent.remove", reqId: staffReq(), agentId }),
+            }}
+            gmail={gmailState(state)}
+            gmailActions={{
+              onAdd: ({ url, clientId, clientSecret }) =>
+                socket?.send({
+                  type: "connector.add",
+                  reqId: staffReq(),
+                  name: GMAIL,
+                  server: {
+                    url,
+                    auth: "oauth",
+                    ...(clientId === "" ? {} : { client_id: clientId }),
+                    // By name. The value goes to office/.env below, the same
+                    // rule as a model key.
+                    ...(clientSecret === "" ? {} : { client_secret: `$${GMAIL_SECRET}` }),
+                  },
+                  ...(clientSecret === "" ? {} : { secrets: { [GMAIL_SECRET]: clientSecret } }),
+                }),
+              onRemove: () =>
+                socket?.send({ type: "connector.remove", reqId: staffReq(), name: GMAIL }),
+              onScope: (departments) =>
+                socket?.send({
+                  type: "connector.scope",
+                  reqId: staffReq(),
+                  name: GMAIL,
+                  departments,
+                }),
+              onSetAgents: (agentIds) => {
+                // One message per agent whose list actually changes, because the
+                // roster is written per row and a no-op write is a file change
+                // the watcher would report for nothing.
+                for (const agent of state.agents) {
+                  const has = agent.tools.includes(GMAIL);
+                  const wants = agentIds.includes(agent.id);
+                  if (has === wants) continue;
+                  const tools = wants
+                    ? [...agent.tools, GMAIL]
+                    : agent.tools.filter((t) => t !== GMAIL);
+                  socket?.send({
+                    type: "agent.update",
+                    reqId: staffReq(),
+                    agentId: agent.id,
+                    fields: { tools },
+                  });
+                }
+              },
+              onConnect: () => {
+                const id = reqId();
+                oauthReqs.current.add(id);
+                socket?.send({ type: "mcp.oauth.begin", reqId: id, server: GMAIL });
+              },
+            }}
             onSave={(provider, value) => {
               const id = reqId();
               keyReqs.current.set(id, provider);

@@ -216,20 +216,32 @@ export type {
 export { deliverableTitle } from "./runtime/events.js";
 export type { LoopContext, LoopRunnerConfig } from "./runtime/loop.js";
 export { costOf, messagesFromEvents, runAgentLoop } from "./runtime/loop.js";
-export type { CreateOfficeOptions, Office } from "./runtime/office.js";
+export type { AgentEdit, CreateOfficeOptions, NewAgent, Office } from "./runtime/office.js";
 // The office
 export { buildAdapters, createOffice } from "./runtime/office.js";
 // Edits to the owner's files
+export type { EditResult } from "./runtime/office-edits.js";
 export {
+  addAgent,
+  addDepartment,
   assignTool,
   envKeyFor,
   fileManagerFor,
+  removeAgent,
+  removeDepartment,
+  removeMcpServer,
   renameAgent,
+  renameDepartment,
   revealNote,
   setDefaultModel,
+  setEnvValue,
+  setMcpDepartments,
+  setMcpServer,
+  setOfficeName,
   setProviderKey,
   setTelemetry,
   setWebSearch,
+  updateAgent,
 } from "./runtime/office-edits.js";
 export type { BuildPromptOptions, BuiltPrompt, PinnedNote } from "./runtime/prompt.js";
 export { buildSystemPrompt } from "./runtime/prompt.js";
