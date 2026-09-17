@@ -142,6 +142,23 @@ export function setProviderKey(officeDir: string, provider: string, key: string)
  * runs for whoever can reach it. An id that is not a detected editor falls back
  * to the file manager rather than guessing.
  */
+/**
+ * How to show a file in this platform's file manager.
+ *
+ * The platform is a parameter, the same reason `candidatesFor` takes one: a
+ * branch that only ever runs on the OS it belongs to is a branch nobody has
+ * read since it was written. macOS gets `-R` so the folder opens with the file
+ * selected, rather than opening the file itself in whatever owns `.md`.
+ */
+export function fileManagerFor(
+  os: NodeJS.Platform,
+  path: string,
+): { command: string; args: string[] } {
+  if (os === "darwin") return { command: "open", args: ["-R", path] };
+  if (os === "win32") return { command: "explorer", args: [path] };
+  return { command: "xdg-open", args: [path] };
+}
+
 export function revealNote(brainDir: string, noteId: string, app?: string): boolean {
   // The same containment rule the file routes use: nothing outside the brain.
   if (noteId.includes("..") || noteId.startsWith("/") || noteId.includes("\0")) return false;
@@ -150,14 +167,7 @@ export function revealNote(brainDir: string, noteId: string, app?: string): bool
 
   const editor = app === undefined || app === "finder" ? undefined : openCommandFor(app, path);
 
-  const command =
-    editor?.command ??
-    (process.platform === "darwin"
-      ? "open"
-      : process.platform === "win32"
-        ? "explorer"
-        : "xdg-open");
-  const args = editor?.args ?? (process.platform === "darwin" ? ["-R", path] : [path]);
+  const { command, args } = editor ?? fileManagerFor(process.platform, path);
 
   try {
     spawn(command, args, { detached: true, stdio: "ignore" }).unref();

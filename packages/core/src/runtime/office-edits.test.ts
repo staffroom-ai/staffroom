@@ -7,9 +7,11 @@ import { Roster } from "../config/roster.js";
 import {
   assignTool,
   envKeyFor,
+  fileManagerFor,
   refreshAgents,
   renameAgent,
   revealNote,
+  setDefaultModel,
   setProviderKey,
 } from "./office-edits.js";
 
@@ -211,5 +213,44 @@ describe("keeping the running office in step with the file", () => {
     // Adding and removing people needs a real reload; this only updates rows
     // that are still there, and says so rather than dropping somebody silently.
     expect(agentsFile.agents).toHaveLength(2);
+  });
+});
+
+describe("the model everybody uses", () => {
+  it("is written to agents.yaml, keeping the owner's comments", () => {
+    const dir = office();
+    expect(setDefaultModel(dir, "anthropic/claude-opus-5")).toBe(true);
+
+    const text = readFileSync(join(dir, "agents.yaml"), "utf8");
+    expect(text).toContain("default_model: anthropic/claude-opus-5");
+    expect(text).toContain("# the studio");
+    expect(text).toContain("# brain tools are always available");
+  });
+
+  it("parses back to a roster with that default", () => {
+    const dir = office();
+    setDefaultModel(dir, "anthropic/claude-opus-5");
+    expect(loadRoster(dir).defaultModel).toBe("anthropic/claude-opus-5");
+  });
+
+  it("says no rather than throwing when there is no file to edit", () => {
+    expect(setDefaultModel(join(tmpdir(), "staffroom-nowhere-at-all"), "x/y")).toBe(false);
+  });
+});
+
+describe("showing a file in the file manager", () => {
+  it("selects the file on macOS rather than opening it", () => {
+    // Without -R, `open` hands the .md to whatever owns markdown, which is not
+    // what "Show in Finder" says it does.
+    expect(fileManagerFor("darwin", "/o/brain/a.md")).toEqual({
+      command: "open",
+      args: ["-R", "/o/brain/a.md"],
+    });
+  });
+
+  it("uses explorer on Windows and xdg-open everywhere else", () => {
+    expect(fileManagerFor("win32", "C:/o/a.md").command).toBe("explorer");
+    expect(fileManagerFor("linux", "/o/a.md").command).toBe("xdg-open");
+    expect(fileManagerFor("freebsd", "/o/a.md").command).toBe("xdg-open");
   });
 });

@@ -209,6 +209,7 @@ export { buildAdapters, createOffice } from "./runtime/office.js";
 export {
   assignTool,
   envKeyFor,
+  fileManagerFor,
   renameAgent,
   revealNote,
   setDefaultModel,

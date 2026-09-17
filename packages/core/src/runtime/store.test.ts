@@ -425,3 +425,47 @@ describe("throughput", () => {
     store.close();
   });
 });
+
+describe("dropping the template's own runs", () => {
+  it("takes the sample runs and their events, and nothing else", async () => {
+    const store = open();
+    const mine = runSeed({ sample: false });
+    const theirs = runSeed({ sample: true });
+    await store.create(mine);
+    await store.create(theirs);
+    await store.append(mine.id, doneEvent());
+    await store.append(theirs.id, doneEvent());
+
+    expect(await store.deleteSamples()).toBe(1);
+
+    // The owner's history is the one thing in this file that is never deleted.
+    expect((await store.list({})).map((r) => r.id)).toEqual([mine.id]);
+    const left = [];
+    for await (const e of store.events(theirs.id)) left.push(e);
+    expect(left).toEqual([]);
+    store.close();
+  });
+
+  it("writes out anything still buffered first", async () => {
+    // A chunk landing after the delete would leave an event with no run.
+    const store = open(storeFile(), 10_000);
+    const theirs = runSeed({ sample: true });
+    await store.create(theirs);
+    await store.append(theirs.id, { type: "chunk", text: "half a word" } as never);
+
+    expect(await store.deleteSamples()).toBe(1);
+
+    const orphans = [];
+    for await (const e of store.events(theirs.id)) orphans.push(e);
+    expect(orphans).toEqual([]);
+    store.close();
+  });
+
+  it("answers zero on a log with nothing of theirs in it", async () => {
+    const store = open();
+    await store.create(runSeed({ sample: false }));
+    expect(await store.deleteSamples()).toBe(0);
+    expect((await store.list({})).length).toBe(1);
+    store.close();
+  });
+});

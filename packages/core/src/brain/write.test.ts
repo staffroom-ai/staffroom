@@ -4,7 +4,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { describe, expect, it } from "vitest";
 import { stringify } from "yaml";
-import { markRejected, slugify, writeDeliverable } from "./write.js";
+import { markRejected, slugify, unpinned, writeDeliverable } from "./write.js";
 
 const brainDir = () => mkdtempSync(join(tmpdir(), "staffroom-write-"));
 const base = {
@@ -122,5 +122,35 @@ describe("revision", () => {
 
   it("says so when the note it revises is gone", () => {
     expect(markRejected(brainDir(), "40-deliverables/marketing/nothing")).toBe(false);
+  });
+});
+
+describe("unpinning a note", () => {
+  const pinned = `---\ntitle: About us\npinned: true\nsample: true\n---\n\nThe body.\n`;
+
+  it("clears the flag and keeps everything else", () => {
+    const out = unpinned(pinned);
+    expect(out).toContain("pinned: false");
+    expect(out).toContain("title: About us");
+    expect(out).toContain("sample: true");
+    expect(out).toContain("The body.");
+  });
+
+  it("returns the text untouched when it was never pinned", () => {
+    // So a caller can tell nothing needs writing and leave the mtime alone.
+    const plain = `---\ntitle: About us\n---\n\nThe body.\n`;
+    expect(unpinned(plain)).toBe(plain);
+  });
+
+  it("does not poison the next note with the same text", () => {
+    // gray-matter caches by content and hands the same `data` object back for
+    // identical input. Editing it in place made the second call a no-op, which
+    // is exactly what two offices from one template do to each other.
+    expect(unpinned(pinned)).toContain("pinned: false");
+    expect(unpinned(pinned)).toContain("pinned: false");
+  });
+
+  it("leaves a note with no front matter alone", () => {
+    expect(unpinned("Just a body.\n")).toBe("Just a body.\n");
   });
 });

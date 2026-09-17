@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Tool } from "./tool.js";
-import { approvalsPath, FileWhitelist, inputMatches, valueMatches } from "./whitelist.js";
+import { approvalsPath, FileWhitelist, inputMatches, rowKey, valueMatches } from "./whitelist.js";
 
 const made: string[] = [];
 function office(): string {
@@ -314,5 +314,132 @@ describe("a tool that changed since it was allowed", () => {
     });
     expect(list.list()[0]?.suspended).toBeUndefined();
     expect(list.allows(emailTool, { to: "a@acme.com" }, "fp2", "priya")).toBe(true);
+  });
+});
+
+describe("a row's identity", () => {
+  it("is the same row twice, whatever order the match was written in", () => {
+    // The key travels to a browser and comes back on a Revoke. Two readings of
+    // the same permission have to agree, or the button misses.
+    expect(rowKey({ agent: "priya", tool: "send_email", match: { to: "a", cc: "b" } })).toBe(
+      rowKey({ agent: "priya", tool: "send_email", match: { cc: "b", to: "a" } }),
+    );
+  });
+
+  it("tells two permissions for the same tool apart", () => {
+    // This is what stops Revoke on one recipient taking back the others.
+    expect(rowKey({ agent: "priya", tool: "send_email", match: { to: "a@acme.com" } })).not.toBe(
+      rowKey({ agent: "priya", tool: "send_email", match: { to: "b@harlow.com" } }),
+    );
+  });
+
+  it("tells two people apart, and a match from no match", () => {
+    expect(rowKey({ agent: "priya", tool: "send_email", match: { to: "a" } })).not.toBe(
+      rowKey({ agent: "sam", tool: "send_email", match: { to: "a" } }),
+    );
+    expect(rowKey({ agent: "priya", tool: "send_email" })).not.toBe(
+      rowKey({ agent: "priya", tool: "send_email", match: { to: "a" } }),
+    );
+  });
+});
+
+describe("taking one permission back", () => {
+  it("removes it from the file, and the next call asks again", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    const row = list.grant({
+      agentId: "priya",
+      tool: "send_email",
+      match: { to: "*@acme.com" },
+      fingerprint: "fp1",
+    });
+    expect(list.allows(emailTool, { to: "a@acme.com" }, "fp1", "priya")).toBe(true);
+
+    expect(list.revokeKey(rowKey(row))).toBe(true);
+
+    expect(list.allows(emailTool, { to: "a@acme.com" }, "fp1", "priya")).toBe(false);
+    expect(readFileSync(approvalsPath(dir), "utf8")).not.toContain("send_email");
+  });
+
+  it("leaves the other permissions for that tool alone", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    const acme = list.grant({ agentId: "priya", tool: "send_email", match: { to: "*@acme.com" } });
+    list.grant({ agentId: "priya", tool: "send_email", match: { to: "*@harlow.com" } });
+
+    list.revokeKey(rowKey(acme));
+
+    expect(list.list().map((r) => r.match?.["to"])).toEqual(["*@harlow.com"]);
+  });
+
+  it("says no for a key that matches nothing, without touching the file", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    list.grant({ agentId: "priya", tool: "send_email", match: { to: "*@acme.com" } });
+    const before = readFileSync(approvalsPath(dir), "utf8");
+
+    expect(list.revokeKey("nobody\u0000nothing\u0000")).toBe(false);
+    expect(readFileSync(approvalsPath(dir), "utf8")).toBe(before);
+  });
+});
+
+describe("when a permission was last used", () => {
+  it("is absent until the permission actually lets something through", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    list.grant({ agentId: "priya", tool: "send_email", match: { to: "*@acme.com" } });
+    expect(list.list()[0]?.last_used).toBeUndefined();
+  });
+
+  it("is written to the file, because the question is asked days later", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    list.grant({
+      agentId: "priya",
+      tool: "send_email",
+      match: { to: "*@acme.com" },
+      fingerprint: "fp1",
+    });
+
+    list.allows(emailTool, { to: "a@acme.com" }, "fp1", "priya");
+
+    // Read back off disk: a note kept only in memory would be gone by the time
+    // anybody looks at the list, which is usually after a restart.
+    expect(readFileSync(approvalsPath(dir), "utf8")).toContain("last_used");
+    expect(new FileWhitelist(dir).list()[0]?.last_used).toBeDefined();
+  });
+
+  it("is not rewritten on every call in a loop", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    list.grant({
+      agentId: "priya",
+      tool: "send_email",
+      match: { to: "*@acme.com" },
+      fingerprint: "fp1",
+    });
+
+    list.allows(emailTool, { to: "a@acme.com" }, "fp1", "priya");
+    const first = list.list()[0]?.last_used;
+    for (let i = 0; i < 20; i++) list.allows(emailTool, { to: "a@acme.com" }, "fp1", "priya");
+
+    // An agent making twenty calls should not write the file twenty times; the
+    // answer is read at day resolution anyway.
+    expect(list.list()[0]?.last_used).toBe(first);
+  });
+
+  it("is not recorded for a call the permission refused", () => {
+    const dir = office();
+    const list = new FileWhitelist(dir);
+    list.grant({
+      agentId: "priya",
+      tool: "send_email",
+      match: { to: "*@acme.com" },
+      fingerprint: "fp1",
+    });
+
+    // Wrong recipient, so the row did not let this through and did not "use" it.
+    expect(list.allows(emailTool, { to: "someone@elsewhere.com" }, "fp1", "priya")).toBe(false);
+    expect(list.list()[0]?.last_used).toBeUndefined();
   });
 });
