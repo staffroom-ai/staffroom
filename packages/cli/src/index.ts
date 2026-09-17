@@ -13,6 +13,7 @@ import { doctor } from "./commands/doctor.js";
 import { exportOffice } from "./commands/export.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { migrateCommand } from "./commands/migrate.js";
+import { setup } from "./commands/setup-prompts.js";
 import { start } from "./commands/start.js";
 import { templateApply, templateList } from "./commands/template.js";
 import { addTool, listExampleTools, newTool } from "./commands/tools.js";
@@ -210,6 +211,26 @@ async function run(): Promise<void> {
       // A file from the future is the one case where nothing can be done here,
       // so the exit code says so for whatever is scripting this.
       if (result.tooNew) process.exitCode = 1;
+    });
+
+  /*
+   * Named by two doctor checks and by NO_MODEL_CONFIGURED, which is why it
+   * exists. Somebody told to run a command should find it there.
+   */
+  program
+    .command("setup")
+    .description("Set up your model keys, the default model, web search and telemetry")
+    .option("--office <dir>", "Which office folder to set up")
+    .option("--non-interactive", "Take every answer from the flags below and ask nothing")
+    .option("--anthropic-key <key>", "Anthropic key")
+    .option("--openai-key <key>", "OpenAI key")
+    .option("--ollama-url <url>", "Ollama address")
+    .option("--model <provider/model>", "The model everybody uses by default")
+    .option("--web-search <provider>", "none, brave or tavily")
+    .option("--web-search-key <key>", "Key for the web search provider")
+    .option("--telemetry", "Send anonymous usage counts. Off unless you pass this")
+    .action(async (options) => {
+      await setup(options);
     });
 
   program

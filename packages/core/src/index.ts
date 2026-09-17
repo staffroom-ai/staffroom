@@ -228,6 +228,8 @@ export {
   revealNote,
   setDefaultModel,
   setProviderKey,
+  setTelemetry,
+  setWebSearch,
 } from "./runtime/office-edits.js";
 export type { BuildPromptOptions, BuiltPrompt, PinnedNote } from "./runtime/prompt.js";
 export { buildSystemPrompt } from "./runtime/prompt.js";

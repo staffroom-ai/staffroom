@@ -10,7 +10,7 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { isMap, parseDocument } from "yaml";
+import { type Document, isMap, parseDocument } from "yaml";
 import type { AgentsFile } from "../config/agents.js";
 import { loadAgentsFile } from "../config/load.js";
 import { RosterWriter } from "../config/roster.js";
@@ -122,6 +122,21 @@ function isLocalKind(provider: string): boolean {
  * Edited through the document API so the commented-out examples above
  * `providers: {}`, which are how most people learn this file, survive it.
  */
+/**
+ * Block style, not `providers: { anthropic: { api_key: $X } }`.
+ *
+ * The template writes empty sections as `{}`, which is a flow map, and yaml keeps
+ * the style it found — so the first thing written into one turned the section
+ * into a single unreadable line, two lines above the commented-out example it
+ * was supposed to look like. This is a file people edit by hand.
+ */
+function unflow(doc: Document, paths: string[][]): void {
+  for (const at of paths) {
+    const node = doc.getIn(at, true);
+    if (isMap(node)) node.flow = false;
+  }
+}
+
 function nameProviderInConfig(officeDir: string, provider: string, value: string): void {
   const path = join(officeDir, "config.yaml");
   if (!existsSync(path)) return;
@@ -148,10 +163,7 @@ function nameProviderInConfig(officeDir: string, provider: string, value: string
    * line that looks nothing like the commented-out example two lines below it.
    * This is a file people edit by hand.
    */
-  for (const at of [["providers"], ["providers", provider]]) {
-    const node = doc.getIn(at, true);
-    if (isMap(node)) node.flow = false;
-  }
+  unflow(doc, [["providers"], ["providers", provider]]);
 
   writeFileSync(path, String(doc), "utf8");
 }
@@ -172,25 +184,93 @@ export function setProviderKey(officeDir: string, provider: string, key: string)
   if (key.trim().length === 0) return false;
 
   try {
-    if (!isLocalKind(provider)) {
-      const name = envKeyFor(provider);
-      const path = join(officeDir, ".env");
-      const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
-      const line = `${name}=${key.trim()}`;
-
-      if (new RegExp(`^${name}=`, "m").test(existing)) {
-        writeFileSync(path, existing.replace(new RegExp(`^${name}=.*$`, "m"), line), "utf8");
-      } else {
-        const separator = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
-        appendFileSync(path, `${separator}${line}\n`, "utf8");
-      }
+    if (!isLocalKind(provider) && !writeEnvLine(officeDir, envKeyFor(provider), key.trim())) {
+      return false;
     }
-
     nameProviderInConfig(officeDir, provider, key.trim());
     return true;
   } catch {
     return false;
   }
+}
+
+/** One NAME=value in office/.env, replaced in place if it is already there. */
+function writeEnvLine(officeDir: string, name: string, value: string): boolean {
+  const path = join(officeDir, ".env");
+  try {
+    const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
+    const line = `${name}=${value}`;
+
+    if (new RegExp(`^${name}=`, "m").test(existing)) {
+      writeFileSync(path, existing.replace(new RegExp(`^${name}=.*$`, "m"), line), "utf8");
+    } else {
+      const separator = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
+      appendFileSync(path, `${separator}${line}\n`, "utf8");
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Edits config.yaml through the document API.
+ *
+ * Shared by everything that writes to it, so the "comments survive" rule is kept
+ * in one place rather than remembered in four. A file that will not parse is one
+ * somebody is in the middle of editing: writing over it would lose their work.
+ */
+function editConfig(officeDir: string, edit: (doc: Document) => boolean): boolean {
+  const path = join(officeDir, "config.yaml");
+  if (!existsSync(path)) return false;
+
+  try {
+    const doc = parseDocument(readFileSync(path, "utf8"));
+    if (doc.errors.length > 0) return false;
+    if (!edit(doc)) return false;
+    writeFileSync(path, String(doc), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Web search backends that need a key, and the variable each one's key lives in. */
+const WEB_SEARCH_KEYS: Record<string, string> = {
+  brave: "BRAVE_API_KEY",
+  tavily: "TAVILY_API_KEY",
+};
+
+/**
+ * Turns web search on, or off.
+ *
+ * The key follows the same rule as a provider key: the value goes to .env and
+ * only its name goes in config.yaml. `none` leaves any key that is already
+ * there alone — somebody turning search off for an afternoon should not have to
+ * find their key again afterwards.
+ */
+export function setWebSearch(officeDir: string, provider: string, key?: string): boolean {
+  const variable = WEB_SEARCH_KEYS[provider];
+
+  if (variable !== undefined && key !== undefined && key.trim().length > 0) {
+    if (!writeEnvLine(officeDir, variable, key.trim())) return false;
+  }
+
+  return editConfig(officeDir, (doc) => {
+    doc.setIn(["tools", "web", "provider"], provider);
+    if (variable !== undefined) doc.setIn(["tools", "web", "api_key"], `$${variable}`);
+    unflow(doc, [["tools"], ["tools", "web"]]);
+    return true;
+  });
+}
+
+/** Whether this office sends anything at all. Off is the default and stays it. */
+export function setTelemetry(officeDir: string, on: boolean): boolean {
+  return editConfig(officeDir, (doc) => {
+    doc.setIn(["telemetry", "enabled"], on);
+    unflow(doc, [["telemetry"]]);
+    return true;
+  });
 }
 
 /**
