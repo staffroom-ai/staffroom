@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { isMap, parseDocument } from "yaml";
 import type { AgentsFile } from "../config/agents.js";
 import { loadAgentsFile } from "../config/load.js";
 import { RosterWriter } from "../config/roster.js";
@@ -99,29 +100,93 @@ export function refreshAgents(officeDir: string, agentsFile: AgentsFile): boolea
   return true;
 }
 
+/** Ollama runs on the owner's own machine, so what it takes is an address. */
+function isLocalKind(provider: string): boolean {
+  return provider === "ollama";
+}
+
 /**
- * Writes a key to office/.env.
+ * Names the provider in config.yaml, so the office can actually use the key.
  *
- * Never to config.yaml: that is the file owners paste into issues. The value is
- * not returned, not logged, and not echoed back over the socket.
+ * Without this the key is written and nothing happens. The office builds its
+ * adapters from `providers` in config.yaml, and the shipped template ships
+ * `providers: {}` — so a key in .env that nothing in config.yaml refers to is a
+ * key nothing reads, and the office stays in demo mode with a success message on
+ * screen. That was the shape of the bug: every part worked and the whole did
+ * not.
+ *
+ * The key itself never comes near this file. What goes in is `$ANTHROPIC_API_KEY`
+ * — the name, which is what config.yaml is for and what its own header tells the
+ * owner to write.
+ *
+ * Edited through the document API so the commented-out examples above
+ * `providers: {}`, which are how most people learn this file, survive it.
+ */
+function nameProviderInConfig(officeDir: string, provider: string, value: string): void {
+  const path = join(officeDir, "config.yaml");
+  if (!existsSync(path)) return;
+
+  const doc = parseDocument(readFileSync(path, "utf8"));
+  // A config.yaml that does not parse is one somebody is in the middle of
+  // editing. Writing over it would lose their work to a key paste.
+  if (doc.errors.length > 0) return;
+
+  const field = isLocalKind(provider) ? "base_url" : "api_key";
+  const written = isLocalKind(provider) ? value : `$${envKeyFor(provider)}`;
+
+  // Only if it is not already said. An owner who pointed this provider at a
+  // proxy, or named a different variable, meant it.
+  if (doc.getIn(["providers", provider, field]) !== undefined) return;
+
+  doc.setIn(["providers", provider, field], written);
+
+  /*
+   * Block style, not `providers: { anthropic: { api_key: $X } }`.
+   *
+   * The template ships `providers: {}`, which is a flow map, and yaml keeps the
+   * style it found — so the first key pasted turned the section into one long
+   * line that looks nothing like the commented-out example two lines below it.
+   * This is a file people edit by hand.
+   */
+  for (const at of [["providers"], ["providers", provider]]) {
+    const node = doc.getIn(at, true);
+    if (isMap(node)) node.flow = false;
+  }
+
+  writeFileSync(path, String(doc), "utf8");
+}
+
+/**
+ * Writes a key to office/.env, and names the provider in config.yaml.
+ *
+ * The key itself never goes to config.yaml: that is the file owners paste into
+ * issues. Only its variable name does. The value is not returned, not logged,
+ * and not echoed back over the socket.
+ *
+ * For Ollama the value is an address rather than a key — there is nothing
+ * secret about it — so it goes straight into config.yaml as `base_url` and
+ * nothing is written to .env.
  */
 export function setProviderKey(officeDir: string, provider: string, key: string): boolean {
   if (!KNOWN_PROVIDERS.has(provider)) return false;
   if (key.trim().length === 0) return false;
 
-  const name = envKeyFor(provider);
-  const path = join(officeDir, ".env");
-
   try {
-    const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
-    const line = `${name}=${key.trim()}`;
+    if (!isLocalKind(provider)) {
+      const name = envKeyFor(provider);
+      const path = join(officeDir, ".env");
+      const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
+      const line = `${name}=${key.trim()}`;
 
-    if (new RegExp(`^${name}=`, "m").test(existing)) {
-      writeFileSync(path, existing.replace(new RegExp(`^${name}=.*$`, "m"), line), "utf8");
-    } else {
-      const separator = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
-      appendFileSync(path, `${separator}${line}\n`, "utf8");
+      if (new RegExp(`^${name}=`, "m").test(existing)) {
+        writeFileSync(path, existing.replace(new RegExp(`^${name}=.*$`, "m"), line), "utf8");
+      } else {
+        const separator = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
+        appendFileSync(path, `${separator}${line}\n`, "utf8");
+      }
     }
+
+    nameProviderInConfig(officeDir, provider, key.trim());
     return true;
   } catch {
     return false;

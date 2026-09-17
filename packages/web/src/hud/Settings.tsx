@@ -50,6 +50,18 @@ export const PROVIDERS: ProviderRow[] = [
   },
 ];
 
+/**
+ * What happens after a key is saved.
+ *
+ * "Saved to office/.env." was true and told nobody what to do next. The office
+ * reads its providers once, at start, so a key pasted into a running office is a
+ * key it has not looked at yet — testers pasted one, saw the tick, and sat in
+ * front of a demo banner wondering what they had got wrong. The receipt now
+ * carries the step that makes it work.
+ */
+export const RESTART_TO_USE =
+  "Restart the office to use it: press Ctrl+C in the terminal, then run npx staffroom.";
+
 export type SaveState =
   | { kind: "idle" }
   | { kind: "saving" }
@@ -99,9 +111,11 @@ function Row({
         </button>
       </div>
 
+      {/* The next step, not just the receipt. See RESTART_TO_USE. */}
       {state.kind === "saved" && (
         <p className="setting-ok" role="status">
           Saved to office/.env.
+          <span className="setting-hint">{RESTART_TO_USE}</span>
         </p>
       )}
 

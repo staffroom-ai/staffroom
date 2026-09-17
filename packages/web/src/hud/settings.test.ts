@@ -6,7 +6,21 @@
  * a readable one.
  */
 import { describe, expect, it } from "vitest";
-import { PROVIDERS } from "./Settings.js";
+import { PROVIDERS, RESTART_TO_USE } from "./Settings.js";
+
+describe("what saving a key promises", () => {
+  /*
+   * The half of the feature that was missing.
+   *
+   * Pasting a key wrote it to .env and said so, and nothing else happened,
+   * because the office builds its providers at start. The receipt has to carry
+   * the next step or the owner is left watching a demo banner.
+   */
+  it("says how to make the key take effect, in a command they can paste", () => {
+    expect(RESTART_TO_USE).toContain("npx staffroom");
+    expect(RESTART_TO_USE).toContain("Ctrl+C");
+  });
+});
 
 describe("the provider rows", () => {
   it("offers exactly the providers the server's set_key accepts", () => {

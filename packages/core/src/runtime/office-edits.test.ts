@@ -2,8 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadAgentsFile, loadRoster } from "../config/load.js";
+import { parse } from "yaml";
+import { loadAgentsFile, loadConfig, loadRoster } from "../config/load.js";
 import { Roster } from "../config/roster.js";
+import { buildAdapters } from "./office.js";
 import {
   assignTool,
   envKeyFor,
@@ -32,10 +34,21 @@ agents:
     does: Produces image briefs and alt text.
 `;
 
+/** The shipped template's shape: no providers, and the examples commented out. */
+const CONFIG = `# office/config.yaml
+#
+# Keys live in office/.env, never here. Write $NAME and the office reads it.
+version: 2
+
+providers: {}
+  # anthropic:
+  #   api_key: $ANTHROPIC_API_KEY
+`;
+
 function office(): string {
   const dir = mkdtempSync(join(tmpdir(), "staffroom-edits-"));
   writeFileSync(join(dir, "agents.yaml"), AGENTS, "utf8");
-  writeFileSync(join(dir, "config.yaml"), "version: 1\nproviders: {}\n", "utf8");
+  writeFileSync(join(dir, "config.yaml"), CONFIG, "utf8");
   return dir;
 }
 
@@ -119,6 +132,76 @@ describe("storing a key", () => {
     const env = readFileSync(join(dir, ".env"), "utf8");
     expect(env).toContain("OPENAI_API_KEY=sk-openai");
     expect(env).toContain("ANTHROPIC_API_KEY=sk-ant-x");
+  });
+
+  /*
+   * The test that was missing, and the reason this shipped broken.
+   *
+   * Every existing test here checked a file: the key reaches .env, it is not
+   * duplicated, it does not land in config.yaml. All true, and the feature did
+   * not work — the office builds its adapters from config.yaml, which the
+   * template ships empty, so the key was written somewhere nothing read. A
+   * tester pasting a key got a success message and stayed in demo mode.
+   *
+   * So this asserts the outcome instead: after the paste, is there a provider
+   * the office can actually run on.
+   */
+  it("leaves the office able to use the key, not just able to find it", () => {
+    const dir = office();
+    setProviderKey(dir, "anthropic", "sk-ant-secret-value");
+
+    const { adapters, skipped } = buildAdapters(loadConfig(dir).config);
+    expect(adapters.has("anthropic")).toBe(true);
+    expect(skipped).not.toContain("anthropic");
+  });
+
+  it("puts the variable's name in config.yaml and never its value", () => {
+    const dir = office();
+    setProviderKey(dir, "anthropic", "sk-ant-secret-value");
+
+    // Read as YAML rather than as text: the template carries a commented-out
+    // `# api_key: $ANTHROPIC_API_KEY` example, so a grep for that string passes
+    // whether or not anything was written.
+    const config = parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      providers: Record<string, { api_key?: string }>;
+    };
+    expect(config.providers["anthropic"]?.api_key).toBe("$ANTHROPIC_API_KEY");
+    expect(readFileSync(join(dir, "config.yaml"), "utf8")).not.toContain("sk-ant-secret-value");
+  });
+
+  it("keeps the commented-out examples, which are how people learn the file", () => {
+    const dir = office();
+    setProviderKey(dir, "anthropic", "sk-ant-secret-value");
+    expect(readFileSync(join(dir, "config.yaml"), "utf8")).toContain(
+      "Keys live in office/.env, never here.",
+    );
+  });
+
+  it("does not argue with a provider the owner has already set up", () => {
+    // Somebody pointing Anthropic at a proxy, or naming their own variable,
+    // meant it. A pasted key updates .env and leaves their line alone.
+    const dir = office();
+    writeFileSync(
+      join(dir, "config.yaml"),
+      "version: 2\nproviders:\n  anthropic:\n    api_key: $WORK_KEY\n",
+      "utf8",
+    );
+    setProviderKey(dir, "anthropic", "sk-ant-x");
+
+    const config = readFileSync(join(dir, "config.yaml"), "utf8");
+    expect(config).toContain("$WORK_KEY");
+    expect(config).not.toContain("$ANTHROPIC_API_KEY");
+  });
+
+  it("takes an address for Ollama, and writes no secret at all", () => {
+    // There is nothing secret about the address of a program on your own
+    // machine, and OLLAMA_API_KEY was a variable nothing ever read.
+    const dir = office();
+    expect(setProviderKey(dir, "ollama", "http://127.0.0.1:11434")).toBe(true);
+
+    expect(readFileSync(join(dir, "config.yaml"), "utf8")).toContain("http://127.0.0.1:11434");
+    expect(existsSync(join(dir, ".env"))).toBe(false);
+    expect(buildAdapters(loadConfig(dir).config).adapters.has("ollama")).toBe(true);
   });
 
   it("refuses a provider it does not know and an empty key", () => {
