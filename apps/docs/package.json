@@ -6,7 +6,7 @@
   "scripts": {
     "docs:gen": "node scripts/gen.mjs",
     "docs:check": "node scripts/gen.mjs --check",
-    "typecheck": "astro check --minimumseverity error || true",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "astro build",
     "dev": "astro dev"
