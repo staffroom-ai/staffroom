@@ -5,7 +5,7 @@
  * actually happened. Everything reads from the store, which holds the office's own
  * account of itself; nothing here decides anything on its own.
  */
-import type { BrainGraph } from "@staffroom/core";
+import type { BrainGraph, OfficeState } from "@staffroom/core";
 import {
   lazy,
   type ReactElement,
@@ -25,7 +25,7 @@ import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
 import type { SaveState } from "./hud/Settings.js";
-import type { DoctorState, ModelsState } from "./hud/SettingsSections.js";
+import type { DoctorState, GmailState, ModelsState } from "./hud/SettingsSections.js";
 import { StoppedBanner } from "./hud/StoppedBanner.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
@@ -72,6 +72,32 @@ import { OfficeSocket, readToken } from "./ws.js";
 
 let nextReqId = 0;
 const reqId = (): string => `r${++nextReqId}`;
+
+/** The one connector Settings knows by name. */
+const GMAIL = "gmail";
+
+/**
+ * Gmail's row on the connector strip, plus who is allowed to use it.
+ *
+ * `departments: "all"` on the strip means the office has no wiring for it, which
+ * the panel shows as nothing ticked — the same thing said two ways.
+ */
+function gmailState(state: OfficeState): GmailState {
+  const row = state.connectors.find((c) => c.id === GMAIL);
+  const departments = row?.departments;
+
+  return {
+    ...(row === undefined
+      ? {}
+      : {
+          health: row.health as GmailState["health"],
+          message: row.message,
+          toolCount: row.toolCount,
+        }),
+    departments: Array.isArray(departments) ? departments : [],
+    agentIds: state.agents.filter((a) => a.tools.includes(GMAIL)).map((a) => a.id),
+  };
+}
 
 function usePrefersDark(): boolean {
   const [dark, setDark] = useState(false);
@@ -674,19 +700,63 @@ export function App(): ReactElement {
                 departmentId: agent.departmentId,
               })),
               departments: state.departments.map((d) => ({ id: d.id, label: d.name })),
+              officeName: state.officeName,
               problem: staffProblem,
             }}
             staffActions={{
+              onRenameOffice: (name) =>
+                socket?.send({ type: "office.rename", reqId: staffReq(), name }),
               onAddAgent: (agent) =>
                 socket?.send({ type: "agent.create", reqId: staffReq(), agent }),
               onUpdateAgent: (agentId, fields) =>
                 socket?.send({ type: "agent.update", reqId: staffReq(), agentId, fields }),
               onRemoveAgent: (agentId) =>
                 socket?.send({ type: "agent.remove", reqId: staffReq(), agentId }),
-              onAddDepartment: (id, label) =>
-                socket?.send({ type: "department.create", reqId: staffReq(), id, label }),
-              onRemoveDepartment: (id) =>
-                socket?.send({ type: "department.remove", reqId: staffReq(), id }),
+            }}
+            gmail={gmailState(state)}
+            gmailActions={{
+              onAdd: (url) =>
+                socket?.send({
+                  type: "connector.add",
+                  reqId: staffReq(),
+                  name: GMAIL,
+                  // What the office's own commented example shows for a remote
+                  // server: an address and the sign-in it needs.
+                  server: { url, auth: "oauth" },
+                }),
+              onRemove: () =>
+                socket?.send({ type: "connector.remove", reqId: staffReq(), name: GMAIL }),
+              onScope: (departments) =>
+                socket?.send({
+                  type: "connector.scope",
+                  reqId: staffReq(),
+                  name: GMAIL,
+                  departments,
+                }),
+              onSetAgents: (agentIds) => {
+                // One message per agent whose list actually changes, because the
+                // roster is written per row and a no-op write is a file change
+                // the watcher would report for nothing.
+                for (const agent of state.agents) {
+                  const has = agent.tools.includes(GMAIL);
+                  const wants = agentIds.includes(agent.id);
+                  if (has === wants) continue;
+                  const tools = wants
+                    ? [...agent.tools, GMAIL]
+                    : agent.tools.filter((t) => t !== GMAIL);
+                  socket?.send({
+                    type: "agent.update",
+                    reqId: staffReq(),
+                    agentId: agent.id,
+                    fields: { tools },
+                  });
+                }
+              },
+              onConnect: () => {
+                const id = reqId();
+                oauthReqs.current.add(id);
+                socket?.send({ type: "mcp.oauth.begin", reqId: id, server: GMAIL });
+              },
             }}
             onSave={(provider, value) => {
               const id = reqId();

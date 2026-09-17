@@ -56,15 +56,32 @@ export type ClientMessage =
   | {
       type: "agent.create";
       reqId: string;
-      agent: { id: string; department: string; role: string; does: string; name?: string };
+      agent: {
+        id: string;
+        department: string;
+        role: string;
+        does: string;
+        name?: string;
+        departmentLabel?: string;
+      };
     }
   | { type: "agent.remove"; reqId: string; agentId: string }
   | {
       type: "agent.update";
       reqId: string;
       agentId: string;
-      fields: { role?: string; does?: string; department?: string; model?: string | null };
+      fields: {
+        role?: string;
+        does?: string;
+        department?: string;
+        model?: string | null;
+        tools?: string[];
+      };
     }
+  | { type: "office.rename"; reqId: string; name: string }
+  | { type: "connector.add"; reqId: string; name: string; server: Record<string, unknown> }
+  | { type: "connector.remove"; reqId: string; name: string }
+  | { type: "connector.scope"; reqId: string; name: string; departments: string[] }
   | { type: "department.create"; reqId: string; id: string; label: string }
   | { type: "department.rename"; reqId: string; id: string; label: string }
   | { type: "department.remove"; reqId: string; id: string }

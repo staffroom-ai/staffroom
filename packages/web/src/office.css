@@ -2648,3 +2648,45 @@ body::before {
   flex-direction: column;
   gap: 4px;
 }
+
+/* Who the pointer is over. Follows the cursor, never takes the pointer itself:
+   a tooltip you can hover flickers as the pointer crosses onto it. */
+.agent-tip {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  transform: translate(14px, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+}
+
+.agent-tip-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.agent-tip-role {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* A checkbox and its label on one line, for the connector's two fences. */
+.setting-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.setting-check input {
+  cursor: pointer;
+}

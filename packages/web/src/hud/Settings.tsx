@@ -13,6 +13,9 @@ import {
   DefaultModel,
   Doctor,
   type DoctorState,
+  Gmail,
+  type GmailActions,
+  type GmailState,
   type ModelsState,
   Staff,
   type StaffActions,
@@ -192,6 +195,8 @@ export function Settings({
   onChooseModel,
   staff,
   staffActions,
+  gmail,
+  gmailActions,
   onSave,
   onClose,
 }: {
@@ -216,8 +221,16 @@ export function Settings({
   onLoadModels?: () => void;
   onChooseModel?: (model: string) => void;
   /** Who works here, and the edits Settings can make to them. */
-  staff?: { agents: StaffAgent[]; departments: StaffDepartment[]; problem?: string | null };
+  staff?: {
+    agents: StaffAgent[];
+    departments: StaffDepartment[];
+    officeName: string;
+    problem?: string | null;
+  };
   staffActions?: StaffActions;
+  /** The one connector Settings knows about by name. */
+  gmail?: GmailState;
+  gmailActions?: GmailActions;
   onSave: (providerId: string, value: string) => void;
   onClose: () => void;
 }): ReactElement {
@@ -303,8 +316,18 @@ export function Settings({
           <Staff
             agents={staff.agents}
             departments={staff.departments}
+            officeName={staff.officeName}
             {...(staff.problem === undefined ? {} : { problem: staff.problem })}
             actions={staffActions}
+          />
+        )}
+
+        {gmail !== undefined && gmailActions !== undefined && staff !== undefined && (
+          <Gmail
+            state={gmail}
+            agents={staff.agents}
+            departments={staff.departments}
+            actions={gmailActions}
           />
         )}
 
