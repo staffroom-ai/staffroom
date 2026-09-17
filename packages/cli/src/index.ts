@@ -212,6 +212,35 @@ async function run(): Promise<void> {
       if (result.tooNew) process.exitCode = 1;
     });
 
+  /*
+   * Named by two doctor checks and by NO_MODEL_CONFIGURED, which is why it
+   * exists. Somebody told to run a command should find it there.
+   */
+  program
+    .command("setup")
+    .description("Set up your model keys, the default model, web search and telemetry")
+    .option("--office <dir>", "Which office folder to set up")
+    .option("--non-interactive", "Take every answer from the flags below and ask nothing")
+    .option("--anthropic-key <key>", "Anthropic key")
+    .option("--openai-key <key>", "OpenAI key")
+    .option("--ollama-url <url>", "Ollama address")
+    .option("--model <provider/model>", "The model everybody uses by default")
+    .option("--web-search <provider>", "none, brave or tavily")
+    .option("--web-search-key <key>", "Key for the web search provider")
+    .option("--telemetry", "Send anonymous usage counts. Off unless you pass this")
+    .action(async (options) => {
+      /*
+       * Imported here rather than at the top of the file.
+       *
+       * @inquirer/prompts is only needed by this one command, and every other
+       * run of the CLI — including `start`, which is the one with an install
+       * time budget on it — would otherwise pay to load a prompt library it
+       * never uses.
+       */
+      const { setup } = await import("./commands/setup-prompts.js");
+      await setup(options);
+    });
+
   program
     .command("doctor")
     .description("Check the office over and say what to do about anything wrong")

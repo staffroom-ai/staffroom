@@ -25,6 +25,21 @@ Makes a new office folder.
 
 `--template <id>` · `--dir <dir>` · `--tools` to copy the five example tools.
 
+## `npx staffroom setup`
+
+Asks for your model keys, the model everybody uses by default, whether you want
+web search, and whether to send anonymous usage counts. Keys go to `office/.env`;
+only their names go in `config.yaml`. Each key is checked with a one-token
+request, so a typo is caught here rather than in the middle of your first task.
+
+The office reads its providers when it starts, so restart it afterwards.
+
+`--non-interactive` takes every answer from flags instead of asking:
+`--anthropic-key` · `--openai-key` · `--ollama-url` · `--model <provider/model>` ·
+`--web-search <none|brave|tavily>` · `--web-search-key` · `--telemetry`.
+
+Telemetry is off unless you pass `--telemetry`, or answer yes.
+
 ## `npx staffroom doctor`
 
 Checks Node, the office folder, config, providers, models, tools, the index and
@@ -50,6 +65,21 @@ is for looking first.
 
 `add <name> --for <agent>` copies one of the shipped examples and gives it to
 somebody.
+
+## `npx staffroom template`
+
+`list` shows the offices you can start from.
+
+`apply <id> --into <dir>` lays one down in a folder. It refuses a folder that
+already has an office in it rather than merging.
+
+## `npx staffroom export`
+
+Puts the whole office in one zip you can read without Staffroom: notes stay
+markdown, settings stay YAML, and the run log becomes JSON. `office/.env` is
+never in it, and every value from it is replaced by the name it came from.
+
+`--out <file>`.
 
 ## `npx staffroom demo`
 
