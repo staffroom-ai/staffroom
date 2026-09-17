@@ -152,7 +152,13 @@ jobs:
           fi
           echo "Nothing left running."
       - name: Size budget
-        run: pnpm --filter @staffroom/web size | tee -a "$GITHUB_STEP_SUMMARY"
+        # pipefail for the same reason as the perf step: without it the exit
+        # status is tee's, and a blown budget would have been reporting success
+        # this whole time.
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @staffroom/web size | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Keep the trace when it fails
         if: failure()
         uses: actions/upload-artifact@v4
@@ -181,7 +187,13 @@ jobs:
       - name: Install Chromium
         run: pnpm --filter @staffroom/web exec playwright install --with-deps chromium
       - name: Perf budgets
-        run: pnpm --filter @staffroom/web perf | tee -a "$GITHUB_STEP_SUMMARY"
+        # pipefail, because without it the exit status is tee's and a failing
+        # perf run reports success. That is exactly what happened the first time
+        # this job ran: the budgets were blown and the job was green.
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @staffroom/web perf | tee -a "$GITHUB_STEP_SUMMARY"
       - name: No office left running
         run: |
           if pgrep -f "cli/dist/index.js" > /dev/null; then
