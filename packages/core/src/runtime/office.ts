@@ -39,6 +39,7 @@ import {
   renameDepartment,
   revealNote,
   setDefaultModel,
+  setEnvValue,
   setMcpDepartments,
   setMcpServer,
   setOfficeName,
@@ -96,6 +97,8 @@ export interface Office {
   setOfficeName(name: string): EditResult;
   /** Connectors, in config.yaml. The office re-reads the file after each. */
   setMcpServer(name: string, server: Record<string, unknown>): Promise<EditResult>;
+  /** A secret in office/.env, referred to from config.yaml as `$NAME`. */
+  setEnvValue(name: string, value: string): EditResult;
   removeMcpServer(name: string): Promise<EditResult>;
   setMcpDepartments(name: string, departments: string[]): Promise<EditResult>;
   addDepartment(id: string, label: string): EditResult;
@@ -480,6 +483,7 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     updateAgent: (agentId: string, fields: AgentEdit) =>
       applyRosterEdit(updateAgent(officeDir, agentId, fields)),
     setOfficeName: (name: string) => applyRosterEdit(setOfficeName(officeDir, name)),
+    setEnvValue: (name: string, value: string) => setEnvValue(officeDir, name, value),
     setMcpServer: async (name: string, server: Record<string, unknown>) =>
       applyMcpEdit(setMcpServer(officeDir, name, server)),
     removeMcpServer: async (name: string) => applyMcpEdit(removeMcpServer(officeDir, name)),

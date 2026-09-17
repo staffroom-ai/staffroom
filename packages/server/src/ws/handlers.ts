@@ -410,10 +410,17 @@ export async function handle(
           agentId: message.agentId,
         });
 
-      case "connector.add":
+      case "connector.add": {
+        // Secrets first: a config entry pointing at a variable that is not there
+        // yet is a connector that reads as broken for no reason.
+        for (const [name, value] of Object.entries(message.secrets ?? {})) {
+          const stored = office.setEnvValue?.(name, value);
+          if (stored !== undefined && !stored.ok) return rosterEdit(stored, {});
+        }
         return rosterEdit(await office.setMcpServer?.(message.name, message.server), {
           name: message.name,
         });
+      }
 
       case "connector.remove":
         return rosterEdit(await office.removeMcpServer?.(message.name), { name: message.name });

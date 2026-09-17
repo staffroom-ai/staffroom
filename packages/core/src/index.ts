@@ -234,6 +234,7 @@ export {
   renameDepartment,
   revealNote,
   setDefaultModel,
+  setEnvValue,
   setMcpDepartments,
   setMcpServer,
   setOfficeName,

@@ -161,6 +161,13 @@ export type ClientMessage =
       reqId: string;
       name: string;
       server: Record<string, unknown>;
+      /**
+       * Values to store in office/.env, by variable name.
+       *
+       * The server entry above refers to them as `$NAME`, so a client secret
+       * never lands in config.yaml — the same rule as a model key.
+       */
+      secrets?: Record<string, string>;
     }
   | { type: "connector.remove"; reqId: string; name: string }
   | { type: "connector.scope"; reqId: string; name: string; departments: string[] }

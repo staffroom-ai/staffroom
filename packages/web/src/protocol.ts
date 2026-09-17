@@ -79,7 +79,13 @@ export type ClientMessage =
       };
     }
   | { type: "office.rename"; reqId: string; name: string }
-  | { type: "connector.add"; reqId: string; name: string; server: Record<string, unknown> }
+  | {
+      type: "connector.add";
+      reqId: string;
+      name: string;
+      server: Record<string, unknown>;
+      secrets?: Record<string, string>;
+    }
   | { type: "connector.remove"; reqId: string; name: string }
   | { type: "connector.scope"; reqId: string; name: string; departments: string[] }
   | { type: "department.create"; reqId: string; id: string; label: string }

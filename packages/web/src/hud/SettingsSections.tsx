@@ -619,10 +619,17 @@ export interface GmailState {
   departments: string[];
   /** Agents whose own tools list names the server. */
   agentIds: string[];
+  /**
+   * The address Google has to be told to send the browser back to.
+   *
+   * Carries the office's real port, so it is shown rather than described: the
+   * provider matches it exactly and a guessed port fails at the last step.
+   */
+  redirectUri: string;
 }
 
 export interface GmailActions {
-  onAdd: (url: string) => void;
+  onAdd: (server: { url: string; clientId: string; clientSecret: string }) => void;
   onRemove: () => void;
   onScope: (departments: string[]) => void;
   onSetAgents: (agentIds: string[]) => void;
@@ -651,31 +658,65 @@ export function Gmail({
   actions: GmailActions;
 }): ReactElement {
   const [url, setUrl] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
 
   if (state.health === undefined) {
     return (
       <section className="setting-row" aria-label="Gmail">
         <h3 className="settings-heading">Gmail</h3>
         <p className="setting-note">
-          The address of your Gmail MCP server. Staffroom does not run one for you — this is a
-          server you host or subscribe to, and it is the only thing that ever sees your mail.
+          Google hosts the Gmail MCP server; there is nothing to deploy. You create an OAuth client
+          in the Google Cloud console once, and paste its id and secret here. The secret goes to
+          office/.env, and config.yaml gets only its name.
         </p>
+        <p className="setting-note">
+          Google's address is <code>https://gmailmcp.googleapis.com/mcp/v1</code>, and the redirect
+          URI to allow on your client is <code>{state.redirectUri}</code>.
+        </p>
+
         <label className="setting-field">
           <span className="setting-note">Server address</span>
           <input
             className="setting-input"
             value={url}
-            placeholder="https://mcp.example.com/gmail"
+            placeholder="https://gmailmcp.googleapis.com/mcp/v1"
             onChange={(event) => setUrl(event.target.value)}
           />
         </label>
+
+        <label className="setting-field">
+          <span className="setting-note">OAuth client ID</span>
+          <input
+            className="setting-input"
+            value={clientId}
+            onChange={(event) => setClientId(event.target.value)}
+          />
+        </label>
+
+        <label className="setting-field">
+          <span className="setting-note">OAuth client secret</span>
+          <input
+            className="setting-input"
+            type="password"
+            value={clientSecret}
+            onChange={(event) => setClientSecret(event.target.value)}
+          />
+        </label>
+
         <button
           type="button"
           className="btn"
-          disabled={!/^https?:\/\/\S+$/.test(url.trim())}
+          disabled={!/^https?:\/\/\S+$/.test(url.trim()) || clientId.trim() === ""}
           onClick={() => {
-            actions.onAdd(url.trim());
+            actions.onAdd({
+              url: url.trim(),
+              clientId: clientId.trim(),
+              clientSecret: clientSecret.trim(),
+            });
             setUrl("");
+            setClientId("");
+            setClientSecret("");
           }}
         >
           Add Gmail

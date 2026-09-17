@@ -282,6 +282,23 @@ export function setProviderKey(officeDir: string, provider: string, key: string)
   }
 }
 
+/**
+ * Stores a secret by name, for callers that are not a provider key.
+ *
+ * An OAuth client secret is the same kind of thing as a model key: it belongs in
+ * office/.env, and config.yaml should carry only `$NAME`. Exported so the
+ * connector panel can follow the same rule rather than inventing one.
+ */
+export function setEnvValue(officeDir: string, name: string, value: string): EditResult {
+  if (!/^[A-Z][A-Z0-9_]*$/.test(name)) {
+    return { ok: false, reason: "A variable name is capitals, numbers and underscores." };
+  }
+  if (value.trim().length === 0) return { ok: false, reason: `${name} cannot be empty.` };
+  return writeEnvLine(officeDir, name, value.trim())
+    ? { ok: true }
+    : { ok: false, reason: "Could not write office/.env." };
+}
+
 /** One NAME=value in office/.env, replaced in place if it is already there. */
 function writeEnvLine(officeDir: string, name: string, value: string): boolean {
   const path = join(officeDir, ".env");

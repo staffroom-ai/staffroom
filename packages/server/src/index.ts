@@ -349,6 +349,20 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   const port = await listen(http, options.port ?? 4242, host);
   authConfig = { token, host, port };
 
+  /*
+   * Now that there is a port, an MCP server can be signed in to.
+   *
+   * This is the loopback address an OAuth provider sends the owner's browser
+   * back to, and it cannot be known before listen(). Nothing set it, so
+   * beginOAuth answered "This office cannot sign in to servers." for every
+   * remote server in every office ever started — the code comment said the
+   * server would fill it in, and no server did.
+   *
+   * Whoever registers the OAuth client has to allow this exact address, which
+   * is why it is worth printing rather than leaving somebody to guess the port.
+   */
+  office.mcp.setOauthRedirectUrl(`http://${host}:${port}/api/mcp/oauth/callback`);
+
   // Watching is on unless asked otherwise: an owner editing agents.yaml expects
   // the office to notice without a restart.
   /*

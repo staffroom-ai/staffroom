@@ -15,10 +15,14 @@ import {
   refreshAgents,
   removeAgent,
   removeDepartment,
+  removeMcpServer,
   renameAgent,
   renameDepartment,
   revealNote,
   setDefaultModel,
+  setEnvValue,
+  setMcpDepartments,
+  setMcpServer,
   setOfficeName,
   setProviderKey,
   updateAgent,
@@ -436,5 +440,91 @@ describe("editing the roster from outside the office", () => {
     expect(updateAgent(dir, "copywriter", { department: "nowhere" }).ok).toBe(false);
     expect(renameDepartment(dir, "nowhere", "X").ok).toBe(false);
     expect(removeDepartment(dir, "nowhere").ok).toBe(false);
+  });
+});
+
+describe("storing a secret by name", () => {
+  /*
+   * An OAuth client secret is the same kind of thing as a model key: it belongs
+   * in office/.env, and config.yaml should carry only `$NAME`.
+   */
+  it("writes it to .env, where the redaction and the bundle already look", () => {
+    const dir = office();
+    expect(setEnvValue(dir, "GMAIL_OAUTH_CLIENT_SECRET", "shh")).toEqual({ ok: true });
+    expect(readFileSync(join(dir, ".env"), "utf8")).toContain("GMAIL_OAUTH_CLIENT_SECRET=shh");
+  });
+
+  it("replaces rather than stacking, so the old one cannot be read back", () => {
+    const dir = office();
+    setEnvValue(dir, "GMAIL_OAUTH_CLIENT_SECRET", "first");
+    setEnvValue(dir, "GMAIL_OAUTH_CLIENT_SECRET", "second");
+
+    const env = readFileSync(join(dir, ".env"), "utf8");
+    expect(env).toContain("second");
+    expect(env).not.toContain("first");
+  });
+
+  it("refuses a name that is not a variable name, and an empty value", () => {
+    const dir = office();
+    expect(setEnvValue(dir, "not a name", "x").ok).toBe(false);
+    expect(setEnvValue(dir, "lower_case", "x").ok).toBe(false);
+    expect(setEnvValue(dir, "FINE", "   ").ok).toBe(false);
+  });
+});
+
+describe("connectors in config.yaml", () => {
+  const CONFIG = "version: 2\nmcp:\n  servers: {}\n  deny: []\n  departments: {}\n";
+  const withConfig = (): string => {
+    const dir = office();
+    writeFileSync(join(dir, "config.yaml"), CONFIG, "utf8");
+    return dir;
+  };
+  const read = (dir: string) =>
+    parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { servers: Record<string, unknown>; departments: Record<string, unknown> };
+    };
+
+  it("adds a server and takes it away again", () => {
+    const dir = withConfig();
+    expect(setMcpServer(dir, "gmail", { url: "https://x/mcp", auth: "oauth" })).toEqual({
+      ok: true,
+    });
+    expect(read(dir).mcp.servers["gmail"]).toEqual({ url: "https://x/mcp", auth: "oauth" });
+
+    expect(removeMcpServer(dir, "gmail")).toEqual({ ok: true });
+    expect(read(dir).mcp.servers["gmail"]).toBeUndefined();
+  });
+
+  it("refuses a name that is not a connector name", () => {
+    expect(setMcpServer(withConfig(), "Not A Name", { url: "https://x/mcp" }).ok).toBe(false);
+  });
+
+  it("writes an empty department list as an absence, because that is what it means", () => {
+    // Absent is what the registry reads as "every department", so the file
+    // should say the same thing the office does rather than an empty array.
+    const dir = withConfig();
+    setMcpServer(dir, "gmail", { url: "https://x/mcp" });
+
+    setMcpDepartments(dir, "gmail", ["support"]);
+    expect(read(dir).mcp.departments["gmail"]).toEqual(["support"]);
+
+    setMcpDepartments(dir, "gmail", []);
+    expect(read(dir).mcp.departments["gmail"]).toBeUndefined();
+  });
+
+  it("takes the wiring away with the server", () => {
+    const dir = withConfig();
+    setMcpServer(dir, "gmail", { url: "https://x/mcp" });
+    setMcpDepartments(dir, "gmail", ["support"]);
+
+    removeMcpServer(dir, "gmail");
+    expect(read(dir).mcp.departments["gmail"]).toBeUndefined();
+  });
+
+  it("says so rather than throwing when there is no config.yaml", () => {
+    const bare = mkdtempSync(join(tmpdir(), "staffroom-noconfig-"));
+    expect(setMcpServer(bare, "gmail", { url: "https://x/mcp" }).ok).toBe(false);
+    expect(removeMcpServer(bare, "gmail").ok).toBe(false);
+    expect(setMcpDepartments(bare, "gmail", []).ok).toBe(false);
   });
 });

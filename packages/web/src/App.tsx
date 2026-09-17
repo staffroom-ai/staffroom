@@ -96,8 +96,14 @@ function gmailState(state: OfficeState): GmailState {
         }),
     departments: Array.isArray(departments) ? departments : [],
     agentIds: state.agents.filter((a) => a.tools.includes(GMAIL)).map((a) => a.id),
+    // The office's own address, which is what the provider has to be told to
+    // send the browser back to — port and all, so nobody has to guess it.
+    redirectUri: `${window.location.origin}/api/mcp/oauth/callback`,
   };
 }
+
+/** Where the Gmail client secret is kept. config.yaml carries only this name. */
+const GMAIL_SECRET = "GMAIL_OAUTH_CLIENT_SECRET";
 
 function usePrefersDark(): boolean {
   const [dark, setDark] = useState(false);
@@ -715,14 +721,20 @@ export function App(): ReactElement {
             }}
             gmail={gmailState(state)}
             gmailActions={{
-              onAdd: (url) =>
+              onAdd: ({ url, clientId, clientSecret }) =>
                 socket?.send({
                   type: "connector.add",
                   reqId: staffReq(),
                   name: GMAIL,
-                  // What the office's own commented example shows for a remote
-                  // server: an address and the sign-in it needs.
-                  server: { url, auth: "oauth" },
+                  server: {
+                    url,
+                    auth: "oauth",
+                    ...(clientId === "" ? {} : { client_id: clientId }),
+                    // By name. The value goes to office/.env below, the same
+                    // rule as a model key.
+                    ...(clientSecret === "" ? {} : { client_secret: `$${GMAIL_SECRET}` }),
+                  },
+                  ...(clientSecret === "" ? {} : { secrets: { [GMAIL_SECRET]: clientSecret } }),
                 }),
               onRemove: () =>
                 socket?.send({ type: "connector.remove", reqId: staffReq(), name: GMAIL }),

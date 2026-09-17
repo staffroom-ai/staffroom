@@ -304,6 +304,57 @@ describe("connectors", () => {
     );
   });
 
+  /*
+   * A client the owner registered, and where its secret goes.
+   *
+   * Google's Gmail MCP server does not do dynamic client registration — you
+   * create a client in the Cloud console and bring its id and secret. Without
+   * somewhere to put them that server cannot be signed in to at all.
+   */
+  it("keeps an OAuth client secret out of config.yaml", async () => {
+    const { server, dir } = await office();
+    const result = await handle(server.office, {
+      type: "connector.add",
+      reqId: "r1",
+      name: "gmail",
+      server: {
+        url: "https://gmailmcp.googleapis.com/mcp/v1",
+        auth: "oauth",
+        client_id: "123.apps.googleusercontent.com",
+        client_secret: "$GMAIL_OAUTH_CLIENT_SECRET",
+      },
+      secrets: { GMAIL_OAUTH_CLIENT_SECRET: "the-actual-secret" },
+    });
+
+    expect(result.ok).toBe(true);
+    // config.yaml is the file owners paste into issues and screenshots.
+    const config = readFileSync(join(dir, "config.yaml"), "utf8");
+    expect(config).not.toContain("the-actual-secret");
+    expect(config).toContain("$GMAIL_OAUTH_CLIENT_SECRET");
+    expect(readFileSync(join(dir, ".env"), "utf8")).toContain(
+      "GMAIL_OAUTH_CLIENT_SECRET=the-actual-secret",
+    );
+  });
+
+  it("refuses a variable name that is not one, before writing the config", async () => {
+    const { server, dir } = await office();
+    const result = await handle(server.office, {
+      type: "connector.add",
+      reqId: "r1",
+      name: "gmail",
+      server: { url: "https://gmailmcp.googleapis.com/mcp/v1", auth: "oauth" },
+      secrets: { "not a name": "x" },
+    });
+
+    expect(result.ok).toBe(false);
+    // Nothing half-written: a config pointing at a variable that was refused is
+    // a connector that reads as broken for a reason nobody can see.
+    const config = parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { servers: Record<string, unknown> };
+    };
+    expect(config.mcp.servers["gmail"]).toBeUndefined();
+  });
+
   it("wires it to departments, and to every department when the list is empty", async () => {
     const { server, dir } = await office();
     await handle(server.office, {
