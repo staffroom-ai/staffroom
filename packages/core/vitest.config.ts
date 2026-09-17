@@ -8,7 +8,12 @@ export default defineConfig({
     // esbuild compiling a custom tool, a spawned MCP server. Five seconds is
     // sized for the arithmetic, and on a shared Windows runner it has failed
     // three of the office tests while the code was doing the right thing.
-    testTimeout: 20_000,
+    //
+    // Ninety rather than twenty because the MCP tests wait on two spawned
+    // servers in sequence, and the wait for each has to be able to run its own
+    // budget out and report which one it was. A timeout that fires above the
+    // wait it contains says "the test took too long" and nothing else.
+    testTimeout: 90_000,
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],

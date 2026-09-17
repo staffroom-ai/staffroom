@@ -69,7 +69,22 @@ function stdio(env: Record<string, string> = {}) {
  * timeout is the real backstop; this one exists to fail with a message that says
  * what was being waited for.
  */
-async function until(check: () => boolean, ms = 15_000, what = "a condition"): Promise<void> {
+/**
+ * Waits for something a spawned server has to do.
+ *
+ * The default budget is generous because the slow step is a Windows CI runner
+ * starting a node process under load, which has taken over fifteen seconds
+ * there. A passing test still finishes in under a second; the budget only
+ * matters on the box where it is genuinely needed.
+ *
+ * The default `what` names the commonest wait rather than saying "a condition",
+ * because the only thing a timeout message has to do is say which wait it was.
+ */
+async function until(
+  check: () => boolean,
+  ms = 30_000,
+  what = "the server's tools to be registered",
+): Promise<void> {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
     if (check()) return;
