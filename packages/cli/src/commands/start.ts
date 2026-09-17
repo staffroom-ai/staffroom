@@ -74,7 +74,12 @@ export async function start(
   if (!resolved.exists) {
     log("");
     log(`  ${newOfficeLine(resolved.dir)}`);
-    copyTemplate(options.template ?? "studio", resolved.dir);
+    const laid = copyTemplate(options.template ?? "studio", resolved.dir);
+    // Named, not just counted. If somebody pointed --office at the wrong folder,
+    // this list is how they find out before they wonder where their notes went.
+    if (laid.kept.length > 0) {
+      log(`  Left as they were: ${laid.kept.join(", ")}`);
+    }
   }
 
   const server = await createServer({

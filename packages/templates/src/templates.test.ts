@@ -6,7 +6,15 @@
  * shipped in a config, a link that goes nowhere. Every rule here exists because
  * it would be easy to break by hand.
  */
-import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import {
@@ -296,6 +304,54 @@ describe("copyTemplate", () => {
     const result = copyTemplate("studio", with_, { includeTools: true });
     expect(result.toolsCopied.sort()).toHaveLength(5);
     expect(existsSync(join(with_, "tools", "lookup-order.ts"))).toBe(true);
+  });
+
+  /*
+   * The one that was silent data loss.
+   *
+   * `cpSync` overwrites by default, and this runs against whatever folder
+   * somebody pointed --office at. The studio template ships
+   * brain/00-about/pricing.md, so an owner who had their own file at that path —
+   * or who deleted agents.yaml while tidying and started again — had it replaced
+   * by ours without a word.
+   */
+  it("never writes over a file that is already there", () => {
+    const into = dest();
+    mkdirSync(join(into, "brain", "00-about"), { recursive: true });
+    writeFileSync(join(into, "brain", "00-about", "pricing.md"), "MINE, NOT YOURS", "utf8");
+
+    const result = copyTemplate("studio", into);
+
+    expect(readFileSync(join(into, "brain", "00-about", "pricing.md"), "utf8")).toBe(
+      "MINE, NOT YOURS",
+    );
+    // Reported, not swallowed: somebody who pointed this at the wrong folder
+    // finds out from this list rather than from the gap in their notes.
+    expect(result.kept).toContain("brain/00-about/pricing.md");
+    expect(result.copied).not.toContain("brain/00-about/pricing.md");
+  });
+
+  it("still lays down everything that was not already there", () => {
+    const into = dest();
+    mkdirSync(join(into, "brain", "00-about"), { recursive: true });
+    writeFileSync(join(into, "brain", "00-about", "pricing.md"), "MINE", "utf8");
+
+    copyTemplate("studio", into);
+
+    expect(existsSync(join(into, "agents.yaml"))).toBe(true);
+    expect(existsSync(join(into, "brain", "00-about", "voice.md"))).toBe(true);
+  });
+
+  it("leaves a tool file alone once the owner has one by that name", () => {
+    // A tool file is the owner's code the moment they have edited it.
+    const into = dest();
+    mkdirSync(join(into, "tools"), { recursive: true });
+    writeFileSync(join(into, "tools", "lookup-order.ts"), "// mine", "utf8");
+
+    const result = copyTemplate("studio", into, { includeTools: true });
+
+    expect(readFileSync(join(into, "tools", "lookup-order.ts"), "utf8")).toBe("// mine");
+    expect(result.kept).toContain("tools/lookup-order.ts");
   });
 
   it("names the templates that exist when asked for one that does not", () => {

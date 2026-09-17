@@ -164,7 +164,11 @@ describe("init", () => {
 
 describe("adding an example tool", () => {
   it("copies the file and tells you nobody can use it yet", () => {
-    const dir = asOffice(join(temp(), "office"));
+    // initOffice makes the office; this used to call asOffice first, which wrote
+    // a one-line agents.yaml that the template then overwrote. It does not any
+    // more — nothing lays a template over a file somebody already has — so the
+    // stub would survive and the roster would be a `version: 1` and no staff.
+    const dir = join(temp(), "office");
     initOffice({ dir });
     const lines: string[] = [];
     addTool({ name: "send-sms", officeDir: dir }, (line) => lines.push(line));
