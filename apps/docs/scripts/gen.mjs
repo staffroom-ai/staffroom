@@ -246,6 +246,11 @@ const PAGES = {
   "office-state.md": officeStatePage(),
 };
 
+/** Line endings only. A page is the same page whichever way git wrote it out. */
+function normalise(text) {
+  return text === undefined ? undefined : text.replace(/\r\n/g, "\n");
+}
+
 let drifted = 0;
 for (const [name, content] of Object.entries(PAGES)) {
   const path = join(OUT, name);
@@ -256,7 +261,10 @@ for (const [name, content] of Object.entries(PAGES)) {
     existing = undefined;
   }
 
-  if (existing === content) continue;
+  // Compared with line endings normalised. Git may check these out with CRLF on
+  // Windows, and a reference page that "drifted" because of how it was checked
+  // out would fail CI on one platform with nothing wrong in it.
+  if (normalise(existing) === normalise(content)) continue;
 
   if (CHECK) {
     console.error(

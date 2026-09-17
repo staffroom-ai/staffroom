@@ -1,0 +1,4 @@
+# The image installs from npm and copies nothing from this tree, so everything
+# here is build context that would only slow the build down and risk baking in
+# something local — an office with real keys in it, most of all.
+*

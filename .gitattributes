@@ -1,0 +1,5 @@
+# The generated reference pages are compared byte for byte against a fresh run,
+# so they have to reach every machine the way they were written. Without this,
+# git checks them out with CRLF on Windows and the drift gate fails a tree that
+# is not drifted.
+apps/docs/src/content/docs/reference/*.md text eol=lf

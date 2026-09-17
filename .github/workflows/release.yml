@@ -115,3 +115,108 @@ jobs:
             echo "Publishing $tarball"
             npm publish "$tarball" --access public --provenance
           done
+
+  # SR-069: the same version, as a container.
+  #
+  # A separate job so a failure here cannot roll back a successful npm publish,
+  # and so the image is built from what is actually on the registry rather than
+  # from this working tree. Two ways of producing the product would eventually
+  # disagree about something nobody was watching.
+  docker:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: version
+        run: echo "value=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Nothing to build when the version is already on ghcr: the release job
+      # runs on every push to main, and most of those publish nothing.
+      - id: exists
+        run: |
+          if docker manifest inspect "ghcr.io/staffroom-ai/staffroom:${{ steps.version.outputs.value }}" > /dev/null 2>&1; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.exists.outputs.value == 'false'
+        uses: docker/setup-qemu-action@v3
+      - if: steps.exists.outputs.value == 'false'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.exists.outputs.value == 'false'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Built for this runner first and loaded locally, so the smoke test below
+      # runs the real image rather than trusting that a multi-arch build works.
+      # Pushing something nobody has started is how you find out on a user's
+      # machine.
+      - if: steps.exists.outputs.value == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: staffroom:smoke
+          build-args: STAFFROOM_VERSION=${{ steps.version.outputs.value }}
+
+      - name: The image runs the demo and answers health
+        if: steps.exists.outputs.value == 'false'
+        run: |
+          set -euo pipefail
+
+          # No volume, no environment: the acceptance case is somebody running
+          # this with nothing configured and getting a working office.
+          docker run -d --name smoke -p 127.0.0.1:4242:4242 staffroom:smoke
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4242/api/health > /tmp/health.json 2>/dev/null; then break; fi
+            sleep 2
+          done
+
+          echo "health: $(cat /tmp/health.json)"
+          node -e '
+            const h = require("/tmp/health.json");
+            if (h.ok !== true) throw new Error("health did not answer ok");
+            if (h.mode !== "demo") throw new Error(`expected demo mode, got ${h.mode}`);
+          '
+
+          # The checks are still on. A container that dropped them because it
+          # binds 0.0.0.0 would be one anybody on the network could drive.
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST -H "Origin: http://evil.example" http://127.0.0.1:4242/api/health)
+          test "$code" = "403" || { echo "cross-origin POST got $code, expected 403"; exit 1; }
+
+          # The origin check is the one enforced at the upgrade. The token is
+          # checked at the `hello` message instead, so the server can close with
+          # a reason rather than dropping the handshake — which means a plain
+          # upgrade answering 101 is correct, and asserting otherwise would be
+          # asserting the opposite of the design.
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Connection: Upgrade" -H "Upgrade: websocket" \
+            -H "Origin: http://evil.example" \
+            -H "Sec-WebSocket-Key: $(head -c16 /dev/zero | base64)" \
+            -H "Sec-WebSocket-Version: 13" http://127.0.0.1:4242/ws)
+          test "$code" = "403" || { echo "cross-origin upgrade got $code, expected 403"; exit 1; }
+
+          echo "The image serves a demo office, and refuses what it should."
+          docker rm -f smoke
+
+      - name: Push
+        if: steps.exists.outputs.value == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: STAFFROOM_VERSION=${{ steps.version.outputs.value }}
+          tags: |
+            ghcr.io/staffroom-ai/staffroom:${{ steps.version.outputs.value }}
+            ghcr.io/staffroom-ai/staffroom:latest

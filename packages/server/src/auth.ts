@@ -91,6 +91,28 @@ export function checkRequest(
 export const NO_ACCOUNTS_WARNING =
   "Staffroom has no user accounts. Anyone who can reach %HOST% and sees this link can read your notes and approve actions. Put it behind a VPN or a reverse proxy with auth.";
 
-export function noAccountsWarning(host: string, port: number): string {
+/**
+ * The same warning, for somebody running the container.
+ *
+ * Inside a container, binding `0.0.0.0` is not the decision that matters and
+ * saying otherwise would teach the owner to ignore the message: the container
+ * has its own network, and what the outside world can reach is whatever `-p`
+ * published. So this names the real lever — the published port — rather than a
+ * bind address they cannot usefully change.
+ */
+export const DOCKER_NO_ACCOUNTS_WARNING =
+  "Staffroom has no user accounts. Inside the container it listens on all interfaces, which is normal; what matters is what you published it to. Keep -p 127.0.0.1:4242:4242 unless it is behind a VPN or a reverse proxy with auth.";
+
+/** Set by the image, so the container says the thing that is actually true in it. */
+export function inDocker(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env["STAFFROOM_IN_DOCKER"] === "1";
+}
+
+export function noAccountsWarning(
+  host: string,
+  port: number,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (inDocker(env)) return DOCKER_NO_ACCOUNTS_WARNING;
   return NO_ACCOUNTS_WARNING.replace("%HOST%", `${host}:${port}`);
 }

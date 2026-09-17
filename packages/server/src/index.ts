@@ -47,6 +47,8 @@ export interface ServerOptions {
   demoRunsDir?: string;
   /** Injected in tests and demo mode. */
   office?: Office;
+  /** Overridable so the Docker warning can be tested from any machine. */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface StaffroomServer {
@@ -397,7 +399,7 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   }
 
   if (options.host !== undefined && options.host !== "127.0.0.1") {
-    say(noAccountsWarning(host, port));
+    say(noAccountsWarning(host, port, options.env));
   }
 
   return {
@@ -453,7 +455,14 @@ async function listen(server: Server, wanted: number, host: string): Promise<num
   );
 }
 
-export { checkRequest, newSessionToken } from "./auth.js";
+export {
+  checkRequest,
+  DOCKER_NO_ACCOUNTS_WARNING,
+  inDocker,
+  NO_ACCOUNTS_WARNING,
+  newSessionToken,
+  noAccountsWarning,
+} from "./auth.js";
 export { boot, checkNodeVersion } from "./boot.js";
 export {
   DEMO_BANNER,

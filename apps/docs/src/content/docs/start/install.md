@@ -31,7 +31,18 @@ docker run -d --name staffroom \
 ```
 
 The port is bound to `127.0.0.1` on purpose: the office has no accounts, and
-anybody who can reach it is a member of staff. See [Your office folder](/docs/office/office-folder/).
+anybody who can reach it is a member of staff. Inside the container it listens on
+all interfaces, which is normal — what the outside world can reach is whatever
+you published it to, so keep the `127.0.0.1:` on the `-p`.
+
+Your office lives on the host, in `./office`, which is the whole point of the
+mount: the container is disposable and your notes are not.
+
+Without `-v` it still runs — it makes an office inside the container and comes up
+in demo mode, which is a quick way to look at it, and everything is gone when the
+container is. Tags are `:latest` and the exact version, for example `:0.2.0`.
+
+See [Your office folder](/docs/office/office-folder/).
 
 ## From source
 
