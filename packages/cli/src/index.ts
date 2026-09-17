@@ -10,10 +10,12 @@ import { checkNodeVersion } from "@staffroom/server";
 import { Command } from "commander";
 import { importIntoBrain, reindexBrain } from "./commands/brain.js";
 import { doctor } from "./commands/doctor.js";
+import { exportOffice } from "./commands/export.js";
 import { initOffice, templateChoices } from "./commands/init.js";
 import { migrateCommand } from "./commands/migrate.js";
 import { start } from "./commands/start.js";
-import { addTool, listExampleTools } from "./commands/tools.js";
+import { templateApply, templateList } from "./commands/template.js";
+import { addTool, listExampleTools, newTool } from "./commands/tools.js";
 import { resolveOfficeDir } from "./office-dir.js";
 
 const VERSION = "0.2.0";
@@ -137,6 +139,57 @@ async function run(): Promise<void> {
         officeDir: resolved.dir,
         ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
       });
+    });
+
+  tools
+    .command("new <name>")
+    .description("Write a tool file of your own to fill in")
+    .option("--office <dir>", "Which office folder to write it into")
+    .option("--scope <scope>", "read runs without asking; write stops for approval", "read")
+    .action((name, options) => {
+      const resolved = resolveOfficeDir({
+        flag: options.office,
+        env: process.env["STAFFROOM_OFFICE"],
+      });
+      if (options.scope !== "read" && options.scope !== "write") {
+        throw new Error("--scope is read or write.");
+      }
+      newTool({ officeDir: resolved.dir, name, scope: options.scope });
+    });
+
+  const template = program
+    .command("template")
+    .description("See the offices you can start from, or lay one down");
+  template
+    .command("list")
+    .description("Every template, with what it is for")
+    .action(() => {
+      templateList();
+    });
+  template
+    .command("apply <id>")
+    .description("Copy a template into a folder")
+    .requiredOption("--into <dir>", "Where to put it")
+    .option("--include-tools", "Also copy the example tools, which run on this machine")
+    .action((id, options) => {
+      templateApply({
+        id,
+        into: options.into,
+        ...(options.includeTools === undefined ? {} : { includeTools: options.includeTools }),
+      });
+    });
+
+  program
+    .command("export")
+    .description("Put the whole office in one file you can read without Staffroom")
+    .option("--office <dir>", "Which office folder to export")
+    .option("--out <file>", "Where to write it", "office-export.zip")
+    .action(async (options) => {
+      const resolved = resolveOfficeDir({
+        flag: options.office,
+        env: process.env["STAFFROOM_OFFICE"],
+      });
+      await exportOffice({ officeDir: resolved.dir, out: options.out });
     });
 
   program
