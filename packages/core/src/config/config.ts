@@ -143,7 +143,12 @@ export const ServerConfigSchema = z
 
 export const ConfigSchema = z
   .object({
-    version: z.literal(1),
+    /**
+     * 1 is an office made before `approvals.whitelist_days` was written out;
+     * it still loads, and `migrate` brings it to 2. Anything higher was written
+     * by a newer Staffroom and is refused rather than guessed at.
+     */
+    version: z.union([z.literal(1), z.literal(2)]),
     providers: z.record(z.string(), ProviderSchema).default({}),
     mcp: McpConfigSchema.prefault({}),
     tools: ToolsConfigSchema.prefault({}),

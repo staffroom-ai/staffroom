@@ -11,6 +11,7 @@ import { Command } from "commander";
 import { importIntoBrain, reindexBrain } from "./commands/brain.js";
 import { doctor } from "./commands/doctor.js";
 import { initOffice, templateChoices } from "./commands/init.js";
+import { migrateCommand } from "./commands/migrate.js";
 import { start } from "./commands/start.js";
 import { addTool, listExampleTools } from "./commands/tools.js";
 import { resolveOfficeDir } from "./office-dir.js";
@@ -136,6 +137,25 @@ async function run(): Promise<void> {
         officeDir: resolved.dir,
         ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
       });
+    });
+
+  program
+    .command("migrate")
+    .description("Bring this office's files up to date after a Staffroom update")
+    .option("--office <dir>", "Which office folder to migrate")
+    .option("--dry-run", "Say what would change, and write nothing")
+    .action((options) => {
+      const resolved = resolveOfficeDir({
+        flag: options.office,
+        env: process.env["STAFFROOM_OFFICE"],
+      });
+      const result = migrateCommand({
+        officeDir: resolved.dir,
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+      });
+      // A file from the future is the one case where nothing can be done here,
+      // so the exit code says so for whatever is scripting this.
+      if (result.tooNew) process.exitCode = 1;
     });
 
   program

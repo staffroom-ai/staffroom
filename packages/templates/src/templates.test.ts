@@ -59,7 +59,10 @@ describe.each(listTemplates().map((t) => t.id))("template %s", (id) => {
 
   it("parses as a valid roster and config", () => {
     expect(agents.agents.length).toBeGreaterThan(0);
-    expect(config.version).toBe(1);
+    // The newest version Staffroom writes. A template that shipped an older one
+    // would migrate itself on its first boot, so every new owner would meet a
+    // backup folder before they had done anything.
+    expect(config.version).toBe(2);
   });
 
   it("pins no model, so the office runs on whatever the owner configures", () => {

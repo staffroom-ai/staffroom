@@ -1,7 +1,7 @@
 # office/config.yaml
 #
 # Keys live in office/.env, never here. Write $NAME and the office reads it.
-version: 1
+version: 2
 
 providers: {}
   # anthropic:

@@ -468,6 +468,15 @@ export { GITIGNORE_LINES, runDoctor } from "./doctor/index.js";
 export { resolveBrainPath } from "./http/paths.js";
 export type { LogLine } from "./log.js";
 export { say, setLogSink } from "./log.js";
+export type { MigrateResult, Migration, Planned } from "./migrate/index.js";
+export {
+  backupPath,
+  CONFIG_VERSION,
+  MIGRATIONS,
+  migrateLines,
+  migrateOffice,
+  versionOf,
+} from "./migrate/index.js";
 export type { WatchEvent } from "./watch/index.js";
 export { OfficeWatchers } from "./watch/index.js";
 export { splitRevise } from "./ws/handlers.js";

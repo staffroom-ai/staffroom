@@ -48,7 +48,7 @@ function fromZod(error: ZodError, file: ConfigFile): ConfigError[] {
         code: "CONFIG_VERSION_UNKNOWN" as const,
         file,
         path,
-        message: "this file needs version: 1 at the top.",
+        message: "this file needs version: 1 or 2 at the top.",
       };
     }
 

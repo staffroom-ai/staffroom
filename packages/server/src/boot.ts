@@ -9,6 +9,7 @@
 import { ConfigInvalid, createOffice, type Office, printConfigErrors } from "@staffroom/core";
 import { demoAdapters, shouldUseDemo } from "./demo/demo.js";
 import { say } from "./log.js";
+import { migrateLines, migrateOffice } from "./migrate/index.js";
 
 export interface BootOptions {
   officeDir: string;
@@ -44,6 +45,23 @@ export async function boot(options: BootOptions): Promise<BootResult> {
   if (nodeProblem !== undefined) throw new Error(nodeProblem);
 
   log(`Office folder: ${options.officeDir}`);
+
+  /*
+   * Brought forward before anything reads them.
+   *
+   * Here rather than in a command the owner has to know about: an office made
+   * with an older Staffroom should open, not print an instruction. The rules
+   * that make that safe — a backup first, the document edited rather than
+   * rewritten, and nothing at all on the second run — live in migrate/index.ts.
+   */
+  const migrated = migrateOffice(options.officeDir);
+  if (migrated.tooNew !== undefined) {
+    // Thrown rather than logged: whoever started this prints the message, and
+    // logging it here as well would say the same thing to the same person twice.
+    throw new Error(migrateLines(migrated, false).join("\n"));
+  }
+  for (const step of migrated.applied) notices.push(`${step.file}: ${step.describe}`);
+  for (const backup of migrated.backups) notices.push(`The file as it was is at ${backup}.`);
 
   // Demo is decided before the office is built, because it changes what providers
   // the office gets. A configured-but-broken provider never lands here.
