@@ -1,0 +1,156 @@
+# The adapters against the real providers, nightly.
+#
+# Fixtures prove an adapter still handles the exchange it was recorded against.
+# They cannot prove the provider still sends that exchange. Providers change
+# their streaming shapes, their error bodies and their model names without
+# announcing it, and the way that reaches an owner is their office failing on a
+# Tuesday for a reason they cannot see.
+#
+# So this finds out first. It is separate from CI on purpose: it costs money,
+# needs secrets, and depends on somebody else's uptime. A pull request must
+# never be blocked because Anthropic had a bad five minutes.
+name: Live matrix
+
+on:
+  schedule:
+    # 03:00 UTC, which is the quiet part of the night in every timezone the
+    # project has contributors in.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # For the drift issue this opens when a provider has moved.
+  issues: write
+
+concurrency:
+  group: live-matrix
+  cancel-in-progress: false
+
+jobs:
+  hosted:
+    name: ${{ matrix.provider }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Not fail-fast: if Anthropic has drifted we still want to know whether
+      # OpenAI has, rather than finding out tomorrow night.
+      fail-fast: false
+      matrix:
+        provider: [anthropic, openai]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Only this provider's key is put in the environment, so the run is
+      # genuinely about the provider the job is named after. A job that had both
+      # keys would pass while one of them was broken.
+      - name: Live conformance
+        env:
+          STAFFROOM_LIVE_TESTS: "1"
+          ANTHROPIC_API_KEY: ${{ matrix.provider == 'anthropic' && secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ matrix.provider == 'openai' && secrets.OPENAI_API_KEY || '' }}
+        run: |
+          set -euo pipefail
+
+          # A missing secret would otherwise skip every test and report success,
+          # which is the worst outcome available: a green nightly that proves
+          # nothing, for however many months it takes somebody to notice.
+          case "${{ matrix.provider }}" in
+            anthropic) test -n "${ANTHROPIC_API_KEY:-}" || { echo "ANTHROPIC_API_KEY is not set on this repository."; exit 1; } ;;
+            openai)    test -n "${OPENAI_API_KEY:-}"    || { echo "OPENAI_API_KEY is not set on this repository."; exit 1; } ;;
+          esac
+
+          pnpm --filter @staffroom/core exec vitest run src/providers/live.test.ts
+
+  ollama:
+    name: ollama
+    runs-on: ubuntu-latest
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Pull the model
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:11434/api/version > /dev/null && break
+            sleep 2
+          done
+          # Small enough to pull and run on a CI box in a couple of minutes.
+          curl -fsS http://127.0.0.1:11434/api/pull -d '{"model":"llama3.2:1b"}' > /dev/null
+          curl -fsS http://127.0.0.1:11434/api/tags
+
+      - name: Live conformance
+        env:
+          STAFFROOM_LIVE_TESTS: "1"
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: pnpm --filter @staffroom/core exec vitest run src/providers/live.test.ts
+
+  # The office end to end on the platform most owners are on. Demo mode, so it
+  # costs nothing and cannot fail because a provider was slow — this is here to
+  # catch macOS itself drifting, which the ubuntu e2e job cannot see.
+  smoke-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @staffroom/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @staffroom/web e2e
+
+  # One issue, not one per provider, and reopened rather than duplicated.
+  drift:
+    needs: [hosted, ollama, smoke-macos]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update the drift issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # Searched by label rather than by title, so an issue somebody renamed
+          # while working on it is still found and a second one is not opened
+          # underneath them.
+          existing=$(gh issue list --label provider-drift --state open --limit 1 --json number --jq '.[0].number // empty')
+
+          body="The nightly live matrix failed: $RUN_URL
+
+          A provider has changed something the adapters depend on — a streaming
+          shape, an error body, or a model name. Nothing is broken for anybody
+          running a released version until they hit it, but they will.
+
+          The failing job says which provider and which of the three shapes moved."
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create \
+              --title "Provider drift: the nightly live matrix failed" \
+              --label provider-drift \
+              --body "$body"
+          fi
