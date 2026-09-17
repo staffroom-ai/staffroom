@@ -90,6 +90,14 @@ export type ClientMessage =
   /** `app` is a DetectedEditor id, or "finder" for the file manager. */
   | { type: "note.reveal"; reqId: string; noteId: string; app?: string }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
+  /**
+   * SR-066: the answer to the sample-content question.
+   *
+   * `remove: false` is a real answer and is recorded like any other. It is what
+   * stops the office asking again, which is the difference between somebody
+   * choosing to keep the sample office and somebody being nagged about it.
+   */
+  | { type: "demo.samples"; reqId: string; remove: boolean }
   | { type: "office.reload"; reqId: string }
   | { type: "ping"; reqId: string };
 

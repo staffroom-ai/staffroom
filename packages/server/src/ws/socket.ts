@@ -12,8 +12,9 @@ import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
 import { buildGraph, detectEditors, noteIndexedDelta, noteRemovedDelta } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
-import type { Scheduler } from "../scheduler/scheduler.js";
+import type { SampleAnswer, Scheduler } from "../scheduler/scheduler.js";
 import { fromNoteWarning, pinnedTruncatedWarning } from "./brain-warnings.js";
+import type { Handlers } from "./handlers.js";
 import { handle } from "./handlers.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { PROTOCOL_VERSION } from "./protocol.js";
@@ -73,6 +74,9 @@ export class SocketHub {
   private unwatchBrain: (() => void) | undefined;
   private readonly editors = detectEditors();
   private scheduler: Scheduler | undefined;
+  /** SR-066: the open question, or null once somebody has answered it. */
+  private sampleQuestion: string | null = null;
+  private sampleDeps: Handlers["samples"];
 
   constructor(options: SocketHubOptions) {
     this.options = options;
@@ -186,7 +190,10 @@ export class SocketHub {
       return;
     }
 
-    const result = await handle(this.options.office, message, { scheduler: this.scheduler });
+    const result = await handle(this.options.office, message, {
+      scheduler: this.scheduler,
+      samples: this.sampleDeps,
+    });
     if (result.ok) {
       this.send(client, {
         type: "ack",
@@ -217,7 +224,12 @@ export class SocketHub {
   }
 
   private async welcome(client: Client, reqId: string, resumeFrom?: number): Promise<void> {
-    const state = await collectState(this.options.office, undefined, this.scheduler);
+    const state = await collectState(
+      this.options.office,
+      undefined,
+      this.scheduler,
+      this.sampleQuestion,
+    );
     const missed = resumeFrom === undefined ? [] : this.since(resumeFrom);
     // A gap wider than the ring means we cannot prove what they missed, so they
     // get a fresh snapshot instead of a partial and misleading catch-up.
@@ -301,6 +313,31 @@ export class SocketHub {
   }
 
   /**
+   * Puts the sample-content question in front of everybody looking.
+   *
+   * Held here rather than re-read from disk on every snapshot: the answer is
+   * given once, and walking a brain folder thirty times a minute to be told the
+   * same thing would be a strange way to ask a yes-or-no question.
+   */
+  askAboutSamples(
+    question: string,
+    deps: { brainDir: string; record(answer: SampleAnswer): void },
+  ): void {
+    this.sampleQuestion = question;
+    this.sampleDeps = {
+      brainDir: deps.brainDir,
+      record: (answer) => {
+        deps.record(answer);
+        // Both cleared together, so the card cannot come back in a tab that was
+        // open while another one answered.
+        this.sampleQuestion = null;
+        this.sampleDeps = undefined;
+        this.pushStateNow();
+      },
+    };
+  }
+
+  /**
    * Something a routine did, or could not do.
    *
    * It goes in the feed rather than a log file: unattended work that failed
@@ -344,7 +381,12 @@ export class SocketHub {
     this.push({
       type: "state",
       seq: 0,
-      state: await collectState(this.options.office, undefined, this.scheduler),
+      state: await collectState(
+        this.options.office,
+        undefined,
+        this.scheduler,
+        this.sampleQuestion,
+      ),
     });
   }
 

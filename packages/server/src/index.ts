@@ -25,11 +25,12 @@ import {
 } from "./auth.js";
 import { boot } from "./boot.js";
 import { DEMO_BANNER, setDemoSpeed } from "./demo/demo.js";
+import { sampleQuestion, shouldAskAboutSamples } from "./demo/leave.js";
 import { boundaryOf, firstFilePart } from "./http/multipart.js";
 import { resolveBrainPath } from "./http/paths.js";
 import { MAX_UPLOAD_BYTES, storeUpload } from "./http/upload.js";
 import { say } from "./log.js";
-import { Scheduler } from "./scheduler/scheduler.js";
+import { readSampleAnswer, recordSampleAnswer, Scheduler } from "./scheduler/scheduler.js";
 import { OfficeWatchers } from "./watch/index.js";
 import { SocketHub } from "./ws/socket.js";
 
@@ -370,6 +371,30 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   }
 
   if (office.mode === "demo") say(DEMO_BANNER);
+
+  /*
+   * SR-066: the office is real now, so ask about the sample business once.
+   *
+   * Asked at boot rather than on the set_key message, because that is when it
+   * is actually true. A key pasted into Settings goes to `.env` and is read at
+   * start-up, so the office somebody is looking at when they paste one is still
+   * the demo; the live office is the one they open next. Hooking the message
+   * instead would put the question on the wrong screen and, worse, offer to
+   * clear out an office that at that moment has nothing else in it.
+   */
+  const brainDir = join(options.officeDir, office.config.brain.dir);
+  if (
+    shouldAskAboutSamples({
+      mode: office.mode,
+      answered: readSampleAnswer(options.officeDir) !== undefined,
+      brainDir,
+    })
+  ) {
+    hub.askAboutSamples(sampleQuestion(office.roster.officeName), {
+      brainDir,
+      record: (answer) => recordSampleAnswer(options.officeDir, answer),
+    });
+  }
 
   if (options.host !== undefined && options.host !== "127.0.0.1") {
     say(noAccountsWarning(host, port));

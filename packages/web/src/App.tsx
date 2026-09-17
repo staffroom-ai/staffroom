@@ -84,6 +84,7 @@ export function App(): ReactElement {
   const [dropping, setDropping] = useState(false);
   const [graph, setGraph] = useState<BrainGraph | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [samplesBusy, setSamplesBusy] = useState(false);
   const [view, setView] = useState<View>(() =>
     viewFor(typeof window === "undefined" ? 1440 : window.innerWidth, rememberedView()),
   );
@@ -573,6 +574,15 @@ export function App(): ReactElement {
             states={keyStates}
             routines={state.routines}
             routineActions={routineActions}
+            sampleQuestion={state.sampleQuestion}
+            sampleBusy={samplesBusy}
+            onAnswerSamples={(remove) => {
+              // Left busy until the server answers: the card disappears when
+              // the next snapshot arrives with no question in it, which is the
+              // office confirming rather than the browser assuming.
+              setSamplesBusy(true);
+              socket?.send({ type: "demo.samples", reqId: reqId(), remove });
+            }}
             onClose={() => setSettingsOpen(false)}
             onSave={(provider, value) => {
               const id = reqId();

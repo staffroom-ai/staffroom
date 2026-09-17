@@ -38,7 +38,7 @@ export { BrainIndex } from "./brain/index.js";
 export type { Link, LinkKind, Resolver } from "./brain/links.js";
 export { buildResolver, linksFrom, resolveTarget } from "./brain/links.js";
 export type { ParseOptions } from "./brain/parse.js";
-export { isSkipped, noteIdFor, parseNote, weightFor } from "./brain/parse.js";
+export { frontMatterOf, isSkipped, noteIdFor, parseNote, weightFor } from "./brain/parse.js";
 export type {
   BrainNoteRecord,
   BrainSearchHit,
@@ -48,7 +48,13 @@ export type {
   ParsedNote,
 } from "./brain/types.js";
 export type { WriteDeliverableInput, WrittenNote } from "./brain/write.js";
-export { DELIVERABLES_ROOT, markRejected, slugify, writeDeliverable } from "./brain/write.js";
+export {
+  DELIVERABLES_ROOT,
+  markRejected,
+  slugify,
+  unpinned,
+  writeDeliverable,
+} from "./brain/write.js";
 export type { AgentConfig, AgentsFile } from "./config/agents.js";
 // Config
 export {

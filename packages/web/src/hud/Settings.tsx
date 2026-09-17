@@ -108,11 +108,53 @@ function Row({
   );
 }
 
+/**
+ * The one-off question about the sample business.
+ *
+ * Two plain buttons and no default focus. It is the only destructive-sounding
+ * thing on this screen, and a card that can be dismissed by pressing Enter on
+ * the way past is not asking a question, it is collecting a keystroke.
+ *
+ * "Keep them" is a real answer, not a dismissal: the office writes it down and
+ * stops asking either way, which is the difference between a choice and a
+ * reminder that comes back.
+ */
+function SampleCard({
+  question,
+  busy,
+  onAnswer,
+}: {
+  question: string;
+  busy: boolean;
+  onAnswer: (remove: boolean) => void;
+}): ReactElement {
+  return (
+    <section className="setting-row sample-card" aria-label="Sample content">
+      <p className="sample-question">{question}</p>
+      <p className="setting-note">
+        They move to 90-archive/_sample/ in your office folder, so your staff stop reading them.
+        Nothing is deleted from disk.
+      </p>
+      <div className="sample-actions">
+        <button type="button" className="btn" disabled={busy} onClick={() => onAnswer(true)}>
+          {busy ? "Removing…" : "Remove them"}
+        </button>
+        <button type="button" className="btn-quiet" disabled={busy} onClick={() => onAnswer(false)}>
+          Keep them
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function Settings({
   mode,
   states,
   routines,
   routineActions,
+  sampleQuestion,
+  sampleBusy,
+  onAnswerSamples,
   onSave,
   onClose,
 }: {
@@ -120,6 +162,10 @@ export function Settings({
   states: Record<string, SaveState>;
   routines: RoutineView[];
   routineActions: Omit<RoutinesProps, "routines">;
+  /** SR-066: the open question, or null once it has been answered. */
+  sampleQuestion?: string | null;
+  sampleBusy?: boolean;
+  onAnswerSamples?: (remove: boolean) => void;
   onSave: (providerId: string, value: string) => void;
   onClose: () => void;
 }): ReactElement {
@@ -147,6 +193,18 @@ export function Settings({
             it will do the real thing.
           </p>
         )}
+
+        {/* Above the key fields, because it is about the office they are looking
+            at now rather than the one they are configuring next. */}
+        {sampleQuestion !== null &&
+          sampleQuestion !== undefined &&
+          onAnswerSamples !== undefined && (
+            <SampleCard
+              question={sampleQuestion}
+              busy={sampleBusy === true}
+              onAnswer={onAnswerSamples}
+            />
+          )}
 
         {PROVIDERS.map((provider) => (
           <Row

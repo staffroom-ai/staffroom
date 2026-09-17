@@ -386,6 +386,27 @@ export class SqliteRunStore implements RunStore {
     );
   }
 
+  /**
+   * Removes the runs that came with the template, and their events.
+   *
+   * The only thing in this file anybody is allowed to delete. Everything else
+   * here is the owner's own history and is kept forever; these are somebody
+   * else's, shipped so the office had something to show on the first morning.
+   *
+   * Anything pending is written out first, so a chunk still sitting in the
+   * buffer cannot land after the delete and leave an event with no run.
+   */
+  deleteSamples(): Promise<number> {
+    this.flush();
+    const removed = this.db.transaction(() => {
+      this.db
+        .prepare("DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE sample = 1)")
+        .run();
+      return this.db.prepare("DELETE FROM runs WHERE sample = 1").run().changes;
+    })();
+    return Promise.resolve(removed);
+  }
+
   subscribe(fn: (e: RunEventEnvelope) => void): () => void {
     this.subscribers.add(fn);
     return () => this.subscribers.delete(fn);

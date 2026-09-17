@@ -118,4 +118,10 @@ export interface OfficeState {
   routines: RoutineView[];
   /** Last five, newest first. */
   latestDeliverables: DeliverableSummary[];
+  /**
+   * The one-off question about the template's own notes and runs, or null once
+   * it has been answered. Full sentence rather than a flag, because the office
+   * it names is the part that makes it answerable.
+   */
+  sampleQuestion: string | null;
 }

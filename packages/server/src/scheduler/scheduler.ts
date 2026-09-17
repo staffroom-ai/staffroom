@@ -37,9 +37,21 @@ export const TICK_MS = 30_000;
  */
 export const SLEEP_GAP_MS = 90_000;
 
+/** What the owner said when asked about the template's own notes and runs. */
+export type SampleAnswer = "removed" | "kept";
+
 export interface SchedulerState {
   /** Per routine id, when it was last considered. */
   lastRunAt: Record<string, number>;
+  /**
+   * What the owner said to the sample-content question, if they have been asked.
+   *
+   * It lives here rather than in a file of its own because this is already the
+   * office's note-to-self about things it has done: not configuration, nothing
+   * to edit, and safe to delete at the cost of being asked once more. Absent
+   * means the question is still open.
+   */
+  sampleContent?: SampleAnswer;
 }
 
 export function schedulerStatePath(officeDir: string): string {
@@ -51,7 +63,14 @@ export function readSchedulerState(officeDir: string): SchedulerState {
   if (!existsSync(path)) return { lastRunAt: {} };
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as SchedulerState;
-    return { lastRunAt: parsed?.lastRunAt ?? {} };
+    // Listed field by field rather than spread, so a stray key somebody typed
+    // in cannot become state the office starts believing.
+    return {
+      lastRunAt: parsed?.lastRunAt ?? {},
+      ...(parsed?.sampleContent === "removed" || parsed?.sampleContent === "kept"
+        ? { sampleContent: parsed.sampleContent }
+        : {}),
+    };
   } catch {
     // A corrupt mark means the office does not know what it missed. Treating
     // that as "nothing" is the safe answer: better a skipped summary than a
@@ -64,6 +83,24 @@ export function writeSchedulerState(officeDir: string, state: SchedulerState): v
   const path = schedulerStatePath(officeDir);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(state, null, 2), "utf8");
+}
+
+/** The recorded answer, or undefined while the question is still open. */
+export function readSampleAnswer(officeDir: string): SampleAnswer | undefined {
+  return readSchedulerState(officeDir).sampleContent;
+}
+
+/**
+ * Writes the answer down, keeping everything else in the file.
+ *
+ * Read-modify-write rather than a fresh object: the routine marks in here are
+ * what stop a week of missed summaries arriving at once, and losing them to
+ * record a yes or no would be a bad trade for a question about sample text.
+ */
+export function recordSampleAnswer(officeDir: string, answer: SampleAnswer): void {
+  const state = readSchedulerState(officeDir);
+  state.sampleContent = answer;
+  writeSchedulerState(officeDir, state);
 }
 
 export interface SchedulerOptions {

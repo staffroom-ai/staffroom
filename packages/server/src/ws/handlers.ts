@@ -6,8 +6,9 @@
  */
 import type { Office, RunError } from "@staffroom/core";
 import { RunError as CoreRunError } from "@staffroom/core";
+import { leaveDemo } from "../demo/leave.js";
 import { idFromLabel, RoutineSchema, removeRoutine, upsertRoutine } from "../scheduler/routines.js";
-import type { Scheduler } from "../scheduler/scheduler.js";
+import type { SampleAnswer, Scheduler } from "../scheduler/scheduler.js";
 import type { ClientMessage } from "./protocol.js";
 import { NOT_YET, NOT_YET_HINT } from "./protocol.js";
 
@@ -56,6 +57,14 @@ export function splitRevise(text: string): { isRevise: boolean; instructions: st
  */
 export interface Handlers {
   scheduler?: Scheduler | undefined;
+  /** SR-066: present only while the sample-content question is open. */
+  samples?:
+    | {
+        brainDir: string;
+        /** Writes the answer down and stops the office asking again. */
+        record(answer: SampleAnswer): void;
+      }
+    | undefined;
 }
 
 const noScheduler = (): HandlerResult => ({
@@ -259,6 +268,55 @@ export async function handle(
         }
         // Deliberately no echo: the key must not travel back to the browser.
         return { ok: true, result: { provider: message.provider, stored: true } };
+      }
+
+      /*
+       * SR-066: yes or no to Northlight Studio.
+       *
+       * The answer is recorded either way and before anything is reported, so
+       * an office that crashes halfway through the move does not come back and
+       * ask again. Being asked twice is worse than a handful of sample notes
+       * left in an archive folder nobody reads.
+       */
+      case "demo.samples": {
+        const samples = deps.samples;
+        if (samples === undefined) {
+          // Already answered, or never asked. Not an error: two tabs are both
+          // showing the card, and the second click should be a quiet no-op
+          // rather than a red banner about something that already happened.
+          return { ok: true, result: { removed: 0, kept: true } };
+        }
+
+        if (!message.remove) {
+          samples.record("kept");
+          return { ok: true, result: { notesMoved: 0, runsDeleted: 0, kept: true } };
+        }
+
+        const result = await leaveDemo({ brainDir: samples.brainDir, store: office.store });
+        samples.record("removed");
+
+        if (result.failed.length > 0) {
+          // Reported rather than swallowed, and by name: a note that would not
+          // move is one the owner will still see in search tomorrow, and the
+          // only person who can do anything about it is them.
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: `Moved ${result.notesMoved}, but could not move ${result.failed.join(", ")}.`,
+              hint: "Check the file permissions in your office's brain folder.",
+            },
+          };
+        }
+
+        return {
+          ok: true,
+          result: {
+            notesMoved: result.notesMoved,
+            runsDeleted: result.runsDeleted,
+            kept: false,
+          },
+        };
       }
 
       // SR-058: which agents may use a tool, without editing YAML by hand.

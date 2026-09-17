@@ -96,9 +96,15 @@ export function TopBar({
           type="button"
           className="meta-item meta-button"
           onClick={onSettings}
-          title="Connect a model"
+          title={
+            state.sampleQuestion === null ? "Connect a model" : "There is a question in Settings"
+          }
         >
           {state.defaultModel ?? "No model"}
+          {/* SR-066: a question asked once and only inside a panel nobody has
+              opened is a question nobody was asked. The dot is decoration; the
+              button's own title is what a screen reader reads. */}
+          {state.sampleQuestion !== null && <span className="meta-dot" aria-hidden="true" />}
         </button>
       </div>
 

@@ -99,7 +99,29 @@ export function parseNote(options: ParseOptions): ParsedNote {
   };
 }
 
-/** Folders and files the index never looks at. */
+/**
+ * Just the front matter of a note, or undefined when it will not parse.
+ *
+ * For the callers that need to know one thing about a file — is this the
+ * template's own content? — without paying for the body, the hash and the
+ * warnings that `parseNote` produces.
+ */
+export function frontMatterOf(text: string): Partial<NoteFrontMatter> | undefined {
+  try {
+    return matter(text).data as Partial<NoteFrontMatter>;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Folders and files the index never looks at.
+ *
+ * `_sample` is where the template's own notes go when the owner says they have
+ * seen enough of Northlight Studio. Skipped rather than deleted: they asked for
+ * them out of the way, not destroyed, and a folder they can open and read is a
+ * kinder answer than a file that is gone.
+ */
 export function isSkipped(relativePath: string): boolean {
   const parts = relativePath.split("\\").join("/").split("/");
   return parts.some(
@@ -107,6 +129,7 @@ export function isSkipped(relativePath: string): boolean {
       part.startsWith(".") ||
       part === "_attachments" ||
       part === "_private" ||
+      part === "_sample" ||
       (i === parts.length - 1 && !part.toLowerCase().endsWith(".md")),
   );
 }

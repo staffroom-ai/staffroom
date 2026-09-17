@@ -57,6 +57,8 @@ export type ClientMessage =
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
   | { type: "tools.assign"; reqId: string; name: string; agentIds: string[] }
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
+  /** SR-066: yes or no to the template's own notes and runs. */
+  | { type: "demo.samples"; reqId: string; remove: boolean }
   | { type: "ping"; reqId: string };
 
 export type ServerMessage =

@@ -40,6 +40,8 @@ export interface BuildStateOptions {
   activeRuns: Run[];
   approvals: PendingApprovalView[];
   deliverables: DeliverableSummary[];
+  /** SR-066: set only while the sample-content question is still open. */
+  sampleQuestion?: string | undefined;
   now?: Date;
   /** Absent in an office that is not running routines; the list is then empty. */
   scheduler?: { status(): RoutineStatus[] } | undefined;
@@ -220,6 +222,7 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
     approvals,
     routines,
     latestDeliverables: deliverables,
+    sampleQuestion: options.sampleQuestion ?? null,
   };
 }
 
@@ -230,6 +233,7 @@ export async function collectState(
   office: Office,
   now?: Date,
   scheduler?: { status(): RoutineStatus[] },
+  sampleQuestion?: string | null,
 ): Promise<OfficeState> {
   const activeRuns = await office.store.list({
     status: ["queued", "running", "waiting_approval"],
@@ -280,5 +284,6 @@ export async function collectState(
     deliverables,
     ...(now === undefined ? {} : { now }),
     ...(scheduler === undefined ? {} : { scheduler }),
+    ...(sampleQuestion === undefined || sampleQuestion === null ? {} : { sampleQuestion }),
   });
 }

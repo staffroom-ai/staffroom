@@ -155,6 +155,8 @@ export interface RunStore {
   list(filter: RunListFilter): Promise<Run[]>;
   lastDeliverable(agentId: string): Promise<{ run: Run; deliverable: Deliverable } | null>;
   pendingApprovals(): Promise<PendingApproval[]>;
+  /** Drops the template's own runs. Returns how many went. Nothing else is ever deleted. */
+  deleteSamples(): Promise<number>;
   subscribe(fn: (e: RunEventEnvelope) => void): () => void;
   close(): void;
 }

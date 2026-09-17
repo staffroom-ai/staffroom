@@ -92,13 +92,39 @@ export function writeDeliverable(brainDir: string, input: WriteDeliverableInput)
   return { id: `${DELIVERABLES_ROOT}/${input.department}/${name}`, path, frontMatter };
 }
 
+/**
+ * Clears `pinned` on a note, leaving the rest of the file as it was.
+ *
+ * Returns the text unchanged when it was not pinned, so a caller can tell
+ * whether anything needs writing and leave the file's mtime alone if not.
+ */
+export function unpinned(text: string): string {
+  try {
+    const parsed = matter(text);
+    // Copied, never mutated in place. gray-matter caches by content and hands
+    // the same `data` object back for identical input, so editing it would edit
+    // every other note that happens to read the same — which two offices on one
+    // machine from the same template do, every time.
+    const data = { ...(parsed.data as Partial<NoteFrontMatter>) };
+    if (data.pinned !== true) return text;
+    data.pinned = false;
+    return `---\n${stringify(data).trimEnd()}\n---\n\n${parsed.content.trim()}\n`;
+  } catch {
+    // Front matter that will not round-trip is left exactly as the owner wrote
+    // it. Losing their text to tidy one flag would be a poor trade.
+    return text;
+  }
+}
+
 /** Flips a draft to rejected and changes nothing else about the file. */
 export function markRejected(brainDir: string, noteId: string): boolean {
   const path = join(brainDir, `${noteId}.md`);
   if (!existsSync(path)) return false;
   try {
     const parsed = matter(readFileSync(path, "utf8"));
-    const data = parsed.data as Partial<NoteFrontMatter>;
+    // Copied for the same reason as in `unpinned` above: gray-matter's cache
+    // shares one `data` object between identical files.
+    const data = { ...(parsed.data as Partial<NoteFrontMatter>) };
     if (data.status !== "draft") return false;
     data.status = "rejected";
     mkdirSync(dirname(path), { recursive: true });
