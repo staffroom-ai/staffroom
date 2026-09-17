@@ -11,10 +11,12 @@ import type {
   BrainGraphEdge,
   BrainGraphNode,
   ConfigError,
+  ModelInfo,
   OfficeState,
   RunErrorCode,
   RunEventEnvelope,
 } from "@staffroom/core";
+import type { DoctorCheck } from "../doctor/index.js";
 import type { RoutineInput } from "../scheduler/routines.js";
 
 export const PROTOCOL_VERSION = 1;
@@ -98,6 +100,19 @@ export type ClientMessage =
    * choosing to keep the sample office and somebody being nagged about it.
    */
   | { type: "demo.samples"; reqId: string; remove: boolean }
+  /**
+   * SR-067: run the same checks `npx staffroom doctor` runs.
+   *
+   * No `fix` field. Doctor's `--fix` writes to the owner's files, and a button
+   * in a browser tab is the wrong place to offer that without saying exactly
+   * what it would change; the terminal command already asks for it explicitly.
+   */
+  | { type: "doctor.run"; reqId: string }
+  /** SR-067: take back one permission, by the key the list showed. */
+  | { type: "approvals.revoke"; reqId: string; key: string }
+  /** SR-067: what each configured provider says it can run today. */
+  | { type: "models.list"; reqId: string }
+  | { type: "agents.set_default_model"; reqId: string; model: string }
   | { type: "office.reload"; reqId: string }
   | { type: "ping"; reqId: string };
 
@@ -131,6 +146,27 @@ export type ServerMessage =
       runId: string;
       events: RunEventEnvelope[];
       done: boolean;
+    }
+  | {
+      type: "doctor.result";
+      reqId: string;
+      seq: number;
+      checks: DoctorCheck[];
+      ok: boolean;
+    }
+  /**
+   * What each provider answered, and what it could not.
+   *
+   * A provider that failed is a row with an `error`, not a missing row. A list
+   * that silently dropped the one provider whose key is wrong would be a list
+   * that says "you have no Anthropic models" when the truth is "your key was
+   * refused" — the same screen the owner would go to in order to fix it.
+   */
+  | {
+      type: "models.result";
+      reqId: string;
+      seq: number;
+      providers: { id: string; models: ModelInfo[]; error?: string }[];
     }
   | { type: "config.error"; seq: number; errors: ConfigError[] }
   | {

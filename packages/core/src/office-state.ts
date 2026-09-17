@@ -101,6 +101,28 @@ export interface DeliverableSummary {
   runId: string;
 }
 
+/**
+ * A permission the owner already gave, as the list shows it.
+ *
+ * `lastUsed` is the field that makes the list worth reading. "Allowed six weeks
+ * ago, never used" is a row to take back; "used an hour ago" is the office
+ * doing its job. A list of grants with no usage is a list nobody can act on.
+ */
+export interface WhitelistRow {
+  /** Identity, for revoking exactly this row and no other. */
+  key: string;
+  agentId: string;
+  agentName: string | null;
+  tool: string;
+  /** The field patterns this permission is pinned to. Empty means any input. */
+  match: Record<string, string>;
+  granted: string;
+  expires: string | null;
+  lastUsed: string | null;
+  /** The tool changed since this was granted, so the owner is asked again. */
+  suspended: boolean;
+}
+
 export interface OfficeState {
   version: 1;
   mode: "live" | "demo";
@@ -118,6 +140,8 @@ export interface OfficeState {
   routines: RoutineView[];
   /** Last five, newest first. */
   latestDeliverables: DeliverableSummary[];
+  /** SR-067: permissions already given, newest first. */
+  whitelist: WhitelistRow[];
   /**
    * The one-off question about the template's own notes and runs, or null once
    * it has been answered. Full sentence rather than a flag, because the office

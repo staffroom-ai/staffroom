@@ -6,9 +6,16 @@
  * The field is write-only on purpose: an office that can display your key is an
  * office that can leak it.
  */
-import type { RoutineView } from "@staffroom/core";
+import type { RoutineView, WhitelistRow } from "@staffroom/core";
 import { type ReactElement, useEffect, useState } from "react";
 import { Routines, type RoutinesProps } from "./Routines.js";
+import {
+  DefaultModel,
+  Doctor,
+  type DoctorState,
+  type ModelsState,
+  Whitelist,
+} from "./SettingsSections.js";
 
 export interface ProviderRow {
   id: string;
@@ -149,16 +156,28 @@ function SampleCard({
 
 export function Settings({
   mode,
+  defaultModel,
   states,
   routines,
   routineActions,
   sampleQuestion,
   sampleBusy,
   onAnswerSamples,
+  whitelist,
+  revoking,
+  onRevoke,
+  doctor,
+  onRunDoctor,
+  models,
+  savingModel,
+  onLoadModels,
+  onChooseModel,
   onSave,
   onClose,
 }: {
   mode: "live" | "demo";
+  /** What agents.yaml currently says, so the select opens on the real value. */
+  defaultModel?: string | null;
   states: Record<string, SaveState>;
   routines: RoutineView[];
   routineActions: Omit<RoutinesProps, "routines">;
@@ -166,6 +185,16 @@ export function Settings({
   sampleQuestion?: string | null;
   sampleBusy?: boolean;
   onAnswerSamples?: (remove: boolean) => void;
+  /** SR-067: permissions already given. */
+  whitelist?: WhitelistRow[];
+  revoking?: string | null;
+  onRevoke?: (key: string) => void;
+  doctor?: DoctorState;
+  onRunDoctor?: () => void;
+  models?: ModelsState;
+  savingModel?: boolean;
+  onLoadModels?: () => void;
+  onChooseModel?: (model: string) => void;
   onSave: (providerId: string, value: string) => void;
   onClose: () => void;
 }): ReactElement {
@@ -223,10 +252,41 @@ export function Settings({
           The office reads keys when it starts, so restart it to begin using one.
         </p>
 
+        {/* The model everybody uses unless their own row says otherwise. Under
+            the keys, because it is the next thing you do after pasting one. */}
+        {models !== undefined && onLoadModels !== undefined && onChooseModel !== undefined && (
+          <>
+            <h3 className="settings-heading">Default model</h3>
+            <DefaultModel
+              current={defaultModel ?? null}
+              state={models}
+              saving={savingModel === true}
+              onLoad={onLoadModels}
+              onChoose={onChooseModel}
+            />
+          </>
+        )}
+
         {/* Unattended work is the part of this that happens while nobody is
             looking, so it is listed where somebody can turn it off. */}
         <h3 className="settings-heading">Routines</h3>
         <Routines routines={routines} {...routineActions} />
+
+        {/* Standing permissions sit next to routines on purpose: between them
+            they are everything the office can do while nobody is watching. */}
+        {whitelist !== undefined && onRevoke !== undefined && (
+          <>
+            <h3 className="settings-heading">Standing permissions</h3>
+            <Whitelist rows={whitelist} busy={revoking ?? null} onRevoke={onRevoke} />
+          </>
+        )}
+
+        {doctor !== undefined && onRunDoctor !== undefined && (
+          <>
+            <h3 className="settings-heading">Checks</h3>
+            <Doctor state={doctor} onRun={onRunDoctor} />
+          </>
+        )}
       </div>
     </aside>
   );

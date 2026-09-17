@@ -31,6 +31,7 @@ import {
   refreshAgents,
   renameAgent,
   revealNote,
+  setDefaultModel,
   setProviderKey,
 } from "./office-edits.js";
 import { Runner } from "./runner.js";
@@ -57,6 +58,7 @@ export interface Office {
   /** Edits to the owner's own files, made through the document API. */
   renameAgent(agentId: string, name: string): boolean;
   assignTool(agentId: string, tool: string): boolean;
+  setDefaultModel(model: string): boolean;
   setProviderKey(provider: string, key: string): boolean;
   revealNote(noteId: string, app?: string): boolean;
   close(): void;
@@ -359,6 +361,11 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     },
     assignTool: (agentId: string, tool: string) => {
       if (!assignTool(officeDir, agentId, tool)) return false;
+      refreshAgents(officeDir, agentsFile);
+      return true;
+    },
+    setDefaultModel: (model: string) => {
+      if (!setDefaultModel(officeDir, model)) return false;
       refreshAgents(officeDir, agentsFile);
       return true;
     },

@@ -17,12 +17,14 @@ import type {
   PendingApprovalView,
   RoutineView,
   Run,
+  WhitelistRow,
 } from "@staffroom/core";
 import {
   type McpState,
   modelStatusFor,
   redactSecrets,
   resolveModel,
+  rowKey,
   webSearchStatus,
 } from "@staffroom/core";
 import type { RoutineStatus } from "../scheduler/scheduler.js";
@@ -61,6 +63,31 @@ const MCP_HEALTH: Record<McpState, Connector["health"]> = {
   needs_auth: "auth_required",
   stopped: "grey",
 };
+
+/**
+ * The permissions the owner has already given, newest first.
+ *
+ * Read from the whitelist on every snapshot rather than cached, because the
+ * file is the owner's: they can open approvals.yaml and delete a row, the
+ * watcher reloads it, and the list they are looking at has to agree with the
+ * file they just edited.
+ */
+function whitelistRows(office: Office): WhitelistRow[] {
+  return office.whitelist
+    .list()
+    .map((row) => ({
+      key: rowKey(row),
+      agentId: row.agent,
+      agentName: office.roster.agent(row.agent)?.name ?? null,
+      tool: row.tool,
+      match: row.match ?? {},
+      granted: row.granted,
+      expires: row.expires ?? null,
+      lastUsed: row.last_used ?? null,
+      suspended: row.suspended === true,
+    }))
+    .sort((a, b) => Date.parse(b.granted) - Date.parse(a.granted));
+}
 
 export function buildOfficeState(options: BuildStateOptions): OfficeState {
   const { office, activeRuns, approvals, deliverables } = options;
@@ -222,6 +249,7 @@ export function buildOfficeState(options: BuildStateOptions): OfficeState {
     approvals,
     routines,
     latestDeliverables: deliverables,
+    whitelist: whitelistRows(office),
     sampleQuestion: options.sampleQuestion ?? null,
   };
 }

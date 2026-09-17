@@ -59,7 +59,27 @@ export type ClientMessage =
   | { type: "demo.speed"; reqId: string; factor: 1 | 2 | 4 }
   /** SR-066: yes or no to the template's own notes and runs. */
   | { type: "demo.samples"; reqId: string; remove: boolean }
+  /** SR-067: the same checks `npx staffroom doctor` runs. */
+  | { type: "doctor.run"; reqId: string }
+  | { type: "approvals.revoke"; reqId: string; key: string }
+  | { type: "models.list"; reqId: string }
+  | { type: "agents.set_default_model"; reqId: string; model: string }
   | { type: "ping"; reqId: string };
+
+/**
+ * One doctor check, as the table shows it.
+ *
+ * Declared here rather than imported from the server: the browser talks to the
+ * office over a socket and does not depend on the server package, so the shape
+ * that crosses the wire is written down on both sides.
+ */
+export interface DoctorCheck {
+  id: string;
+  status: "ok" | "warn" | "fail";
+  message: string;
+  hint?: string;
+  fixed?: boolean;
+}
 
 export type ServerMessage =
   | {
@@ -109,6 +129,13 @@ export type ServerMessage =
     }
   | { type: "brain.results"; reqId: string; seq: number; hits: unknown[] }
   | { type: "brain.graph"; reqId: string; seq: number; graph: BrainGraph }
+  | { type: "doctor.result"; reqId: string; seq: number; checks: DoctorCheck[]; ok: boolean }
+  | {
+      type: "models.result";
+      reqId: string;
+      seq: number;
+      providers: { id: string; models: { id: string; created?: string }[]; error?: string }[];
+    }
   | { type: "brain.note.indexed"; seq: number; node: BrainGraphNode; edges: BrainGraphEdge[] }
   | {
       type: "brain.note.removed";

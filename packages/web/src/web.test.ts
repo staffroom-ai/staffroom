@@ -70,6 +70,7 @@ const state = (over: Partial<OfficeState> = {}): OfficeState => ({
   approvals: [],
   routines: [],
   latestDeliverables: [],
+  whitelist: [],
   sampleQuestion: null,
   ...over,
 });

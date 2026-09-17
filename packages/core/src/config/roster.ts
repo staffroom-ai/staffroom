@@ -138,6 +138,19 @@ export class RosterWriter {
     return true;
   }
 
+  /**
+   * Sets the office-wide default model.
+   *
+   * Top level rather than per agent: this is the model everybody uses unless
+   * their own row says otherwise, and changing it must not quietly overwrite the
+   * choices somebody made for individual staff.
+   */
+  setDefaultModel(model: string): boolean {
+    if (this.doc.get("default_model") === model) return false;
+    this.doc.set("default_model", model);
+    return true;
+  }
+
   addTool(agentId: string, tool: string): boolean {
     const found = this.agentNode(agentId);
     if (!found) return false;

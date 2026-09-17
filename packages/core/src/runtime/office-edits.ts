@@ -54,6 +54,11 @@ export function renameAgent(officeDir: string, agentId: string, name: string, by
   return editRoster(officeDir, (writer) => writer.setName(agentId, name, by, on));
 }
 
+/** The model everybody uses unless their own row says otherwise. */
+export function setDefaultModel(officeDir: string, model: string): boolean {
+  return editRoster(officeDir, (writer) => writer.setDefaultModel(model));
+}
+
 export function assignTool(officeDir: string, agentId: string, tool: string): boolean {
   return editRoster(officeDir, (writer) => writer.addTool(agentId, tool));
 }

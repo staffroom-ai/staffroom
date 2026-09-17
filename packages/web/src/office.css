@@ -2463,3 +2463,93 @@ body::before {
   font: 600 14px / 1.2 var(--ui);
   color: var(--ink);
 }
+
+/* ── SR-067: standing permissions, checks, default model ─────────────────── */
+
+.allow-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.allow-row {
+  padding: 10px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+/* A suspended row still applies to nothing, so it reads as waiting rather than
+   as a live permission. */
+.allow-row.is-suspended {
+  border-color: var(--warning);
+}
+
+.allow-what {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.allow-tool {
+  font: 600 13px / 1.3 var(--mono, var(--ui));
+  color: var(--ink);
+}
+
+.allow-who {
+  font: 400 12px / 1.3 var(--ui);
+  color: var(--ink-2);
+}
+
+.allow-row .btn-quiet {
+  margin-top: 8px;
+}
+
+.doctor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* Wide content scrolls in its own box rather than pushing the panel sideways. */
+.doctor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 12px / 1.45 var(--ui);
+  display: block;
+  overflow-x: auto;
+}
+
+.doctor-table td {
+  padding: 6px 10px 6px 0;
+  border-top: 1px solid var(--hairline);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+
+.doctor-status {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.doctor-id {
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+.doctor-ok .doctor-status {
+  color: var(--ok);
+}
+
+.doctor-warn .doctor-status {
+  color: var(--warning);
+}
+
+.doctor-fail .doctor-status {
+  color: var(--danger);
+}

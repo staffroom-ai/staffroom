@@ -371,6 +371,33 @@ describe("RosterWriter keeps the file the owner's", () => {
     expect(loadRoster(dir).agent("bookkeeper")?.tools).toEqual(["sqlite_query"]);
   });
 
+  it("changes the default model and keeps every comment", () => {
+    const writer = new RosterWriter(agentsYaml);
+    expect(writer.setDefaultModel("anthropic/claude-opus-5")).toBe(true);
+    const out = writer.toString();
+
+    expect(out).toContain("# office/agents.yaml");
+    expect(out).toContain("# model: ollama/llama4               # keep this agent local");
+    const dir = office({ "agents.yaml": out });
+    expect(loadRoster(dir).defaultModel).toBe("anthropic/claude-opus-5");
+  });
+
+  it("leaves each agent's own model alone when the default changes", () => {
+    // The default is what everybody uses unless their row says otherwise, so
+    // changing it must not quietly overwrite the choices made per person.
+    const writer = new RosterWriter(agentsYaml);
+    const before = loadRoster(office()).agent("bookkeeper")?.model;
+    writer.setDefaultModel("anthropic/claude-opus-5");
+
+    const dir = office({ "agents.yaml": writer.toString() });
+    expect(loadRoster(dir).agent("bookkeeper")?.model).toBe(before);
+  });
+
+  it("reports no change when it is already that model", () => {
+    const writer = new RosterWriter(agentsYaml);
+    expect(writer.setDefaultModel("anthropic/claude-sonnet-5")).toBe(false);
+  });
+
   it("reports an unknown agent rather than writing nothing silently", () => {
     const writer = new RosterWriter(agentsYaml);
     expect(writer.setName("nobody", "X", "lead", "2026-09-16")).toBe(false);

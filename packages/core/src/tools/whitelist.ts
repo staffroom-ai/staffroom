@@ -48,8 +48,34 @@ export interface AllowRow {
   fingerprint?: string;
   granted: string;
   expires?: string;
+  /**
+   * When this row last let a call through.
+   *
+   * The one thing that turns a list of permissions into something a person can
+   * act on. "Allowed 40 days ago, never used" is a row to revoke; "used an hour
+   * ago" is the office working. Absent means it has not been used since the
+   * permission was given.
+   */
+  last_used?: string;
   /** Set when the tool changed; the owner is asked again. */
   suspended?: boolean;
+}
+
+/**
+ * A row's identity, for revoking exactly one of them.
+ *
+ * An agent can hold several permissions for the same tool — one per recipient —
+ * and a Revoke button that took away all of them because they share a tool name
+ * would be taking back decisions nobody asked about. The match is part of who
+ * the row is, so it is part of the key.
+ */
+export function rowKey(row: Pick<AllowRow, "agent" | "tool" | "match">): string {
+  const match = row.match ?? {};
+  const fields = Object.keys(match)
+    .sort()
+    .map((field) => `${field}=${match[field]}`)
+    .join(",");
+  return `${row.agent}\u0000${row.tool}\u0000${fields}`;
 }
 
 export interface ApprovalsFile {
@@ -151,7 +177,30 @@ export class FileWhitelist {
     // does not apply to what is in front of us now.
     if (row.fingerprint !== undefined && row.fingerprint !== fingerprint) return false;
 
+    this.markUsed(row);
     return true;
+  }
+
+  /**
+   * Records that a row was used, at most once a minute.
+   *
+   * Written to the file rather than kept in memory, because the question it
+   * answers — "is this permission still earning its place?" — is asked days
+   * later, in a list, and often after a restart. The minute of slack keeps an
+   * agent making twenty calls in a loop from writing the file twenty times; the
+   * answer is being read at day resolution anyway.
+   */
+  private markUsed(row: AllowRow): void {
+    const now = Date.now();
+    const last = row.last_used === undefined ? 0 : Date.parse(row.last_used);
+    if (Number.isFinite(last) && now - last < 60_000) return;
+    row.last_used = new Date(now).toISOString();
+    try {
+      this.write();
+    } catch {
+      // A read-only office folder should not stop work from happening. The
+      // permission still applies; only the note about when is lost.
+    }
   }
 
   /** True when a matching row exists but has been suspended: the card says so. */
@@ -201,6 +250,20 @@ export class FileWhitelist {
     this.rows.push(row);
     this.write();
     return row;
+  }
+
+  /**
+   * Takes back exactly one permission, by the key the list showed.
+   *
+   * Separate from `revoke` below: that one is by agent and tool, which is right
+   * for a tool that has gone away and wrong for a button next to one row.
+   */
+  revokeKey(key: string): boolean {
+    const before = this.rows.length;
+    this.rows = this.rows.filter((row) => rowKey(row) !== key);
+    if (this.rows.length === before) return false;
+    this.write();
+    return true;
   }
 
   revoke(agentId: string, tool: string): number {

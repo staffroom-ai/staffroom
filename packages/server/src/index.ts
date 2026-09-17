@@ -310,7 +310,7 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   };
 
   const wss = new WebSocketServer({ noServer: true });
-  const hub = new SocketHub({ office, token, version: VERSION });
+  const hub = new SocketHub({ office, officeDir: options.officeDir, token, version: VERSION });
   hub.attach(wss);
 
   http.on("upgrade", (request, socket, head) => {

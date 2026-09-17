@@ -6,7 +6,16 @@
  * account of itself; nothing here decides anything on its own.
  */
 import type { BrainGraph } from "@staffroom/core";
-import { lazy, type ReactElement, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  type ReactElement,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { applyIndexed, applyRemoved } from "./graph/patch.js";
 import { acceptsUpload, UPLOAD_REFUSED } from "./graph/style.js";
 import { chainFor, uploadToBrain } from "./graph/upload.js";
@@ -16,6 +25,7 @@ import { NoteSheet } from "./hud/NoteSheet.js";
 import { Rail, type RailTab } from "./hud/Rail.js";
 import { Roster } from "./hud/Roster.js";
 import type { SaveState } from "./hud/Settings.js";
+import type { DoctorState, ModelsState } from "./hud/SettingsSections.js";
 import { StoppedBanner } from "./hud/StoppedBanner.js";
 import { TaskBar } from "./hud/TaskBar.js";
 import { TopBar } from "./hud/TopBar.js";
@@ -85,6 +95,19 @@ export function App(): ReactElement {
   const [graph, setGraph] = useState<BrainGraph | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [samplesBusy, setSamplesBusy] = useState(false);
+  // SR-067: all three are asked for on a click, so none of them is fetched for
+  // somebody who never opens Settings.
+  const [doctor, setDoctor] = useState<DoctorState>({ kind: "idle" });
+  const [models, setModels] = useState<ModelsState>({ kind: "idle" });
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [savingModel, setSavingModel] = useState(false);
+
+  /** Re-enables anything that disabled itself while waiting on the office. */
+  const clearBusy = useCallback((): void => {
+    setRevoking(null);
+    setSavingModel(false);
+    setSamplesBusy(false);
+  }, []);
   const [view, setView] = useState<View>(() =>
     viewFor(typeof window === "undefined" ? 1440 : window.innerWidth, rememberedView()),
   );
@@ -143,6 +166,12 @@ export function App(): ReactElement {
           case "brain.graph":
             setGraph(message.graph);
             break;
+          case "doctor.result":
+            setDoctor({ kind: "done", checks: message.checks, ok: message.ok });
+            break;
+          case "models.result":
+            setModels({ kind: "done", providers: message.providers });
+            break;
           // Patched rather than refetched: a force layout that reruns is a
           // picture that jumps under the cursor of whoever is reading it.
           case "brain.note.indexed":
@@ -165,6 +194,10 @@ export function App(): ReactElement {
             });
             break;
           case "ack": {
+            // Every button that disables itself while the office thinks re-opens
+            // here. A card left disabled after a failure is worse than one that
+            // never disabled at all: nothing on screen says why.
+            clearBusy();
             const provider = keyReqs.current.get(message.reqId);
             if (provider !== undefined) {
               keyReqs.current.delete(message.reqId);
@@ -180,6 +213,7 @@ export function App(): ReactElement {
             break;
           }
           case "error": {
+            clearBusy();
             // A failed key belongs under its own row, not in the rail's error slot.
             const failedReqId = message.reqId;
             if (failedReqId !== undefined) oauthReqs.current.delete(failedReqId);
@@ -201,7 +235,8 @@ export function App(): ReactElement {
         }
       },
     });
-  }, []);
+    // clearBusy never changes identity, so the socket is still opened once.
+  }, [clearBusy]);
 
   useEffect(() => {
     socket?.connect();
@@ -574,6 +609,31 @@ export function App(): ReactElement {
             states={keyStates}
             routines={state.routines}
             routineActions={routineActions}
+            defaultModel={state.defaultModel}
+            whitelist={state.whitelist}
+            revoking={revoking}
+            onRevoke={(key) => {
+              // Cleared by the next snapshot rather than here: the row leaves
+              // the list when the office says it has, which is also what
+              // happens when somebody deletes it from the file by hand.
+              setRevoking(key);
+              socket?.send({ type: "approvals.revoke", reqId: reqId(), key });
+            }}
+            doctor={doctor}
+            onRunDoctor={() => {
+              setDoctor({ kind: "running" });
+              socket?.send({ type: "doctor.run", reqId: reqId() });
+            }}
+            models={models}
+            savingModel={savingModel}
+            onLoadModels={() => {
+              setModels({ kind: "loading" });
+              socket?.send({ type: "models.list", reqId: reqId() });
+            }}
+            onChooseModel={(model) => {
+              setSavingModel(true);
+              socket?.send({ type: "agents.set_default_model", reqId: reqId(), model });
+            }}
             sampleQuestion={state.sampleQuestion}
             sampleBusy={samplesBusy}
             onAnswerSamples={(remove) => {

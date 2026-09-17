@@ -67,6 +67,18 @@ export interface Handlers {
     | undefined;
 }
 
+/**
+ * Is this a model some configured provider could actually run?
+ *
+ * The provider half is checked, not the model half. Asking the provider would
+ * mean a network call on every save, and a provider that is briefly unreachable
+ * would refuse a model the owner picked from its own list a second earlier.
+ */
+function canRun(office: Office, model: string): boolean {
+  const provider = model.split("/")[0] ?? "";
+  return provider.length > 0 && office.providers.has(provider);
+}
+
 const noScheduler = (): HandlerResult => ({
   ok: false,
   error: {
@@ -317,6 +329,56 @@ export async function handle(
             kept: false,
           },
         };
+      }
+
+      /*
+       * SR-067: taking a permission back.
+       *
+       * By key rather than by tool name: an agent can hold several permissions
+       * for the same tool, one per recipient, and a Revoke button that took all
+       * of them because they share a name would be taking back decisions
+       * nobody asked about.
+       *
+       * A row that is already gone answers ok. The owner may have deleted it in
+       * the file — which the office tells them they can do — and the next state
+       * push will show it missing either way.
+       */
+      case "approvals.revoke": {
+        const removed = office.whitelist.revokeKey(message.key);
+        return { ok: true, result: { removed } };
+      }
+
+      /*
+       * SR-067: the model everybody uses unless their own row says otherwise.
+       *
+       * Refused unless a configured provider actually offers it. A select can
+       * only send what it was shown, so a value that is not on offer means a
+       * stale tab or a hand-made message, and either way writing it would put a
+       * model into agents.yaml that nothing can run.
+       */
+      case "agents.set_default_model": {
+        if (!canRun(office, message.model)) {
+          return {
+            ok: false,
+            error: {
+              code: "MODEL_NOT_FOUND",
+              message: `No configured provider offers ${message.model}.`,
+              hint: "Pick one from the list, or add the provider in office/config.yaml.",
+            },
+          };
+        }
+
+        if (office.setDefaultModel?.(message.model) !== true) {
+          return {
+            ok: false,
+            error: {
+              code: "INTERNAL",
+              message: "Could not write the default model to agents.yaml.",
+              hint: "Check the file is there and that you can write to it.",
+            },
+          };
+        }
+        return { ok: true, result: { model: message.model } };
       }
 
       // SR-058: which agents may use a tool, without editing YAML by hand.

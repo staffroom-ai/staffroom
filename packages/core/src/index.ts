@@ -121,6 +121,7 @@ export type {
   OfficeState,
   PendingApprovalView,
   RoutineView,
+  WhitelistRow,
 } from "./office-state.js";
 // Prompt and loop
 export { OUTPUT_CONTRACT, SAFETY_RULE } from "./prompt/safety-rule.js";
@@ -210,6 +211,7 @@ export {
   envKeyFor,
   renameAgent,
   revealNote,
+  setDefaultModel,
   setProviderKey,
 } from "./runtime/office-edits.js";
 export type { BuildPromptOptions, BuiltPrompt, PinnedNote } from "./runtime/prompt.js";
@@ -279,5 +281,6 @@ export {
   approvalsPath,
   FileWhitelist,
   inputMatches,
+  rowKey,
   valueMatches,
 } from "./tools/whitelist.js";

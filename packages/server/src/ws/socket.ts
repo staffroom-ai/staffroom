@@ -12,10 +12,12 @@ import type { ConfigError, Office, RunEventEnvelope } from "@staffroom/core";
 import { buildGraph, detectEditors, noteIndexedDelta, noteRemovedDelta } from "@staffroom/core";
 import type { WebSocket, WebSocketServer } from "ws";
 import { CLOSE_UNAUTHORISED, tokenMatches } from "../auth.js";
+import { runDoctor } from "../doctor/index.js";
 import type { SampleAnswer, Scheduler } from "../scheduler/scheduler.js";
 import { fromNoteWarning, pinnedTruncatedWarning } from "./brain-warnings.js";
 import type { Handlers } from "./handlers.js";
 import { handle } from "./handlers.js";
+import { listProviderModels } from "./models.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { PROTOCOL_VERSION } from "./protocol.js";
 import { collectState } from "./state.js";
@@ -56,6 +58,8 @@ interface Client {
 
 export interface SocketHubOptions {
   office: Office;
+  /** SR-067: doctor reads the folder, not the running office. */
+  officeDir: string;
   token: string;
   version: string;
   /** Overridable so tests do not wait around. */
@@ -187,6 +191,36 @@ export class SocketHub {
         includeReads: message.includeReads === true,
       });
       this.send(client, { type: "brain.graph", reqId: message.reqId, seq: this.next(), graph });
+      return;
+    }
+
+    /*
+     * SR-067: the same checks the terminal command runs, on the same office.
+     *
+     * Straight to `runDoctor` rather than shelling out to the CLI: the CLI is a
+     * printer around this function, and two ways of producing an answer is two
+     * ways for the answers to diverge. Sent only to the tab that asked, for the
+     * same reason as the graph above.
+     */
+    if (message.type === "doctor.run") {
+      const result = await runDoctor({ officeDir: this.options.officeDir });
+      this.send(client, {
+        type: "doctor.result",
+        reqId: message.reqId,
+        seq: this.next(),
+        checks: result.checks,
+        ok: result.ok,
+      });
+      return;
+    }
+
+    if (message.type === "models.list") {
+      this.send(client, {
+        type: "models.result",
+        reqId: message.reqId,
+        seq: this.next(),
+        providers: await listProviderModels(this.options.office),
+      });
       return;
     }
 
