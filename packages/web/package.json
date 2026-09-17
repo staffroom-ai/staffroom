@@ -20,7 +20,8 @@
     "test": "vitest run --passWithNoTests",
     "e2e": "playwright test",
     "size": "size-limit",
-    "prepublishOnly": "node ../../scripts/guard-publish.mjs"
+    "prepublishOnly": "node ../../scripts/guard-publish.mjs",
+    "perf": "playwright test --config playwright.perf.config.ts"
   },
   "publishConfig": {
     "access": "public"

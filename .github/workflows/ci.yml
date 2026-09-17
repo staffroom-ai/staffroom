@@ -160,3 +160,40 @@ jobs:
           name: playwright-trace
           path: packages/web/test-results/
           retention-days: 7
+
+  # SR-072: what the office costs to draw, with thirty-five people in it.
+  #
+  # macOS rather than ubuntu, because a headless Linux runner has no GPU and
+  # would measure a software rasteriser. A frame time from SwiftShader is a
+  # number about the CI machine, not about the scene, and a budget built on one
+  # would fail for reasons nobody could act on.
+  perf:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install Chromium
+        run: pnpm --filter @staffroom/web exec playwright install --with-deps chromium
+      - name: Perf budgets
+        run: pnpm --filter @staffroom/web perf | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: No office left running
+        run: |
+          if pgrep -f "cli/dist/index.js" > /dev/null; then
+            echo "An office survived teardown:"
+            pgrep -af "cli/dist/index.js"
+            exit 1
+          fi
+          echo "Nothing left running."
+      - name: Keep the trace when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-trace
+          path: packages/web/test-results/
+          retention-days: 7

@@ -25,6 +25,7 @@ import {
   type StageBox,
 } from "./camera.js";
 import { Brain, Desks, Ground, PLATE_RADIUS, Pods } from "./Office.js";
+import { PerfProbe } from "./PerfProbe.js";
 
 /**
  * The middle grid column, measured. The camera frames to this rather than to the
@@ -165,6 +166,9 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
       style={{ position: "absolute", inset: 0 }}
     >
       <CameraRig target={target} />
+
+      {/* Silent unless the perf test asked for numbers. See PerfProbe.tsx. */}
+      <PerfProbe />
 
       {/*
         One key light that actually casts, a cool fill so the shadow side is not
