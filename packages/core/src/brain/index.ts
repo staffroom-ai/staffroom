@@ -17,6 +17,7 @@ import type {
   BrainReader,
   BrainSearchOptions,
 } from "../shared/types.js";
+import { cosine, fromBlob, fuse, toBlob } from "./embeddings.js";
 import { buildResolver, type Link, linksFrom } from "./links.js";
 import { isSkipped, noteIdFor, parseNote } from "./parse.js";
 import type {
@@ -28,7 +29,7 @@ import type {
   ParsedNote,
 } from "./types.js";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE notes (
@@ -38,7 +39,16 @@ CREATE TABLE notes (
 );
 CREATE VIRTUAL TABLE notes_fts USING fts5(id UNINDEXED, title, tags, body, tokenize = 'porter unicode61');
 CREATE TABLE links (from_id TEXT NOT NULL, to_id TEXT NOT NULL, kind TEXT NOT NULL, resolved INTEGER NOT NULL, PRIMARY KEY (from_id, to_id, kind));
-CREATE TABLE embeddings (id TEXT PRIMARY KEY, model TEXT NOT NULL, dims INTEGER NOT NULL, vec BLOB NOT NULL);
+-- One row per chunk, not per note: a note is split so that a paragraph about
+-- pricing is not averaged together with one about opening hours. The chunk text
+-- is kept so a vector hit can show the part that matched rather than the note's
+-- opening line, which is usually its title.
+CREATE TABLE embeddings (
+  note_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, text TEXT NOT NULL,
+  model TEXT NOT NULL, dims INTEGER NOT NULL, vec BLOB NOT NULL,
+  PRIMARY KEY (note_id, chunk_index)
+);
+CREATE INDEX embeddings_by_note ON embeddings(note_id);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `;
 
@@ -269,6 +279,161 @@ export class BrainIndex {
   }
 
   /** FTS5 bm25 with title weighted over tags over body, scaled by the note's weight. */
+  /**
+   * Replaces a note's chunks with freshly embedded ones.
+   *
+   * Everything for the note goes first, so a note that shrank does not leave
+   * chunks behind that nothing points at any more.
+   */
+  putEmbeddings(
+    noteId: string,
+    model: string,
+    chunks: Array<{ index: number; text: string; vector: number[] }>,
+  ): void {
+    const write = this.db.transaction(() => {
+      this.db.prepare("DELETE FROM embeddings WHERE note_id = ?").run(noteId);
+      const insert = this.db.prepare(
+        `INSERT INTO embeddings (note_id, chunk_index, text, model, dims, vec)
+         VALUES (@noteId, @chunkIndex, @text, @model, @dims, @vec)`,
+      );
+      for (const c of chunks) {
+        insert.run({
+          noteId,
+          chunkIndex: c.index,
+          text: c.text,
+          model,
+          dims: c.vector.length,
+          vec: toBlob(c.vector),
+        });
+      }
+    });
+    write();
+  }
+
+  /** How many chunks are embedded, and with which model. */
+  embeddingStatus(): { chunks: number; models: string[] } {
+    const row = this.db.prepare("SELECT COUNT(*) AS n FROM embeddings").get() as { n: number };
+    const models = (
+      this.db.prepare("SELECT DISTINCT model FROM embeddings").all() as Array<{ model: string }>
+    ).map((r) => r.model);
+    return { chunks: row.n, models };
+  }
+
+  /**
+   * Throws away every vector not made by this model.
+   *
+   * Two models' vectors are not comparable — different dimensions, and even at
+   * the same size they describe different spaces — so a mixed table would
+   * return confident nonsense. Changing the model in config.yaml therefore
+   * costs a re-embed, and that is the honest price rather than a bug.
+   */
+  invalidateEmbeddings(model: string): number {
+    return this.db.prepare("DELETE FROM embeddings WHERE model != ?").run(model).changes;
+  }
+
+  /** Notes with no chunks for this model, which is what needs embedding next. */
+  notesNeedingEmbedding(model: string): Array<{ id: string; body: string }> {
+    return this.db
+      .prepare(
+        `SELECT n.id, n.body FROM notes n
+         WHERE NOT EXISTS (
+           SELECT 1 FROM embeddings e WHERE e.note_id = n.id AND e.model = ?
+         )
+         ORDER BY n.id`,
+      )
+      .all(model) as Array<{ id: string; body: string }>;
+  }
+
+  /**
+   * The nearest chunks to a query vector, best first.
+   *
+   * Scanned rather than indexed. A brain is thousands of chunks, not millions,
+   * and a full scan of ten thousand 768-dimension vectors is a few
+   * milliseconds — where a vector index would be a second dependency, a second
+   * file format and a second thing to corrupt.
+   */
+  nearest(vector: number[], limit: number): Array<{ noteId: string; text: string; score: number }> {
+    const rows = this.db.prepare("SELECT note_id, text, vec FROM embeddings").all() as Array<{
+      note_id: string;
+      text: string;
+      vec: Buffer;
+    }>;
+
+    const best = new Map<string, { noteId: string; text: string; score: number }>();
+    for (const row of rows) {
+      const score = cosine(vector, fromBlob(row.vec));
+      const seen = best.get(row.note_id);
+      // The best chunk stands for the note. A note is one result to the owner,
+      // and the chunk that matched is the excerpt worth showing them.
+      if (seen === undefined || score > seen.score) {
+        best.set(row.note_id, { noteId: row.note_id, text: row.text, score });
+      }
+    }
+
+    return [...best.values()].sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  /**
+   * Keyword and vector together, fused.
+   *
+   * The query vector is the caller's job, because embedding it is a network
+   * call and the index does not make those. Given one, both searches run and
+   * the rankings are merged; without one this is plain keyword search, which is
+   * what happens when embeddings are off or the provider cannot do them.
+   *
+   * A note found only by meaning keeps the chunk that matched as its excerpt.
+   * Showing the note's first line instead would leave the owner wondering why
+   * it came back at all.
+   */
+  hybridSearch(
+    query: string,
+    queryVector: number[] | undefined,
+    options: BrainSearchOptions & { department?: string } = {},
+  ): BrainSearchHit[] {
+    const limit = options.limit ?? 8;
+    const keyword = this.search(query, { ...options, limit: limit * 2 });
+    if (queryVector === undefined || queryVector.length === 0) return keyword.slice(0, limit);
+
+    const vector = this.nearest(queryVector, limit * 2);
+    if (vector.length === 0) return keyword.slice(0, limit);
+
+    const fused = fuse([
+      keyword.map((hit, i) => ({ id: hit.id, rank: i + 1 })),
+      vector.map((hit, i) => ({ id: hit.noteId, rank: i + 1 })),
+    ]);
+
+    const byId = new Map(keyword.map((hit) => [hit.id, hit]));
+    const chunkFor = new Map(vector.map((hit) => [hit.noteId, hit.text]));
+    const hits: BrainSearchHit[] = [];
+
+    for (const { id, score } of fused) {
+      if (hits.length >= limit) break;
+
+      const known = byId.get(id);
+      if (known !== undefined) {
+        hits.push({ ...known, score });
+        continue;
+      }
+
+      // Found only by meaning, so the row has to be read to be returned.
+      if (options.area !== undefined && !id.startsWith(`${options.area}/`)) continue;
+      const row = this.db.prepare("SELECT * FROM notes WHERE id = ?").get(id) as
+        | NoteRow
+        | undefined;
+      if (row === undefined) continue;
+
+      hits.push({
+        id,
+        title: row.title,
+        score,
+        excerpt: (chunkFor.get(id) ?? row.body).slice(0, 240).trim(),
+        frontMatter: JSON.parse(row.front_matter) as NoteFrontMatter,
+      });
+    }
+
+    return hits;
+  }
+
   search(
     query: string,
     options: BrainSearchOptions & { department?: string } = {},

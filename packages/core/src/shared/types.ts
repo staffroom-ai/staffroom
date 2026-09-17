@@ -60,6 +60,16 @@ export interface BrainSearchOptions {
   area?: string;
   /** Include notes marked private in their front matter. Off by default. */
   includePrivate?: boolean;
+  /**
+   * How to search.
+   *
+   * `keyword` is exact and always available. `hybrid` also asks the embedding
+   * index and fuses the two rankings, which is what finds a note whose words
+   * differ from the question's. Falls back to keyword, silently, when
+   * embeddings are not switched on — a search that refused rather than
+   * answering would be a worse office than one that answered less well.
+   */
+  mode?: "keyword" | "hybrid";
 }
 
 export interface BrainListOptions {

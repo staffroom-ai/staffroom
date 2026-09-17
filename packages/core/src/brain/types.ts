@@ -83,3 +83,14 @@ export interface BrainSearchHit {
 export const HALF_WEIGHT_PREFIXES = ["90-archive/", "inbox/"];
 export const DEFAULT_WEIGHT = 1;
 export const REDUCED_WEIGHT = 0.5;
+
+/**
+ * The part of a provider the brain needs to embed a note.
+ *
+ * Structural rather than the whole adapter, so the index does not depend on the
+ * provider layer and a test can pass a function.
+ */
+export interface EmbeddingProvider {
+  id: string;
+  embed?(texts: string[], model: string): Promise<number[][]>;
+}

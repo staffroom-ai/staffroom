@@ -6,6 +6,19 @@
 
 export const VERSION = "0.2.0";
 
+export type { Chunk, EmbedResult } from "./brain/embeddings.js";
+export {
+  CHUNK_OVERLAP,
+  CHUNK_TOKENS,
+  canEmbed,
+  chunk,
+  cosine,
+  EMBED_UNSUPPORTED,
+  embedNotes,
+  embedUnsupportedWarning,
+  fuse,
+  RRF_K,
+} from "./brain/embeddings.js";
 export type {
   BrainGraph,
   BrainGraphEdge,
@@ -42,6 +55,7 @@ export { frontMatterOf, isSkipped, noteIdFor, parseNote, weightFor } from "./bra
 export type {
   BrainNoteRecord,
   BrainSearchHit,
+  EmbeddingProvider,
   NoteFrontMatter,
   NoteTrust,
   NoteWarning,
