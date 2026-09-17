@@ -15,7 +15,9 @@
     "dev:init": "pnpm --filter staffroom exec node dist/index.js init --template studio --dir ./office",
     "dev": "pnpm --filter staffroom exec node dist/index.js start --office ./office --open",
     "changeset": "changeset",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "docs:gen": "turbo docs:gen",
+    "docs:check": "turbo docs:check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",

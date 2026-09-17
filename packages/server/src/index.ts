@@ -34,7 +34,7 @@ import { readSampleAnswer, recordSampleAnswer, Scheduler } from "./scheduler/sch
 import { OfficeWatchers } from "./watch/index.js";
 import { SocketHub } from "./ws/socket.js";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.2.0";
 
 export interface ServerOptions {
   officeDir: string;

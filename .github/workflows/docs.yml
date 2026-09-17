@@ -1,0 +1,63 @@
+# The docs site, built and deployed to GitHub Pages.
+#
+# Separate from CI because it deploys, and a deploy that runs on every pull
+# request from a fork is a deploy anybody can trigger. CI still builds the site
+# on every pull request — this workflow is only the publishing half.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/docs/**"
+      - "packages/core/src/config/**"
+      - "packages/core/src/runtime/errors.ts"
+      - "packages/core/src/office-state.ts"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# Pages needs these; nothing else in this workflow writes anything.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one halfway: a half-published site is
+# worse than an old one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The reference pages are generated from the schemas. Checked here as well
+      # as in CI, so a site can never be published documenting settings that are
+      # not the ones this build has.
+      - run: pnpm docs:check
+
+      - run: pnpm --filter @staffroom/docs exec astro build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/docs/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

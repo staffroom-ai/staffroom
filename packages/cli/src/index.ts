@@ -16,7 +16,7 @@ import { start } from "./commands/start.js";
 import { addTool, listExampleTools } from "./commands/tools.js";
 import { resolveOfficeDir } from "./office-dir.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.2.0";
 
 async function run(): Promise<void> {
   const nodeProblem = checkNodeVersion();

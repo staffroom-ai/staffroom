@@ -4,7 +4,7 @@
  * Zero UI, zero HTTP, zero file watchers. Everything here can run in a test.
  */
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.2.0";
 
 export type {
   BrainGraph,

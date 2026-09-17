@@ -44,7 +44,10 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: pnpm changeset version
+          # Also syncs the VERSION constants, which changesets does not know
+          # about. Without it every release publishes packages that report the
+          # previous version from --version and /health.
+          version: pnpm changeset version && node scripts/sync-versions.mjs
           title: "Version packages"
           commit: "Version packages"
         env:

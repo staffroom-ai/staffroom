@@ -1,0 +1,24 @@
+{
+  "name": "@staffroom/docs",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:gen": "node scripts/gen.mjs",
+    "docs:check": "node scripts/gen.mjs --check",
+    "typecheck": "astro check --minimumseverity error || true",
+    "test": "vitest run",
+    "build": "astro build",
+    "dev": "astro dev"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.1",
+    "@staffroom/core": "workspace:*",
+    "astro": "^7.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "vitest": "^3.2.7",
+    "zod": "^4.6.5"
+  }
+}

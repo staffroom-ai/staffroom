@@ -30,6 +30,12 @@ jobs:
       - run: pnpm lint
         env:
           CHANGESET_BASE: origin/${{ github.base_ref || 'main' }}
+      # SR-070: the reference pages are generated from the schemas, so a pull
+      # request that adds a config key and does not run the generator is one
+      # that ships documentation already wrong about its own settings.
+      - name: Reference docs match the code
+        run: pnpm docs:check
+
       - name: Audit dependencies
         run: pnpm audit --audit-level=high
 

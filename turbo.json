@@ -16,6 +16,14 @@
     "e2e": {
       "dependsOn": ["build"],
       "cache": false
+    },
+    "docs:gen": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "docs:check": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   },
   "globalPassThroughEnv": ["CHANGESET_BASE", "CI", "GITHUB_BASE_REF", "npm_config_user_agent"]
