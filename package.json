@@ -17,7 +17,8 @@
     "changeset": "changeset",
     "release": "changeset publish",
     "docs:gen": "turbo docs:gen",
-    "docs:check": "turbo docs:check"
+    "docs:check": "turbo docs:check",
+    "version-packages": "changeset version && node scripts/sync-versions.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
