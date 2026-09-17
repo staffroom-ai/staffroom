@@ -13,6 +13,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import {
+  BrainIndex,
   ConfigInvalid,
   loadAgentsFile,
   loadConfig,
@@ -20,6 +21,14 @@ import {
   Telemetry,
 } from "@staffroom/core";
 import { checkNodeVersion } from "../boot.js";
+import {
+  linksCheck,
+  mcpChecks,
+  schedulerCheck,
+  secretsCheck,
+  webCheck,
+  whitelistCheck,
+} from "./checks.js";
 
 /**
  * Repeated rather than imported from the package index, which imports this
@@ -170,6 +179,27 @@ async function telemetryCheck(officeDir: string): Promise<DoctorCheck> {
   );
 }
 
+/**
+ * Opens the index only to ask it about links, and closes it again.
+ *
+ * Doctor runs against a folder rather than a running office, so it cannot
+ * borrow one that is already open. A second connection to a WAL database is
+ * exactly what WAL is for.
+ */
+function brainLinksCheck(officeDir: string): DoctorCheck {
+  let index: BrainIndex | undefined;
+  try {
+    const brainDir = join(officeDir, loadConfig(officeDir).config.brain.dir);
+    index = BrainIndex.open(brainDir, { indexFile: join(officeDir, "brain.index.sqlite") });
+    return linksCheck(index);
+  } catch {
+    // Reported properly by the brain.index check; nothing to add here.
+    return linksCheck({});
+  } finally {
+    index?.close();
+  }
+}
+
 export async function runDoctor(options: DoctorOptions): Promise<DoctorResult> {
   const { officeDir } = options;
   const fix = options.fix === true;
@@ -309,6 +339,24 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorResult> {
    * off it prints the one it would send if it were on, because the question
    * people want answered before turning it on is what it would say about them.
    */
+  /*
+   * SR-075: the checks that need more than a glance at one file.
+   *
+   * Each reads something different — the MCP config, the whitelist, every note
+   * in the brain — so they live in checks.ts and are called here, in the order
+   * somebody would want to read them.
+   */
+  try {
+    const loaded = loadConfig(officeDir);
+    checks.push(...mcpChecks(loaded.config));
+    checks.push(webCheck(loaded.config));
+    checks.push(secretsCheck(join(officeDir, loaded.config.brain.dir)));
+  } catch {
+    // The config checks above already said so, in the owner's terms.
+  }
+  checks.push(whitelistCheck(officeDir));
+  checks.push(brainLinksCheck(officeDir));
+  checks.push(schedulerCheck(officeDir));
   checks.push(await telemetryCheck(officeDir));
 
   const port = options.port ?? 4242;

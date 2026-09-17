@@ -506,6 +506,22 @@ export class BrainIndex {
     return rows.map((r) => toRef(r));
   }
 
+  /**
+   * Links that point at a note which is not there.
+   *
+   * Recorded at index time with `resolved = 0`, so this is a read rather than a
+   * walk. A broken link matters because an agent is told the note exists and
+   * then cannot read it, so it answers around the gap instead of saying it
+   * could not find something.
+   */
+  brokenLinks(): Array<{ from: string; to: string }> {
+    return (
+      this.db
+        .prepare("SELECT from_id, to_id FROM links WHERE resolved = 0 ORDER BY from_id, to_id")
+        .all() as Array<{ from_id: string; to_id: string }>
+    ).map((row) => ({ from: row.from_id, to: row.to_id }));
+  }
+
   /** Notes marked pinned, which every agent sees. Archived notes never qualify. */
   pinned(): BrainNoteRef[] {
     const rows = this.db

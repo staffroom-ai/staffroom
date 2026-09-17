@@ -164,6 +164,10 @@ async function run(): Promise<void> {
     .option("--office <dir>", "Which office folder to check")
     .option("--json", "Print the result as JSON")
     .option("--fix", "Apply the fixes that are safe to apply")
+    .option(
+      "--bundle [file]",
+      "Also write a support bundle, with every secret replaced by its name",
+    )
     .action(async (options) => {
       const healthy = await doctor(options);
       if (!healthy) process.exitCode = 1;

@@ -5,8 +5,11 @@
  * the office in the browser and the terminal can never disagree about the state
  * of the same folder.
  */
+
+import { join } from "node:path";
 import { type DoctorCheck, runDoctor } from "@staffroom/server";
 import { resolveOfficeDir } from "../office-dir.js";
+import { buildBundle } from "./bundle.js";
 
 const MARK: Record<DoctorCheck["status"], string> = {
   ok: "ok  ",
@@ -41,6 +44,8 @@ export interface DoctorCommandOptions {
   office?: string;
   json?: boolean;
   fix?: boolean;
+  /** Writes a support bundle instead of only printing. */
+  bundle?: string | boolean;
 }
 
 export async function doctor(
@@ -59,10 +64,30 @@ export async function doctor(
     return result.ok;
   }
 
+  const report = [formatChecks(result.checks), "", `  ${summary(result.checks)}`].join("\n");
+
   log("");
-  log(formatChecks(result.checks));
+  log(report);
   log("");
-  log(`  ${summary(result.checks)}`);
-  log("");
+
+  if (options.bundle !== undefined && options.bundle !== false) {
+    const out =
+      typeof options.bundle === "string"
+        ? options.bundle
+        : join(process.cwd(), "staffroom-bundle.zip");
+
+    const bundle = buildBundle({
+      officeDir: resolved.dir,
+      out,
+      report: `Staffroom doctor, ${new Date().toISOString()}\n\n${report}\n`,
+    });
+
+    log(`  Wrote ${bundle.path}`);
+    log(`  ${bundle.files.length} file(s), ${bundle.redactions} secret value(s) replaced by name.`);
+    // Said every time, not once: the owner is about to send this to somebody.
+    log("  Your .env is not in it. Read it before you send it.");
+    log("");
+  }
+
   return result.ok;
 }
