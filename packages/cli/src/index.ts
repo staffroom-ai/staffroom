@@ -17,6 +17,7 @@ import { start } from "./commands/start.js";
 import { templateApply, templateList } from "./commands/template.js";
 import { addTool, listExampleTools, newTool } from "./commands/tools.js";
 import { resolveOfficeDir } from "./office-dir.js";
+import { unknownCommand } from "./unknown-command.js";
 
 const VERSION = "0.2.0";
 
@@ -225,6 +226,26 @@ async function run(): Promise<void> {
       const healthy = await doctor(options);
       if (!healthy) process.exitCode = 1;
     });
+
+  /*
+   * A typo should say so.
+   *
+   * `start` is the default command and takes no arguments, so commander read
+   * `npx staffroom setup` as an argument to it and answered "too many arguments
+   * for 'start'. Expected 0 arguments but got 1: setup." — naming a command the
+   * person did not type, for a command they meant to. Every mistyped
+   * subcommand landed there, including the one two of the office's own hints
+   * tell people to run.
+   */
+  const unknown = unknownCommand(
+    process.argv.slice(2),
+    program.commands.map((c) => c.name()),
+  );
+  if (unknown !== undefined) {
+    console.error(unknown);
+    process.exitCode = 1;
+    return;
+  }
 
   await program.parseAsync(process.argv);
 }

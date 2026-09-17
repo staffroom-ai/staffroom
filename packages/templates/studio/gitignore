@@ -1,5 +1,5 @@
 .env
-runs.sqlite
-brain.index.sqlite
+runs.sqlite*
+brain.index.sqlite*
 .staffroom/
 node_modules/

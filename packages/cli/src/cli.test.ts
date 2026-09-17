@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { banner, KEEP_OPEN } from "./banner.js";
 import { initOffice, TOOLS_TIP } from "./commands/init.js";
+import { newOfficeLine } from "./commands/start.js";
 import { addTool, listExampleTools, toolNameOf } from "./commands/tools.js";
 import {
   defaultOfficePath,
@@ -20,6 +21,7 @@ import {
   resolveOfficeDir,
 } from "./office-dir.js";
 import { canOpenBrowser } from "./open-browser.js";
+import { unknownCommand } from "./unknown-command.js";
 
 const made: string[] = [];
 function temp(): string {
@@ -217,5 +219,51 @@ describe("adding an example tool", () => {
       "sheet-append",
       "sqlite-query",
     ]);
+  });
+});
+
+describe("a word that is not a command", () => {
+  const KNOWN = ["start", "demo", "init", "doctor"];
+
+  /*
+   * What this used to say: "error: too many arguments for 'start'. Expected 0
+   * arguments but got 1: setup." `start` is the default command, so every typo
+   * was read as an argument to it and the error named a command the person had
+   * not typed.
+   */
+  it("says which word it did not know, and what there is instead", () => {
+    const message = unknownCommand(["setup"], KNOWN) ?? "";
+    expect(message).toContain("no command called setup");
+    expect(message).toContain("start, demo, init, doctor");
+    expect(message).not.toContain("too many arguments");
+  });
+
+  it("leaves alone the ways people actually run this", () => {
+    // No arguments is `start`, and a flag belongs to whatever command follows.
+    expect(unknownCommand([], KNOWN)).toBeUndefined();
+    expect(unknownCommand(["--version"], KNOWN)).toBeUndefined();
+    expect(unknownCommand(["doctor", "--fix"], KNOWN)).toBeUndefined();
+  });
+});
+
+describe("what start says before it lays down a template", () => {
+  it("says there is no office when the folder is empty", () => {
+    expect(newOfficeLine("/tmp/x", () => [])).toContain("No office yet");
+  });
+
+  /*
+   * Somebody pointed --office at the wrong folder, or deleted agents.yaml while
+   * tidying. Nothing is overwritten either way, but being told there is nothing
+   * here while looking at your own notes is not a message that earns any trust.
+   */
+  it("does not claim a folder is empty when the owner's files are in it", () => {
+    const line = newOfficeLine("/tmp/x", () => ["brain", "notes.md"]);
+    expect(line).not.toContain("No office yet");
+    expect(line).toContain("no agents.yaml");
+    expect(line).toContain("left alone");
+  });
+
+  it("ignores the file macOS leaves in every folder", () => {
+    expect(newOfficeLine("/tmp/x", () => [".DS_Store"])).toContain("No office yet");
   });
 });
