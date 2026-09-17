@@ -36,6 +36,28 @@ describe("runDoctor", () => {
     expect(find(result.checks, "agents.valid")?.status).toBe("ok");
   });
 
+  /*
+   * A new office should not be born warning.
+   *
+   * "passes a fresh office" above was green the whole time this was broken,
+   * because `ok` is about failures and this was a warning. So every brand-new
+   * office told its owner, on their first run, that their keys could end up in a
+   * commit — over a .gitignore the product had just written itself. The template
+   * listed `runs.sqlite` where the check wants `runs.sqlite*`, and SQLite's -wal
+   * and -shm files sit right next to it.
+   *
+   * Asserted against GITIGNORE_LINES rather than against a copy of the list, so
+   * the two cannot drift apart again.
+   */
+  it("writes a .gitignore its own doctor is happy with", async () => {
+    const dir = office();
+    const result = await runDoctor({ officeDir: dir });
+    expect(find(result.checks, "office.gitignore")?.status).toBe("ok");
+
+    const written = readFileSync(join(dir, ".gitignore"), "utf8").split(/\r?\n/);
+    for (const line of GITIGNORE_LINES) expect(written).toContain(line);
+  });
+
   it("says what to do when there is no office at all", async () => {
     const dir = mkdtempSync(join(tmpdir(), "staffroom-empty-"));
     made.push(dir);

@@ -7,6 +7,7 @@
  * start.
  */
 
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createServer } from "@staffroom/server";
 import { copyTemplate, templateDir } from "@staffroom/templates";
@@ -33,6 +34,32 @@ export interface StartResult {
   close: () => Promise<void>;
 }
 
+/**
+ * What to say before laying a template down.
+ *
+ * "No office yet" is right for an empty folder and a lie for one with the
+ * owner's own files in it — which happens: somebody points --office at the wrong
+ * folder, or deletes agents.yaml while tidying up and starts again. Nothing is
+ * overwritten either way, but being told there is nothing here when you are
+ * looking at three years of notes is not a message that earns any trust.
+ */
+export function newOfficeLine(dir: string, list: (at: string) => string[] = readdirOr): string {
+  const existing = list(dir).filter((name) => name !== ".DS_Store");
+  if (existing.length === 0) return `No office yet, so making one at ${dir}`;
+  return (
+    `There is no agents.yaml in ${dir}, so this adds one. ` +
+    "What is already in there is left alone."
+  );
+}
+
+function readdirOr(at: string): string[] {
+  try {
+    return readdirSync(at);
+  } catch {
+    return [];
+  }
+}
+
 export async function start(
   options: StartOptions,
   log: (line: string) => void = console.log,
@@ -46,8 +73,13 @@ export async function start(
 
   if (!resolved.exists) {
     log("");
-    log(`  No office yet, so making one at ${resolved.dir}`);
-    copyTemplate(options.template ?? "studio", resolved.dir);
+    log(`  ${newOfficeLine(resolved.dir)}`);
+    const laid = copyTemplate(options.template ?? "studio", resolved.dir);
+    // Named, not just counted. If somebody pointed --office at the wrong folder,
+    // this list is how they find out before they wonder where their notes went.
+    if (laid.kept.length > 0) {
+      log(`  Left as they were: ${laid.kept.join(", ")}`);
+    }
   }
 
   const server = await createServer({
