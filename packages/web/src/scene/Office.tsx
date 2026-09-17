@@ -13,7 +13,8 @@
  */
 import { Html } from "@react-three/drei";
 import type { OfficeState } from "@staffroom/core";
-import type { ReactElement } from "react";
+import { type ReactElement, type ReactNode, useLayoutEffect, useMemo, useRef } from "react";
+import { type Color, Euler, type InstancedMesh, Matrix4, Quaternion, Vector3 } from "three";
 import { podFacing, podPosition, seatPosition } from "../layout.js";
 import {
   accent,
@@ -33,9 +34,6 @@ const WEDGE_OUTER = 10.6;
 
 /** Local frame of a workstation: +Z points at the Brain, so everyone faces the middle. */
 const DESK_OFFSET = 0.66;
-
-/** Named sheets, so a stack of paper does not key off its own index. */
-const SHEETS = ["a", "b", "c", "d", "e", "f"] as const;
 
 /**
  * The floorplate.
@@ -178,148 +176,334 @@ export function Pods({
     </>
   );
 }
+type Status = "idle" | "working" | "waiting_approval" | "error";
 
 interface SeatState {
   key: string;
   pod: number;
   seat: number;
-  status: "idle" | "working" | "waiting_approval" | "error" | undefined;
+  status: Status | undefined;
   filed: number;
 }
 
 /**
- * One workstation: desk, modesty panel, legs, monitor, chair and out-tray.
+ * How many workstations the instanced buffers are built for.
  *
- * Every part is a different height and a different value, because a desk made of
- * one flat box at one tone is what made the old office read as a field of blobs.
+ * Fixed at mount, because an InstancedMesh's buffers are sized once and a room
+ * does not gain desks mid-frame. Past any small business; the spare slots are
+ * never drawn, because the count is set from the roster.
  */
-function Workstation({
-  seat,
-  dark,
-  podCount,
-}: {
-  seat: SeatState;
-  dark: boolean;
-  podCount: number;
-}): ReactElement {
-  const c = surfaces(dark);
-  const at = seatPosition(seat.pod, seat.seat, podCount);
-  // layout.ts rotates anticlockwise in (x,z); three rotates the other way, so the
-  // group turns by -facing and local +Z then points at the Brain.
-  const facing = -podFacing(seat.pod);
-  const lit = seat.status === "working" || seat.status === "waiting_approval";
-  const status = statusColour(seat.status ?? "idle", dark);
+const MAX_SEATS = 64;
 
-  return (
-    <group position={[at.x, 0, at.z]} rotation={[0, facing, 0]}>
-      {/* Desk top */}
-      <mesh position={[0, 0.74, DESK_OFFSET]} castShadow receiveShadow>
-        <boxGeometry args={[1.74, 0.08, 0.94]} />
-        <meshStandardMaterial color={c.desk} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
-      {/* Modesty panel: the piece that reads as "desk" from across the room. */}
-      <mesh position={[0, 0.44, DESK_OFFSET + 0.44]} castShadow>
-        <boxGeometry args={[1.72, 0.54, 0.07]} />
-        <meshStandardMaterial color={c.deskEdge} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
-      <mesh position={[-0.82, 0.37, DESK_OFFSET]} castShadow>
-        <boxGeometry args={[0.08, 0.74, 0.86]} />
-        <meshStandardMaterial color={c.deskEdge} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
-      <mesh position={[0.82, 0.37, DESK_OFFSET]} castShadow>
-        <boxGeometry args={[0.08, 0.74, 0.86]} />
-        <meshStandardMaterial color={c.deskEdge} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
+/** Six is as many sheets as the tray holds before it stops reading as a stack. */
+const MAX_SHEETS = 6;
 
-      {/* Monitor: stand, then a panel that lights up when this person is working. */}
-      <mesh position={[0.02, 0.86, DESK_OFFSET + 0.3]} castShadow>
-        <boxGeometry args={[0.1, 0.18, 0.1]} />
-        <meshStandardMaterial color={c.chair} roughness={0.7} metalness={0} />
-      </mesh>
-      <mesh
-        position={[0.02, 1.19, DESK_OFFSET + 0.31]}
-        rotation={[0.16, 0, 0]}
-        castShadow
-        receiveShadow
-      >
-        <boxGeometry args={[0.86, 0.5, 0.05]} />
-        <meshStandardMaterial
-          color={lit ? c.screenOn : c.screenOff}
-          roughness={0.4}
-          metalness={0}
-          emissive={lit ? status : "#000000"}
-          emissiveIntensity={lit ? (dark ? 0.9 : 0.5) : 0}
-        />
-      </mesh>
+const NO_SCALE = new Vector3(1, 1, 1);
 
-      {/* Chair: seat and a back, so a person is clearly sitting at something. */}
-      <mesh position={[0, 0.46, -0.44]} castShadow>
-        <boxGeometry args={[0.56, 0.09, 0.56]} />
-        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
-      <mesh position={[0, 0.76, -0.7]} rotation={[-0.1, 0, 0]} castShadow>
-        <boxGeometry args={[0.56, 0.52, 0.08]} />
-        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
-      <mesh position={[0, 0.21, -0.44]} castShadow>
-        <cylinderGeometry args={[0.06, 0.09, 0.42, 10]} />
-        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
-      </mesh>
-
-      {/* The out-tray: one sheet per finished piece of work. */}
-      {SHEETS.slice(0, Math.min(seat.filed, 6)).map((sheet, i) => (
-        <mesh
-          key={`sheet-${seat.key}-${sheet}`}
-          position={[0.58, 0.81 + i * 0.05, DESK_OFFSET - 0.2]}
-          rotation={[0, 0.12, 0]}
-          castShadow
-        >
-          <boxGeometry args={[0.5, 0.05, 0.4]} />
-          <meshStandardMaterial color={c.paper} roughness={0.85} metalness={0} />
-        </mesh>
-      ))}
-
-      {/* A pool of status light on the floor: busy is visible from anywhere. */}
-      {lit && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.014, 0.2]}>
-          <circleGeometry args={[1.5, 40]} />
-          <meshBasicMaterial
-            color={status}
-            transparent
-            opacity={dark ? 0.24 : 0.16}
-            toneMapped={false}
-          />
-        </mesh>
-      )}
-    </group>
+/** A fixed offset inside a workstation's own frame. */
+function local(
+  position: [number, number, number],
+  rotation: [number, number, number] = [0, 0, 0],
+): Matrix4 {
+  return new Matrix4().compose(
+    new Vector3(...position),
+    new Quaternion().setFromEuler(new Euler(...rotation)),
+    NO_SCALE,
   );
 }
 
-/** Every desk in the office, occupied or not. */
+/**
+ * One workstation, as offsets rather than as meshes.
+ *
+ * Every part is a different height and a different value, because a desk made of
+ * one flat box at one tone is what made the old office read as a field of blobs.
+ * They are listed here once and then stamped out per person: the shapes are
+ * identical from desk to desk, so there is no reason for the GPU to be told
+ * about them thirty-five times over.
+ */
+const PART = {
+  top: local([0, 0.74, DESK_OFFSET]),
+  modesty: local([0, 0.44, DESK_OFFSET + 0.44]),
+  legLeft: local([-0.82, 0.37, DESK_OFFSET]),
+  legRight: local([0.82, 0.37, DESK_OFFSET]),
+  stand: local([0.02, 0.86, DESK_OFFSET + 0.3]),
+  screen: local([0.02, 1.19, DESK_OFFSET + 0.31], [0.16, 0, 0]),
+  chairSeat: local([0, 0.46, -0.44]),
+  chairBack: local([0, 0.76, -0.7], [-0.1, 0, 0]),
+  chairPost: local([0, 0.21, -0.44]),
+  pool: local([0, 0.014, 0.2], [-Math.PI / 2, 0, 0]),
+} as const;
+
+const SHEET_AT = Array.from({ length: MAX_SHEETS }, (_, i) =>
+  local([0.58, 0.81 + i * 0.05, DESK_OFFSET - 0.2], [0, 0.12, 0]),
+);
+
+/** Whether this person's screen is lit, which is the one thing a desk animates. */
+function isLit(status: Status | undefined): boolean {
+  return status === "working" || status === "waiting_approval";
+}
+
+interface Placement {
+  top: Matrix4[];
+  modesty: Matrix4[];
+  legs: Matrix4[];
+  stand: Matrix4[];
+  chairSeat: Matrix4[];
+  chairBack: Matrix4[];
+  chairPost: Matrix4[];
+  sheets: Matrix4[];
+  pools: Matrix4[];
+  poolStatus: Status[];
+  /** Screens split by what they are showing; the material differs, so the mesh must. */
+  screensOff: Matrix4[];
+  screensWorking: Matrix4[];
+  screensWaiting: Matrix4[];
+}
+
+/**
+ * Every part of every desk, in world space.
+ *
+ * Worked out once per roster change rather than per frame: desks do not move,
+ * and the only thing about them that changes between frames is whether a screen
+ * is lit, which is a change of which list a matrix is in.
+ */
+function placeDesks(seats: SeatState[], podCount: number): Placement {
+  const out: Placement = {
+    top: [],
+    modesty: [],
+    legs: [],
+    stand: [],
+    chairSeat: [],
+    chairBack: [],
+    chairPost: [],
+    sheets: [],
+    pools: [],
+    poolStatus: [],
+    screensOff: [],
+    screensWorking: [],
+    screensWaiting: [],
+  };
+
+  for (const seat of seats.slice(0, MAX_SEATS)) {
+    const at = seatPosition(seat.pod, seat.seat, podCount);
+    // layout.ts rotates anticlockwise in (x,z); three rotates the other way, so
+    // the frame turns by -facing and local +Z then points at the Brain.
+    const frame = new Matrix4().makeRotationY(-podFacing(seat.pod, podCount));
+    frame.setPosition(at.x, 0, at.z);
+    const world = (part: Matrix4): Matrix4 => new Matrix4().multiplyMatrices(frame, part);
+
+    out.top.push(world(PART.top));
+    out.modesty.push(world(PART.modesty));
+    out.legs.push(world(PART.legLeft), world(PART.legRight));
+    out.stand.push(world(PART.stand));
+    out.chairSeat.push(world(PART.chairSeat));
+    out.chairBack.push(world(PART.chairBack));
+    out.chairPost.push(world(PART.chairPost));
+
+    const screen = world(PART.screen);
+    if (seat.status === "working") out.screensWorking.push(screen);
+    else if (seat.status === "waiting_approval") out.screensWaiting.push(screen);
+    else out.screensOff.push(screen);
+
+    // The out-tray: one sheet per finished piece of work.
+    for (let i = 0; i < Math.min(seat.filed, MAX_SHEETS); i++) {
+      out.sheets.push(world(SHEET_AT[i] as Matrix4));
+    }
+
+    // A pool of status light on the floor: busy is visible from anywhere.
+    if (isLit(seat.status)) {
+      out.pools.push(world(PART.pool));
+      out.poolStatus.push(seat.status ?? "idle");
+    }
+  }
+
+  return out;
+}
+
+/**
+ * One instanced part, placed.
+ *
+ * Frustum culling is off because three works the bounding sphere out from the
+ * geometry sitting at the origin rather than from where the instances actually
+ * are, and a desk that vanishes when the camera pans is worse than a desk that
+ * is always considered.
+ */
+function Part({
+  at,
+  colours,
+  castShadow = false,
+  receiveShadow = false,
+  children,
+}: {
+  at: Matrix4[];
+  colours?: Color[];
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+  children: ReactNode;
+}): ReactElement {
+  const mesh = useRef<InstancedMesh>(null);
+
+  useLayoutEffect(() => {
+    const node = mesh.current;
+    if (node === null) return;
+    const drawn = Math.min(at.length, node.instanceMatrix.count);
+    for (let i = 0; i < drawn; i++) node.setMatrixAt(i, at[i] as Matrix4);
+    if (colours !== undefined) {
+      for (let i = 0; i < drawn; i++) node.setColorAt(i, colours[i] as Color);
+    }
+    // The count is the roster, not the buffer: spare slots are never drawn, so
+    // the GPU is never asked to transform triangles nobody can see.
+    node.count = drawn;
+    node.instanceMatrix.needsUpdate = true;
+    if (node.instanceColor !== null) node.instanceColor.needsUpdate = true;
+  }, [at, colours]);
+
+  return (
+    <instancedMesh
+      ref={mesh}
+      args={[undefined, undefined, MAX_SEATS * MAX_SHEETS]}
+      castShadow={castShadow}
+      receiveShadow={receiveShadow}
+      frustumCulled={false}
+    >
+      {children}
+    </instancedMesh>
+  );
+}
+
+/**
+ * Every desk in the office, occupied or not.
+ *
+ * Ten meshes per person is what the perf test caught: thirty-five people meant
+ * hundreds of draw calls for ten shapes repeated over and over, most of them
+ * drawn twice because they cast shadows. Instanced, the whole room of desks is a
+ * dozen calls whether it seats four people or forty.
+ */
 export function Desks({ state, dark }: { state: OfficeState; dark: boolean }): ReactElement {
+  const c = surfaces(dark);
   // A desk per person, not a desk per seat the floor plan could hold. Rendering
   // all 35 seats made a four-person studio read as an abandoned office, and it
   // also made the scene disagree with the roster panel, which counts people.
   const podCount = state.departments.length;
-  const seats: SeatState[] = [];
 
-  for (const agent of state.agents) {
-    const pod = state.departments.find((d) => d.id === agent.departmentId)?.pod;
-    if (pod === undefined) continue;
-    seats.push({
-      key: `${pod}-${agent.seat}`,
-      pod,
-      seat: agent.seat,
-      status: agent.status,
-      filed: state.latestDeliverables.filter((d) => d.agentId === agent.id).length,
-    });
-  }
+  const placement = useMemo(() => {
+    const seats: SeatState[] = [];
+    for (const agent of state.agents) {
+      const pod = state.departments.find((d) => d.id === agent.departmentId)?.pod;
+      if (pod === undefined) continue;
+      seats.push({
+        key: `${pod}-${agent.seat}`,
+        pod,
+        seat: agent.seat,
+        status: agent.status,
+        filed: state.latestDeliverables.filter((d) => d.agentId === agent.id).length,
+      });
+    }
+    return placeDesks(seats, podCount);
+  }, [state.agents, state.departments, state.latestDeliverables, podCount]);
+
+  const poolColours = useMemo(
+    () => placement.poolStatus.map((status) => statusColour(status, dark)),
+    [placement.poolStatus, dark],
+  );
+
+  const working = statusColour("working", dark);
+  const waiting = statusColour("waiting_approval", dark);
 
   return (
     <>
-      {seats.map((seat) => (
-        <Workstation key={seat.key} seat={seat} dark={dark} podCount={podCount} />
-      ))}
+      {/* Desk top */}
+      <Part at={placement.top} castShadow receiveShadow>
+        <boxGeometry args={[1.74, 0.08, 0.94]} />
+        <meshStandardMaterial color={c.desk} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </Part>
+
+      {/* Modesty panel: the piece that reads as "desk" from across the room. */}
+      <Part at={placement.modesty} castShadow>
+        <boxGeometry args={[1.72, 0.54, 0.07]} />
+        <meshStandardMaterial color={c.deskEdge} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </Part>
+
+      {/* Both legs of every desk out of one mesh: same shape, mirrored across. */}
+      <Part at={placement.legs} castShadow>
+        <boxGeometry args={[0.08, 0.74, 0.86]} />
+        <meshStandardMaterial color={c.deskEdge} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </Part>
+
+      {/* Monitor stand. */}
+      <Part at={placement.stand} castShadow>
+        <boxGeometry args={[0.1, 0.18, 0.1]} />
+        <meshStandardMaterial color={c.chair} roughness={0.7} metalness={0} />
+      </Part>
+
+      {/*
+        Screens, in three meshes rather than one.
+
+        An instance can carry its own colour but not its own glow, and the glow
+        is the point: a lit screen is how you see from across the room that
+        somebody is mid-task. So the desks are sorted by what their screen is
+        showing, and each group gets the material for it. There are only ever
+        three groups, however many people are in the office.
+      */}
+      <Part at={placement.screensOff} castShadow receiveShadow>
+        <boxGeometry args={[0.86, 0.5, 0.05]} />
+        <meshStandardMaterial
+          color={c.screenOff}
+          roughness={0.4}
+          metalness={0}
+          emissive="#000000"
+          emissiveIntensity={0}
+        />
+      </Part>
+      <Part at={placement.screensWorking} castShadow receiveShadow>
+        <boxGeometry args={[0.86, 0.5, 0.05]} />
+        <meshStandardMaterial
+          color={c.screenOn}
+          roughness={0.4}
+          metalness={0}
+          emissive={working}
+          emissiveIntensity={dark ? 0.9 : 0.5}
+        />
+      </Part>
+      <Part at={placement.screensWaiting} castShadow receiveShadow>
+        <boxGeometry args={[0.86, 0.5, 0.05]} />
+        <meshStandardMaterial
+          color={c.screenOn}
+          roughness={0.4}
+          metalness={0}
+          emissive={waiting}
+          emissiveIntensity={dark ? 0.9 : 0.5}
+        />
+      </Part>
+
+      {/* Chair: seat and a back, so a person is clearly sitting at something. */}
+      <Part at={placement.chairSeat} castShadow>
+        <boxGeometry args={[0.56, 0.09, 0.56]} />
+        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </Part>
+      <Part at={placement.chairBack} castShadow>
+        <boxGeometry args={[0.56, 0.52, 0.08]} />
+        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </Part>
+      <Part at={placement.chairPost} castShadow>
+        <cylinderGeometry args={[0.06, 0.09, 0.42, 10]} />
+        <meshStandardMaterial color={c.chair} roughness={SURFACE_ROUGHNESS} metalness={0} />
+      </Part>
+
+      {/* The out-tray: one sheet per finished piece of work, all trays at once. */}
+      <Part at={placement.sheets} castShadow>
+        <boxGeometry args={[0.5, 0.05, 0.4]} />
+        <meshStandardMaterial color={c.paper} roughness={0.85} metalness={0} />
+      </Part>
+
+      {/*
+        The pools of status light. Unlit material, so here the instance colour
+        does carry the status and one mesh covers every busy desk.
+      */}
+      <Part at={placement.pools} colours={poolColours}>
+        <circleGeometry args={[1.5, 40]} />
+        <meshBasicMaterial transparent opacity={dark ? 0.24 : 0.16} toneMapped={false} />
+      </Part>
     </>
   );
 }
