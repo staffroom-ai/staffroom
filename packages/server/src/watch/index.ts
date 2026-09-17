@@ -136,6 +136,8 @@ export class OfficeWatchers {
          * nothing until a restart.
          */
         if (file === "agents.yaml") this.options.office.reloadRoster();
+        // Connectors added, removed or denied in config.yaml, without a restart.
+        if (file === "config.yaml") void this.options.office.reloadMcp();
         // Reloading is core's job; this only decides what to tell the office.
         this.options.onEvent({ type: "config.reloaded", file });
       } catch (error) {

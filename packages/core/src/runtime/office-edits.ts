@@ -88,6 +88,8 @@ export function addAgent(
     does: string;
     name?: string;
     model?: string;
+    /** Opens the department as part of the hire, when it is not there yet. */
+    departmentLabel?: string;
   },
 ): EditResult {
   return editRosterFor(officeDir, (writer) => writer.addAgent(agent));
@@ -100,9 +102,19 @@ export function removeAgent(officeDir: string, agentId: string): EditResult {
 export function updateAgent(
   officeDir: string,
   agentId: string,
-  fields: { role?: string; does?: string; department?: string; model?: string | null },
+  fields: {
+    role?: string;
+    does?: string;
+    department?: string;
+    model?: string | null;
+    tools?: string[];
+  },
 ): EditResult {
   return editRosterFor(officeDir, (writer) => writer.updateAgent(agentId, fields));
+}
+
+export function setOfficeName(officeDir: string, name: string): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.setOfficeName(name));
 }
 
 export function addDepartment(officeDir: string, id: string, label: string): EditResult {
@@ -309,6 +321,64 @@ function editConfig(officeDir: string, edit: (doc: Document) => boolean): boolea
   } catch {
     return false;
   }
+}
+
+/**
+ * Adds or replaces an MCP server in config.yaml.
+ *
+ * Written through the document API like everything else here, so the commented
+ * examples that teach the file survive somebody adding a connector from
+ * Settings. The office re-reads the file afterwards; this only writes it.
+ */
+export function setMcpServer(
+  officeDir: string,
+  name: string,
+  server: Record<string, unknown>,
+): EditResult {
+  if (!/^[a-z][a-z0-9_-]{0,31}$/.test(name)) {
+    return { ok: false, reason: "A connector name is lower case letters, numbers and dashes." };
+  }
+
+  const ok = editConfig(officeDir, (doc) => {
+    doc.setIn(["mcp", "servers", name], server);
+    unflow(doc, [["mcp"], ["mcp", "servers"], ["mcp", "servers", name]]);
+    return true;
+  });
+  return ok ? { ok: true } : { ok: false, reason: "Could not write office/config.yaml." };
+}
+
+export function removeMcpServer(officeDir: string, name: string): EditResult {
+  const ok = editConfig(officeDir, (doc) => {
+    doc.deleteIn(["mcp", "servers", name]);
+    // Its wiring goes with it; a department list for a server nobody has is a
+    // line the owner would find later and not understand.
+    doc.deleteIn(["mcp", "departments", name]);
+    return true;
+  });
+  return ok ? { ok: true } : { ok: false, reason: "Could not write office/config.yaml." };
+}
+
+/**
+ * Which departments a connector is wired to.
+ *
+ * An empty list means every department, which is what the absence of the key
+ * means to the registry — so it is written as an absence rather than as `[]`,
+ * and the file says what the office does.
+ */
+export function setMcpDepartments(
+  officeDir: string,
+  name: string,
+  departments: string[],
+): EditResult {
+  const ok = editConfig(officeDir, (doc) => {
+    if (departments.length === 0) doc.deleteIn(["mcp", "departments", name]);
+    else {
+      doc.setIn(["mcp", "departments", name], departments);
+      unflow(doc, [["mcp", "departments"]]);
+    }
+    return true;
+  });
+  return ok ? { ok: true } : { ok: false, reason: "Could not write office/config.yaml." };
 }
 
 /** Web search backends that need a key, and the variable each one's key lives in. */

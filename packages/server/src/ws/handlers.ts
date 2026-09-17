@@ -410,6 +410,22 @@ export async function handle(
           agentId: message.agentId,
         });
 
+      case "connector.add":
+        return rosterEdit(await office.setMcpServer?.(message.name, message.server), {
+          name: message.name,
+        });
+
+      case "connector.remove":
+        return rosterEdit(await office.removeMcpServer?.(message.name), { name: message.name });
+
+      case "connector.scope":
+        return rosterEdit(await office.setMcpDepartments?.(message.name, message.departments), {
+          name: message.name,
+        });
+
+      case "office.rename":
+        return rosterEdit(office.setOfficeName?.(message.name), { name: message.name });
+
       case "department.create":
         return rosterEdit(office.addDepartment?.(message.id, message.label), { id: message.id });
 

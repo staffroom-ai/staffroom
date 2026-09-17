@@ -131,6 +131,8 @@ export type ClientMessage =
         does: string;
         name?: string;
         model?: string;
+        /** Opens the department in the same edit, when it is not there yet. */
+        departmentLabel?: string;
       };
     }
   | { type: "agent.remove"; reqId: string; agentId: string }
@@ -139,8 +141,29 @@ export type ClientMessage =
       reqId: string;
       agentId: string;
       /** Only the fields being changed. `model: null` means the office default. */
-      fields: { role?: string; does?: string; department?: string; model?: string | null };
+      fields: {
+        role?: string;
+        does?: string;
+        department?: string;
+        model?: string | null;
+        tools?: string[];
+      };
     }
+  | { type: "office.rename"; reqId: string; name: string }
+  /*
+   * Connectors, from Settings.
+   *
+   * `connector.add` carries the whole server entry so the browser never has to
+   * know config.yaml's shape; the office validates it by loading the file back.
+   */
+  | {
+      type: "connector.add";
+      reqId: string;
+      name: string;
+      server: Record<string, unknown>;
+    }
+  | { type: "connector.remove"; reqId: string; name: string }
+  | { type: "connector.scope"; reqId: string; name: string; departments: string[] }
   | { type: "department.create"; reqId: string; id: string; label: string }
   | { type: "department.rename"; reqId: string; id: string; label: string }
   | { type: "department.remove"; reqId: string; id: string }

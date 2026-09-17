@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { copyTemplate, templateDir } from "@staffroom/templates";
 import { afterEach, describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { createServer, type StaffroomServer } from "../index.js";
 import { handle } from "./handlers.js";
 
@@ -156,32 +157,95 @@ describe("editing and letting go", () => {
   });
 });
 
+describe("the office's own name", () => {
+  it("renames the running office, not just the file", async () => {
+    // The first thing anybody wants to change after opening a template, and it
+    // was only reachable by editing agents.yaml by hand.
+    const { server, dir } = await office();
+    const result = await handle(server.office, {
+      type: "office.rename",
+      reqId: "r1",
+      name: "Chhabra Works",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(server.office.roster.officeName).toBe("Chhabra Works");
+    expect(readFileSync(join(dir, "agents.yaml"), "utf8")).toContain("Chhabra Works");
+  });
+
+  it("refuses an empty name rather than leaving the office unnamed", async () => {
+    const { server } = await office();
+    const result = await handle(server.office, { type: "office.rename", reqId: "r1", name: "  " });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.message).toContain("needs a name");
+  });
+});
+
 describe("departments", () => {
-  it("opens one and hires into it in two steps", async () => {
+  it("opens one by hiring the first person into it", async () => {
     /*
-     * The order the form works in, and the one that caught a real bug: a
-     * department added a moment ago was invisible to the check that the hire's
-     * department exists, so the second step was refused for a department the
-     * first step had just opened.
+     * One message, not two.
+     *
+     * `departments:` in agents.yaml is a map of display names, not a list, so a
+     * department exists because somebody works in it. Opening one on its own
+     * wrote a label that nothing could use and nothing showed — not the room,
+     * not Settings, and not the hire form's own department list, so the person
+     * who had just opened one could not put anybody in it. A tester found it
+     * within minutes: "opening a department is not reflecting".
      */
     const { server } = await office();
 
-    const opened = await handle(server.office, {
-      type: "department.create",
-      reqId: "r1",
-      id: "support",
-      label: "Support",
-    });
-    expect(opened.ok).toBe(true);
-
     const hired = await handle(server.office, {
       type: "agent.create",
-      reqId: "r2",
-      agent: { ...NEW_HIRE, id: "helper", department: "support" },
+      reqId: "r1",
+      agent: {
+        ...NEW_HIRE,
+        id: "helper",
+        department: "support",
+        departmentLabel: "Support",
+      },
     });
 
     expect(hired.ok).toBe(true);
     expect(server.office.roster.department("support")?.label).toBe("Support");
+    expect(server.office.roster.seatOf("helper")?.department).toBe("support");
+  });
+
+  it("still refuses an unknown department when no name for it was given", async () => {
+    // The label is what says "yes, open this one". Without it, a typo in the
+    // department is a typo, not a new department nobody meant to make.
+    const { server } = await office();
+    const result = await handle(server.office, {
+      type: "agent.create",
+      reqId: "r1",
+      agent: { ...NEW_HIRE, id: "helper", department: "nowhere" },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.message).toContain("no department called nowhere");
+  });
+
+  it("closes a department when the last person in it moves out", async () => {
+    // There is no "close a department" button for this reason: the wedges are
+    // drawn from where people sit, so the last one to leave takes it with them.
+    const { server } = await office();
+    await handle(server.office, {
+      type: "agent.create",
+      reqId: "r1",
+      agent: { ...NEW_HIRE, id: "helper", department: "support", departmentLabel: "Support" },
+    });
+    expect(server.office.roster.department("support")).toBeDefined();
+
+    await handle(server.office, {
+      type: "agent.update",
+      reqId: "r2",
+      agentId: "helper",
+      fields: { department: "marketing" },
+    });
+
+    expect(server.office.roster.department("support")).toBeUndefined();
+    expect(server.office.roster.seatOf("helper")?.department).toBe("marketing");
   });
 
   it("refuses to close one that still has people in it, and says who", async () => {
@@ -208,5 +272,123 @@ describe("departments", () => {
     expect(result.ok).toBe(true);
     expect(server.office.roster.department("marketing")?.label).toBe("Marketing and brand");
     expect(server.office.roster.agent("copywriter")?.department).toBe("marketing");
+  });
+});
+
+describe("connectors", () => {
+  /*
+   * Adding Gmail from Settings.
+   *
+   * Four lines of YAML in a file most people will never open, and the two
+   * questions that matter — is it connected, and who can use it — had no answer
+   * anywhere in the office. The office re-reads config.yaml after each of these,
+   * so a connector added here is connected without a restart.
+   */
+  it("writes the server into config.yaml and keeps the file's comments", async () => {
+    const { server, dir } = await office();
+    const result = await handle(server.office, {
+      type: "connector.add",
+      reqId: "r1",
+      name: "gmail",
+      server: { url: "https://mcp.example.com/gmail", auth: "oauth" },
+    });
+
+    expect(result.ok).toBe(true);
+    const config = parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { servers: Record<string, { url?: string }> };
+    };
+    expect(config.mcp.servers["gmail"]?.url).toBe("https://mcp.example.com/gmail");
+    // The commented examples that teach the file survive a write from Settings.
+    expect(readFileSync(join(dir, "config.yaml"), "utf8")).toContain(
+      "Keys live in office/.env, never here.",
+    );
+  });
+
+  it("wires it to departments, and to every department when the list is empty", async () => {
+    const { server, dir } = await office();
+    await handle(server.office, {
+      type: "connector.add",
+      reqId: "r1",
+      name: "gmail",
+      server: { url: "https://mcp.example.com/gmail", auth: "oauth" },
+    });
+
+    await handle(server.office, {
+      type: "connector.scope",
+      reqId: "r2",
+      name: "gmail",
+      departments: ["marketing"],
+    });
+    const wired = parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { departments: Record<string, string[]> };
+    };
+    expect(wired.mcp.departments["gmail"]).toEqual(["marketing"]);
+
+    // Absence, not an empty list: absent is what the registry reads as "every
+    // department", so the file should say the same thing the office does.
+    await handle(server.office, {
+      type: "connector.scope",
+      reqId: "r3",
+      name: "gmail",
+      departments: [],
+    });
+    const cleared = parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { departments: Record<string, unknown> };
+    };
+    expect(cleared.mcp.departments["gmail"]).toBeUndefined();
+  });
+
+  it("takes the wiring away with the server", async () => {
+    const { server, dir } = await office();
+    await handle(server.office, {
+      type: "connector.add",
+      reqId: "r1",
+      name: "gmail",
+      server: { url: "https://mcp.example.com/gmail", auth: "oauth" },
+    });
+    await handle(server.office, {
+      type: "connector.scope",
+      reqId: "r2",
+      name: "gmail",
+      departments: ["marketing"],
+    });
+
+    await handle(server.office, { type: "connector.remove", reqId: "r3", name: "gmail" });
+
+    /*
+     * Parsed, not grepped. The shipped template carries a commented-out gmail
+     * example with the same URL in it, so a text search finds the comment and
+     * passes whether or not the entry was ever removed.
+     */
+    const config = parse(readFileSync(join(dir, "config.yaml"), "utf8")) as {
+      mcp: { servers: Record<string, unknown>; departments: Record<string, unknown> };
+    };
+    expect(config.mcp.servers["gmail"]).toBeUndefined();
+    // A department list for a server nobody has is a line the owner would find
+    // later and not understand.
+    expect(config.mcp.departments["gmail"]).toBeUndefined();
+  });
+
+  it("gives a connector to one person and takes it back", async () => {
+    const { server } = await office();
+    const has = (id: string) => server.office.roster.agent(id)?.tools?.includes("gmail") === true;
+
+    await handle(server.office, {
+      type: "agent.update",
+      reqId: "r1",
+      agentId: "copywriter",
+      fields: { tools: ["gmail"] },
+    });
+    expect(has("copywriter")).toBe(true);
+    // Nobody else, which is the whole point of asking.
+    expect(has("bookkeeper")).toBe(false);
+
+    await handle(server.office, {
+      type: "agent.update",
+      reqId: "r2",
+      agentId: "copywriter",
+      fields: { tools: [] },
+    });
+    expect(has("copywriter")).toBe(false);
   });
 });

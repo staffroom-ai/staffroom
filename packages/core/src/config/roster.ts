@@ -237,7 +237,30 @@ export class RosterWriter {
       .filter((id) => id.length > 0);
   }
 
+  /**
+   * Every department there is: the labelled ones and the ones people are in.
+   *
+   * `departments:` is optional — it is a map of display names, and a roster is
+   * perfectly valid without it. Reading only that map meant a file with no
+   * `departments:` block had no departments as far as these checks were
+   * concerned, so hiring into the department somebody was already sitting in
+   * was refused for not existing.
+   */
   departmentIds(): string[] {
+    const labelled = this.labelledDepartmentIds();
+    const inUse = this.agentIds()
+      .map((id) => {
+        const node = this.agentNode(id)?.node as { get?: (k: string) => unknown } | undefined;
+        const value = node?.get?.("department");
+        return typeof value === "string" ? value : "";
+      })
+      .filter((id) => id.length > 0);
+
+    return [...new Set([...labelled, ...inUse])];
+  }
+
+  /** Only the ones with a display name, which is what the map itself holds. */
+  private labelledDepartmentIds(): string[] {
     const map = this.doc.get("departments") as { items?: unknown[] } | undefined;
     return (map?.items ?? [])
       .map((pair) => {
@@ -269,6 +292,17 @@ export class RosterWriter {
     does: string;
     name?: string;
     model?: string;
+    /**
+     * Opens the department as part of the hire, when it is not there yet.
+     *
+     * Departments exist by virtue of somebody working in one — `departments:` is
+     * a map of display names, not a list — so there is no such thing as an empty
+     * department. Opening one and then hiring into it had to become a single
+     * action, because the first half on its own did nothing anybody could see:
+     * not in the room, not in Settings, and not in the form's own department
+     * list, so the person who had just created it could not put anybody in it.
+     */
+    departmentLabel?: string;
   }): { ok: true } | { ok: false; reason: string } {
     if (!AGENT_ID.test(agent.id)) {
       return {
@@ -280,7 +314,11 @@ export class RosterWriter {
       return { ok: false, reason: `There is already somebody with the id ${agent.id}.` };
     }
     if (!this.departmentIds().includes(agent.department)) {
-      return { ok: false, reason: `There is no department called ${agent.department}.` };
+      if (agent.departmentLabel === undefined) {
+        return { ok: false, reason: `There is no department called ${agent.department}.` };
+      }
+      const opened = this.addDepartment(agent.department, agent.departmentLabel);
+      if (!opened.ok) return opened;
     }
     if (this.agentIds().length >= MAX_AGENTS) {
       return { ok: false, reason: `An office holds at most ${MAX_AGENTS} people.` };
@@ -335,7 +373,14 @@ export class RosterWriter {
    */
   updateAgent(
     agentId: string,
-    fields: { role?: string; does?: string; department?: string; model?: string | null },
+    fields: {
+      role?: string;
+      does?: string;
+      department?: string;
+      model?: string | null;
+      /** The whole list, so a checkbox can take a tool away as well as give it. */
+      tools?: string[];
+    },
   ): { ok: true } | { ok: false; reason: string } {
     const found = this.agentNode(agentId);
     if (!found) return { ok: false, reason: `There is nobody with the id ${agentId}.` };
@@ -354,6 +399,28 @@ export class RosterWriter {
     // rather than an empty string: an empty model id fails validation.
     if (fields.model === null) node.delete("model");
     else if (fields.model !== undefined) node.set("model", fields.model);
+    // Set whole rather than added to: `addTool` can only give, and a panel with
+    // checkboxes has to be able to take back.
+    if (fields.tools !== undefined) node.set("tools", fields.tools);
+    return { ok: true };
+  }
+
+  /**
+   * Renames the office.
+   *
+   * The name on the top bar, and what the staff call the place in a prompt. It
+   * is the first thing somebody wants to change after opening a template, and
+   * it was previously only reachable by editing the file.
+   */
+  setOfficeName(name: string): { ok: true } | { ok: false; reason: string } {
+    const trimmed = name.trim();
+    if (trimmed.length === 0) return { ok: false, reason: "An office needs a name." };
+    if (trimmed.length > 60)
+      return { ok: false, reason: "An office name is 60 characters or less." };
+
+    const office = this.doc.get("office") as { set?: (k: string, v: unknown) => void } | undefined;
+    if (office?.set === undefined) return { ok: false, reason: "agents.yaml has no office block." };
+    office.set("name", trimmed);
     return { ok: true };
   }
 

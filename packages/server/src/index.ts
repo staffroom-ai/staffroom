@@ -135,6 +135,9 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
             agentCount: 0,
             toolSources: { mcp: 0, custom: 0 },
           }),
+          // An injected office was built by the caller, who kept whatever hook
+          // it wanted; there is nothing here to point at the hub.
+          whenMcpChanges: () => {},
         };
   const office = booted.office;
   const token = newSessionToken();
@@ -331,6 +334,7 @@ export async function createServer(options: ServerOptions): Promise<StaffroomSer
   const wss = new WebSocketServer({ noServer: true });
   const hub = new SocketHub({ office, officeDir: options.officeDir, token, version: VERSION });
   hub.attach(wss);
+  booted.whenMcpChanges(() => hub.refresh());
 
   http.on("upgrade", (request, socket, head) => {
     const auth = checkRequest(request, authConfig);
