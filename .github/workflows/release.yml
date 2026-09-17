@@ -50,6 +50,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # What npm is actually being offered, when it says no.
+      #
+      # A trusted-publishing 403 says "OIDC permission denied" and nothing about
+      # which claim did not match, so the only way to settle it is to print the
+      # claims and compare them with what the package has configured. These are
+      # not secrets — the token itself is never printed — and having them in
+      # every release log is what turns the next 403 into a one-minute fix
+      # instead of an afternoon.
+      - name: Show the identity npm will check
+        run: |
+          set -euo pipefail
+          token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).value))")
+          node -e '
+            const claims = JSON.parse(Buffer.from(process.argv[1].split(".")[1], "base64url").toString());
+            for (const key of ["repository", "repository_owner", "workflow_ref", "job_workflow_ref", "ref", "environment"]) {
+              console.log(`${key}: ${claims[key] ?? "(not set)"}`);
+            }
+          ' "$token"
+
       # Only once the Version pull request has been merged.
       #
       # While changesets are still pending, the step above has just bumped
