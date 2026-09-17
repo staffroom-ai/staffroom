@@ -147,6 +147,27 @@ jobs:
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The image installs staffroom from npm, and the publish that just happened
+      # is not immediately visible to every registry mirror. The first 0.3.0
+      # build failed on exactly this: `npm error notarget No matching version
+      # found for staffroom@0.3.0`, a minute after the release job published it.
+      # So the build waits for the thing it is about to install.
+      - name: Wait for npm to serve the version being built
+        if: steps.exists.outputs.value == 'false'
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.value }}"
+          for attempt in $(seq 1 30); do
+            if npm view "staffroom@${version}" version > /dev/null 2>&1; then
+              echo "staffroom@${version} is on the registry after ${attempt} attempt(s)."
+              exit 0
+            fi
+            echo "staffroom@${version} not on the registry yet; attempt ${attempt}."
+            sleep 10
+          done
+          echo "staffroom@${version} never appeared on the registry. The release job says it published it, so check npm before re-running."
+          exit 1
+
       - if: steps.exists.outputs.value == 'false'
         uses: docker/setup-qemu-action@v3
       - if: steps.exists.outputs.value == 'false'
