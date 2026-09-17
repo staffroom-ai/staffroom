@@ -60,6 +60,63 @@ export function setDefaultModel(officeDir: string, model: string): boolean {
   return editRoster(officeDir, (writer) => writer.setDefaultModel(model));
 }
 
+/** What a refused edit says, so the caller can show it rather than invent one. */
+export type EditResult = { ok: true } | { ok: false; reason: string };
+
+function editRosterFor(officeDir: string, edit: (writer: RosterWriter) => EditResult): EditResult {
+  const path = join(officeDir, "agents.yaml");
+  try {
+    const writer = new RosterWriter(readFileSync(path, "utf8"));
+    const result = edit(writer);
+    if (!result.ok) return result;
+    writeFileSync(path, writer.toString(), "utf8");
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "Could not write agents.yaml.",
+    };
+  }
+}
+
+export function addAgent(
+  officeDir: string,
+  agent: {
+    id: string;
+    department: string;
+    role: string;
+    does: string;
+    name?: string;
+    model?: string;
+  },
+): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.addAgent(agent));
+}
+
+export function removeAgent(officeDir: string, agentId: string): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.removeAgent(agentId));
+}
+
+export function updateAgent(
+  officeDir: string,
+  agentId: string,
+  fields: { role?: string; does?: string; department?: string; model?: string | null },
+): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.updateAgent(agentId, fields));
+}
+
+export function addDepartment(officeDir: string, id: string, label: string): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.addDepartment(id, label));
+}
+
+export function renameDepartment(officeDir: string, id: string, label: string): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.renameDepartment(id, label));
+}
+
+export function removeDepartment(officeDir: string, id: string): EditResult {
+  return editRosterFor(officeDir, (writer) => writer.removeDepartment(id));
+}
+
 export function assignTool(officeDir: string, agentId: string, tool: string): boolean {
   return editRoster(officeDir, (writer) => writer.addTool(agentId, tool));
 }
@@ -77,16 +134,35 @@ export function assignTool(officeDir: string, agentId: string, tool: string): bo
  * id, rather than a new file object being swapped in: every holder of a
  * reference sees the change at once and nothing has to be rebuilt.
  *
- * Adding or deleting a row by hand is a different thing and is not handled here.
- * That needs a real reload, which is `office.reload`.
+ * Adding or deleting a row is handled too, when a roster is passed: it reseats
+ * itself in place, so the pods and desks are worked out again and everybody
+ * holding a reference sees the new office.
  */
-export function refreshAgents(officeDir: string, agentsFile: AgentsFile): boolean {
+export function refreshAgents(
+  officeDir: string,
+  agentsFile: AgentsFile,
+  roster?: { reseat: (fresh: AgentsFile) => void },
+): boolean {
   let fresh: AgentsFile;
   try {
     fresh = loadAgentsFile(officeDir);
   } catch {
     // Half-edited on disk. The office keeps running on the last good roster.
     return false;
+  }
+
+  /*
+   * With a roster, hires and leavers land too.
+   *
+   * Without one this copies fields onto matching ids and skips anything new,
+   * which meant adding a person to agents.yaml did nothing at all until a
+   * restart — and the only other way in, `office.reload`, was never
+   * implemented. Somebody following the documentation to add staff watched the
+   * office ignore them.
+   */
+  if (roster !== undefined) {
+    roster.reseat(fresh);
+    return true;
   }
 
   for (const row of fresh.agents) {

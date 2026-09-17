@@ -116,6 +116,20 @@ export function App(): ReactElement {
   const [keyStates, setKeyStates] = useState<Record<string, SaveState>>({});
   /** reqId -> provider, so an ack or error lands on the row that asked. */
   const keyReqs = useRef(new Map<string, string>());
+  /*
+   * Roster edits in flight, and the office's answer to the last one.
+   *
+   * Kept apart from the rail's error slot: a refused hire is about the form the
+   * person is looking at, and "there is already somebody with the id bookkeeper"
+   * belongs next to the field they typed it in.
+   */
+  const staffReqs = useRef(new Set<string>());
+  const [staffProblem, setStaffProblem] = useState<string | null>(null);
+  const staffReq = (): string => {
+    const id = reqId();
+    staffReqs.current.add(id);
+    return id;
+  };
   /** reqIds waiting on an authorisation URL to open. */
   const oauthReqs = useRef(new Set<string>());
   const token = useMemo(() => readToken(), []);
@@ -203,6 +217,7 @@ export function App(): ReactElement {
               keyReqs.current.delete(message.reqId);
               setKeyStates((prev) => ({ ...prev, [provider]: { kind: "saved" } }));
             }
+            if (staffReqs.current.delete(message.reqId)) setStaffProblem(null);
             if (oauthReqs.current.delete(message.reqId)) {
               // Opened here rather than by the office: the sign-in stays on the
               // owner's own click, and `noopener` keeps the provider's page from
@@ -225,6 +240,10 @@ export function App(): ReactElement {
                 ...prev,
                 [provider]: { kind: "failed", message: message.message, hint: message.hint },
               }));
+              break;
+            }
+            if (failedReqId !== undefined && staffReqs.current.delete(failedReqId)) {
+              setStaffProblem(message.message);
               break;
             }
             state.applyError({ code: message.code, message: message.message, hint: message.hint });
@@ -644,6 +663,31 @@ export function App(): ReactElement {
               socket?.send({ type: "demo.samples", reqId: reqId(), remove });
             }}
             onClose={() => setSettingsOpen(false)}
+            staff={{
+              agents: state.agents.map((agent) => ({
+                id: agent.id,
+                // An unnamed agent is named by their lead the first time work
+                // reaches them, so the state carries null as well as undefined.
+                ...(agent.name == null ? {} : { name: agent.name }),
+                role: agent.role,
+                does: agent.does,
+                departmentId: agent.departmentId,
+              })),
+              departments: state.departments.map((d) => ({ id: d.id, label: d.name })),
+              problem: staffProblem,
+            }}
+            staffActions={{
+              onAddAgent: (agent) =>
+                socket?.send({ type: "agent.create", reqId: staffReq(), agent }),
+              onUpdateAgent: (agentId, fields) =>
+                socket?.send({ type: "agent.update", reqId: staffReq(), agentId, fields }),
+              onRemoveAgent: (agentId) =>
+                socket?.send({ type: "agent.remove", reqId: staffReq(), agentId }),
+              onAddDepartment: (id, label) =>
+                socket?.send({ type: "department.create", reqId: staffReq(), id, label }),
+              onRemoveDepartment: (id) =>
+                socket?.send({ type: "department.remove", reqId: staffReq(), id }),
+            }}
             onSave={(provider, value) => {
               const id = reqId();
               keyReqs.current.set(id, provider);

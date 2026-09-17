@@ -113,6 +113,37 @@ export type ClientMessage =
   /** SR-067: what each configured provider says it can run today. */
   | { type: "models.list"; reqId: string }
   | { type: "agents.set_default_model"; reqId: string; model: string }
+  /*
+   * Hiring, editing and letting go, from Settings.
+   *
+   * Every one of these ends in a document-mode write to agents.yaml and a
+   * re-read into the running office, so the room changes while you watch. The
+   * file stays the source of truth: anything done here could have been done by
+   * editing it, which is the point of the office being a folder.
+   */
+  | {
+      type: "agent.create";
+      reqId: string;
+      agent: {
+        id: string;
+        department: string;
+        role: string;
+        does: string;
+        name?: string;
+        model?: string;
+      };
+    }
+  | { type: "agent.remove"; reqId: string; agentId: string }
+  | {
+      type: "agent.update";
+      reqId: string;
+      agentId: string;
+      /** Only the fields being changed. `model: null` means the office default. */
+      fields: { role?: string; does?: string; department?: string; model?: string | null };
+    }
+  | { type: "department.create"; reqId: string; id: string; label: string }
+  | { type: "department.rename"; reqId: string; id: string; label: string }
+  | { type: "department.remove"; reqId: string; id: string }
   | { type: "office.reload"; reqId: string }
   | { type: "ping"; reqId: string };
 

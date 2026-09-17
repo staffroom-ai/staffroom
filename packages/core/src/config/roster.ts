@@ -8,7 +8,14 @@
  * again.
  */
 import { parseDocument, Scalar } from "yaml";
-import type { AgentConfig, AgentsFile } from "./agents.js";
+import {
+  AGENT_ID,
+  type AgentConfig,
+  type AgentsFile,
+  DEPARTMENT_ID,
+  MAX_AGENTS,
+  MAX_DEPARTMENTS,
+} from "./agents.js";
 
 export interface Department {
   id: string;
@@ -35,23 +42,67 @@ export class Roster {
   constructor(file: AgentsFile) {
     this.file = file;
     this.agents = file.agents;
+    this.departments = [];
+    this.place();
+  }
 
+  /**
+   * Works out the departments and who sits where, from the roster as it is now.
+   *
+   * Split out of the constructor so a roster change can be applied to the object
+   * everybody is already holding. The office hands `roster` to the runner, to
+   * the state builder and to the scene, all of which captured it at boot: making
+   * a new Roster would leave every one of them on the old one, which is the
+   * shape of bug where the office shows staff that no longer exist.
+   */
+  private place(): void {
     const order: string[] = [];
     const grouped = new Map<string, AgentConfig[]>();
-    for (const agent of file.agents) {
+    for (const agent of this.agents) {
       if (!order.includes(agent.department)) order.push(agent.department);
       const members = grouped.get(agent.department) ?? [];
       members.push(agent);
       grouped.set(agent.department, members);
     }
 
-    this.departments = order.map((id, pod) => {
+    this.seats.clear();
+    // Emptied in place rather than reassigned, for the same reason as above.
+    this.departments.length = 0;
+    for (const [pod, id] of order.entries()) {
       const members = grouped.get(id) ?? [];
       members.forEach((agent, seat) => {
         this.seats.set(agent.id, { agent, department: id, pod, seat });
       });
-      return { id, label: file.departments[id] ?? titleCase(id), pod, agents: members };
+      this.departments.push({
+        id,
+        label: this.file.departments[id] ?? titleCase(id),
+        pod,
+        agents: members,
+      });
+    }
+  }
+
+  /**
+   * Takes a roster that has been edited on disk, including hires and leavers.
+   *
+   * People who are still there keep their object, so anything holding a
+   * reference to an agent keeps working; new rows are added and departed ones
+   * drop out, and the seats and pods are worked out again.
+   */
+  reseat(fresh: AgentsFile): void {
+    const kept = fresh.agents.map((row) => {
+      const existing = this.agents.find((agent) => agent.id === row.id);
+      if (existing === undefined) return row;
+      Object.assign(existing, row);
+      return existing;
     });
+
+    this.agents.splice(0, this.agents.length, ...kept);
+    this.file.agents = this.agents;
+    this.file.departments = fresh.departments;
+    this.file.office = fresh.office;
+    this.file.default_model = fresh.default_model;
+    this.place();
   }
 
   get officeName(): string {
@@ -173,6 +224,203 @@ export class RosterWriter {
     if (names.includes(tool)) return false;
     existing.add?.(tool);
     return true;
+  }
+
+  /** Everybody currently in the file, in file order. */
+  agentIds(): string[] {
+    const agents = this.doc.get("agents") as { items?: unknown[] } | undefined;
+    return (agents?.items ?? [])
+      .map((node) => {
+        const value = (node as { get?: (k: string) => unknown })?.get?.("id");
+        return typeof value === "string" ? value : "";
+      })
+      .filter((id) => id.length > 0);
+  }
+
+  departmentIds(): string[] {
+    const map = this.doc.get("departments") as { items?: unknown[] } | undefined;
+    return (map?.items ?? [])
+      .map((pair) => {
+        // Keys parsed from the file are Scalar nodes; keys added in this session
+        // are plain strings. Reading only the first shape made a department
+        // added a moment ago invisible to every check below — so hiring into it
+        // was refused with "there is no department called legal", about a
+        // department the same writer had just opened.
+        const key = (pair as { key?: unknown })?.key;
+        if (typeof key === "string") return key;
+        const value = (key as { value?: unknown })?.value;
+        return typeof value === "string" ? value : "";
+      })
+      .filter((id) => id.length > 0);
+  }
+
+  /**
+   * Hires somebody.
+   *
+   * Refuses rather than repairs: an id that is already taken, an id that is not
+   * an id, a department nobody has made, or a roster already at its limit. The
+   * caller is a person filling in a form, and "that id is taken" is a thing they
+   * can act on where a silently renamed agent is not.
+   */
+  addAgent(agent: {
+    id: string;
+    department: string;
+    role: string;
+    does: string;
+    name?: string;
+    model?: string;
+  }): { ok: true } | { ok: false; reason: string } {
+    if (!AGENT_ID.test(agent.id)) {
+      return {
+        ok: false,
+        reason: "An id is lower case letters, numbers and dashes, and starts with a letter.",
+      };
+    }
+    if (this.agentIds().includes(agent.id)) {
+      return { ok: false, reason: `There is already somebody with the id ${agent.id}.` };
+    }
+    if (!this.departmentIds().includes(agent.department)) {
+      return { ok: false, reason: `There is no department called ${agent.department}.` };
+    }
+    if (this.agentIds().length >= MAX_AGENTS) {
+      return { ok: false, reason: `An office holds at most ${MAX_AGENTS} people.` };
+    }
+
+    const row: Record<string, unknown> = {
+      id: agent.id,
+      department: agent.department,
+      ...(agent.name === undefined ? {} : { name: agent.name }),
+      role: agent.role,
+      does: agent.does,
+      ...(agent.model === undefined ? {} : { model: agent.model }),
+    };
+
+    const agents = this.doc.get("agents") as { add?: (v: unknown) => void } | undefined;
+    if (agents?.add === undefined) {
+      this.doc.set("agents", [row]);
+      return { ok: true };
+    }
+    agents.add(this.doc.createNode(row));
+    return { ok: true };
+  }
+
+  /**
+   * Removes somebody from the roster.
+   *
+   * Their filed work stays in the brain. A deliverable is the owner's, and
+   * deleting somebody's notes because they left the roster would be the office
+   * throwing away work nobody asked it to throw away.
+   *
+   * The last person cannot go: an office with no staff will not load, and the
+   * owner would be left with a file they have to hand-edit to recover.
+   */
+  removeAgent(agentId: string): { ok: true } | { ok: false; reason: string } {
+    const found = this.agentNode(agentId);
+    if (!found) return { ok: false, reason: `There is nobody with the id ${agentId}.` };
+    if (this.agentIds().length <= 1) {
+      return { ok: false, reason: "An office needs at least one member of staff." };
+    }
+
+    const agents = this.doc.get("agents") as { delete?: (i: number) => void };
+    agents.delete?.(found.index);
+    return { ok: true };
+  }
+
+  /**
+   * Changes the fields of somebody who is already there.
+   *
+   * Only the fields passed. An undefined field is one the form did not touch,
+   * which is not the same as one the owner cleared, and treating them alike is
+   * how an edit to a role silently empties a set of tools.
+   */
+  updateAgent(
+    agentId: string,
+    fields: { role?: string; does?: string; department?: string; model?: string | null },
+  ): { ok: true } | { ok: false; reason: string } {
+    const found = this.agentNode(agentId);
+    if (!found) return { ok: false, reason: `There is nobody with the id ${agentId}.` };
+    if (fields.department !== undefined && !this.departmentIds().includes(fields.department)) {
+      return { ok: false, reason: `There is no department called ${fields.department}.` };
+    }
+
+    const node = found.node as {
+      set: (k: string, v: unknown) => void;
+      delete: (k: string) => void;
+    };
+    if (fields.role !== undefined) node.set("role", fields.role);
+    if (fields.does !== undefined) node.set("does", fields.does);
+    if (fields.department !== undefined) node.set("department", fields.department);
+    // null is "use the office default again", which is the absence of the key
+    // rather than an empty string: an empty model id fails validation.
+    if (fields.model === null) node.delete("model");
+    else if (fields.model !== undefined) node.set("model", fields.model);
+    return { ok: true };
+  }
+
+  addDepartment(id: string, label: string): { ok: true } | { ok: false; reason: string } {
+    if (!DEPARTMENT_ID.test(id)) {
+      return { ok: false, reason: "A department id is lower case letters, numbers and dashes." };
+    }
+    if (this.departmentIds().includes(id)) {
+      return { ok: false, reason: `There is already a department called ${id}.` };
+    }
+    if (this.departmentIds().length >= MAX_DEPARTMENTS) {
+      // The floor is a ring of six wedges; a seventh has nowhere to stand.
+      return { ok: false, reason: `An office holds at most ${MAX_DEPARTMENTS} departments.` };
+    }
+
+    const map = this.doc.get("departments") as
+      | { set?: (k: string, v: unknown) => void }
+      | undefined;
+    if (map?.set === undefined) this.doc.set("departments", { [id]: label });
+    else map.set(id, label);
+    return { ok: true };
+  }
+
+  renameDepartment(id: string, label: string): { ok: true } | { ok: false; reason: string } {
+    const map = this.doc.get("departments") as
+      | { set?: (k: string, v: unknown) => void }
+      | undefined;
+    if (!this.departmentIds().includes(id)) {
+      return { ok: false, reason: `There is no department called ${id}.` };
+    }
+    map?.set?.(id, label);
+    return { ok: true };
+  }
+
+  /**
+   * Closes a department.
+   *
+   * Refused while anybody is in it, rather than moving them somewhere or
+   * deleting them. Both of those are decisions about people's work that the
+   * owner should make one at a time, and the message says who is in the way.
+   */
+  removeDepartment(id: string): { ok: true } | { ok: false; reason: string } {
+    if (!this.departmentIds().includes(id)) {
+      return { ok: false, reason: `There is no department called ${id}.` };
+    }
+
+    const staff = this.agentIds().filter((agentId) => {
+      const found = this.agentNode(agentId);
+      const node = found?.node as { get?: (k: string) => unknown } | undefined;
+      return node?.get?.("department") === id;
+    });
+    if (staff.length > 0) {
+      // One person "works", several "work". The office says this to somebody who
+      // is mid-task, and a sentence that does not parse reads as a broken tool.
+      const verb = staff.length === 1 ? "works" : "work";
+      return {
+        ok: false,
+        reason: `${staff.join(", ")} still ${verb} in ${id}. Move them first.`,
+      };
+    }
+    if (this.departmentIds().length <= 1) {
+      return { ok: false, reason: "An office needs at least one department." };
+    }
+
+    const map = this.doc.get("departments") as { delete?: (k: string) => void } | undefined;
+    map?.delete?.(id);
+    return { ok: true };
   }
 
   toString(): string {

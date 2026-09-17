@@ -6,7 +6,7 @@
  * wrong, and which model does everybody use.
  */
 import type { WhitelistRow } from "@staffroom/core";
-import type { ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 import type { DoctorCheck } from "../protocol.js";
 
 /**
@@ -224,5 +224,318 @@ export function DefaultModel({
         </p>
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------------- *
+ * Staff
+ *
+ * Who works here, editable. Before this the only way to hire somebody was to
+ * open agents.yaml in an editor, and the only way to see it take effect was to
+ * restart the office — which the documentation did not mention, because the
+ * person who wrote it assumed the watcher already handled it.
+ *
+ * The file is still the source of truth. Everything here is a document-mode
+ * write to agents.yaml, so an office edited from this panel and an office
+ * edited in vim end up with the same file, comments and all.
+ * ------------------------------------------------------------------------- */
+
+export interface StaffAgent {
+  id: string;
+  name?: string;
+  role: string;
+  does: string;
+  departmentId: string;
+}
+
+export interface StaffDepartment {
+  id: string;
+  label: string;
+}
+
+export interface StaffActions {
+  onAddAgent: (agent: {
+    id: string;
+    department: string;
+    role: string;
+    does: string;
+    name?: string;
+  }) => void;
+  onUpdateAgent: (agentId: string, fields: { role?: string; does?: string }) => void;
+  onRemoveAgent: (agentId: string) => void;
+  onAddDepartment: (id: string, label: string) => void;
+  onRemoveDepartment: (id: string) => void;
+}
+
+/** An id the office will accept, suggested from what they typed as a name. */
+export function idFrom(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function AgentRow({
+  agent,
+  onUpdateAgent,
+  onRemoveAgent,
+}: {
+  agent: StaffAgent;
+  onUpdateAgent: StaffActions["onUpdateAgent"];
+  onRemoveAgent: StaffActions["onRemoveAgent"];
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState(agent.role);
+  const [does, setDoes] = useState(agent.does);
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <li className="staff-row">
+      <button type="button" className="staff-summary" onClick={() => setOpen(!open)}>
+        <span className="staff-name">{agent.name ?? agent.id}</span>
+        <span className="staff-role">{agent.role}</span>
+      </button>
+
+      {open && (
+        <div className="staff-edit">
+          <label className="setting-field">
+            <span className="setting-note">Role</span>
+            <input
+              className="setting-input"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+            />
+          </label>
+          <label className="setting-field">
+            <span className="setting-note">What they do</span>
+            <textarea
+              className="setting-input"
+              rows={2}
+              value={does}
+              onChange={(event) => setDoes(event.target.value)}
+            />
+          </label>
+
+          <div className="staff-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={role.trim() === agent.role && does.trim() === agent.does}
+              onClick={() => onUpdateAgent(agent.id, { role: role.trim(), does: does.trim() })}
+            >
+              Save
+            </button>
+
+            {/*
+              Asked once before it happens. Letting somebody go is not
+              destructive — their filed work stays in the brain, and the office
+              says so — but it is not a thing to do on a mis-click either.
+            */}
+            {confirming ? (
+              <span className="staff-confirm">
+                <span className="setting-note">
+                  Remove {agent.name ?? agent.id}? Their filed work stays in the brain.
+                </span>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => onRemoveAgent(agent.id)}
+                >
+                  Remove
+                </button>
+                <button type="button" className="btn-quiet" onClick={() => setConfirming(false)}>
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button type="button" className="btn-quiet" onClick={() => setConfirming(true)}>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function AddAgent({
+  departments,
+  onAddAgent,
+}: {
+  departments: StaffDepartment[];
+  onAddAgent: StaffActions["onAddAgent"];
+}): ReactElement {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [does, setDoes] = useState("");
+  const [department, setDepartment] = useState(departments[0]?.id ?? "");
+
+  const id = idFrom(name);
+  // `does` has a minimum length in the schema, so the button says no before the
+  // server has to: a refusal you could have predicted is a refusal worth avoiding.
+  const ready =
+    id.length > 1 && role.trim().length > 0 && does.trim().length >= 10 && department !== "";
+
+  return (
+    <div className="staff-add">
+      <h4 className="settings-heading">Hire somebody</h4>
+
+      <label className="setting-field">
+        <span className="setting-note">Name{id === "" ? "" : ` — id will be ${id}`}</span>
+        <input
+          className="setting-input"
+          value={name}
+          placeholder="Wendy"
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+
+      <label className="setting-field">
+        <span className="setting-note">Role</span>
+        <input
+          className="setting-input"
+          value={role}
+          placeholder="Bookkeeper"
+          onChange={(event) => setRole(event.target.value)}
+        />
+      </label>
+
+      <label className="setting-field">
+        <span className="setting-note">What they do, in a sentence</span>
+        <textarea
+          className="setting-input"
+          rows={2}
+          value={does}
+          placeholder="Reconciles the bank feed every morning."
+          onChange={(event) => setDoes(event.target.value)}
+        />
+      </label>
+
+      <label className="setting-field">
+        <span className="setting-note">Department</span>
+        <select
+          className="setting-input"
+          value={department}
+          onChange={(event) => setDepartment(event.target.value)}
+        >
+          {departments.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        type="button"
+        className="btn"
+        disabled={!ready}
+        onClick={() => {
+          onAddAgent({
+            id,
+            department,
+            role: role.trim(),
+            does: does.trim(),
+            ...(name.trim() === "" ? {} : { name: name.trim() }),
+          });
+          setName("");
+          setRole("");
+          setDoes("");
+        }}
+      >
+        Hire
+      </button>
+    </div>
+  );
+}
+
+export function Staff({
+  agents,
+  departments,
+  problem,
+  actions,
+}: {
+  agents: StaffAgent[];
+  departments: StaffDepartment[];
+  /** The office's own sentence when it refused the last edit. */
+  problem?: string | null;
+  actions: StaffActions;
+}): ReactElement {
+  const [newDepartment, setNewDepartment] = useState("");
+
+  return (
+    <section className="setting-row" aria-label="Staff">
+      <h3 className="settings-heading">Staff</h3>
+      <p className="setting-note">
+        Everything here is written to office/agents.yaml, which you can also edit by hand.
+      </p>
+
+      {problem != null && (
+        <p className="setting-bad" role="alert">
+          {problem}
+        </p>
+      )}
+
+      {departments.map((department) => (
+        <div key={department.id} className="staff-department">
+          <div className="staff-department-head">
+            <h4 className="settings-heading">{department.label}</h4>
+            <button
+              type="button"
+              className="btn-quiet"
+              onClick={() => actions.onRemoveDepartment(department.id)}
+            >
+              Close
+            </button>
+          </div>
+          <ul className="staff-list">
+            {agents
+              .filter((agent) => agent.departmentId === department.id)
+              .map((agent) => (
+                <AgentRow
+                  key={agent.id}
+                  agent={agent}
+                  onUpdateAgent={actions.onUpdateAgent}
+                  onRemoveAgent={actions.onRemoveAgent}
+                />
+              ))}
+          </ul>
+        </div>
+      ))}
+
+      <AddAgent departments={departments} onAddAgent={actions.onAddAgent} />
+
+      <div className="staff-add">
+        <h4 className="settings-heading">Open a department</h4>
+        {/*
+          A department with nobody in it is in the file and not yet on the floor:
+          the wedges are drawn from where people sit. Said here rather than left
+          for somebody to wonder about when the room does not change.
+        */}
+        <p className="setting-note">It appears in the room once somebody works there.</p>
+        <label className="setting-field">
+          <span className="setting-note">Name</span>
+          <input
+            className="setting-input"
+            value={newDepartment}
+            placeholder="Support"
+            onChange={(event) => setNewDepartment(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn"
+          disabled={idFrom(newDepartment).length < 2}
+          onClick={() => {
+            actions.onAddDepartment(idFrom(newDepartment), newDepartment.trim());
+            setNewDepartment("");
+          }}
+        >
+          Open
+        </button>
+      </div>
+    </section>
   );
 }

@@ -53,6 +53,21 @@ export type ClientMessage =
   | { type: "runs.replay"; reqId: string; runId: string }
   | { type: "note.reveal"; reqId: string; noteId: string; app?: string }
   | { type: "provider.set_key"; reqId: string; provider: string; key: string }
+  | {
+      type: "agent.create";
+      reqId: string;
+      agent: { id: string; department: string; role: string; does: string; name?: string };
+    }
+  | { type: "agent.remove"; reqId: string; agentId: string }
+  | {
+      type: "agent.update";
+      reqId: string;
+      agentId: string;
+      fields: { role?: string; does?: string; department?: string; model?: string | null };
+    }
+  | { type: "department.create"; reqId: string; id: string; label: string }
+  | { type: "department.rename"; reqId: string; id: string; label: string }
+  | { type: "department.remove"; reqId: string; id: string }
   | { type: "mcp.reconnect"; reqId: string; server: string }
   | { type: "mcp.oauth.begin"; reqId: string; server: string }
   | { type: "tools.assign"; reqId: string; name: string; agentIds: string[] }

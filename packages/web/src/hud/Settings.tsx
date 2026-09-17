@@ -14,6 +14,10 @@ import {
   Doctor,
   type DoctorState,
   type ModelsState,
+  Staff,
+  type StaffActions,
+  type StaffAgent,
+  type StaffDepartment,
   Whitelist,
 } from "./SettingsSections.js";
 
@@ -186,6 +190,8 @@ export function Settings({
   savingModel,
   onLoadModels,
   onChooseModel,
+  staff,
+  staffActions,
   onSave,
   onClose,
 }: {
@@ -209,6 +215,9 @@ export function Settings({
   savingModel?: boolean;
   onLoadModels?: () => void;
   onChooseModel?: (model: string) => void;
+  /** Who works here, and the edits Settings can make to them. */
+  staff?: { agents: StaffAgent[]; departments: StaffDepartment[]; problem?: string | null };
+  staffActions?: StaffActions;
   onSave: (providerId: string, value: string) => void;
   onClose: () => void;
 }): ReactElement {
@@ -223,7 +232,7 @@ export function Settings({
   return (
     <aside className="sheet" aria-label="Settings">
       <header className="sheet-head">
-        <h2 className="settings-title">Models</h2>
+        <h2 className="settings-title">Settings</h2>
         <button type="button" className="btn-quiet" onClick={onClose} aria-label="Close settings">
           Close
         </button>
@@ -248,6 +257,13 @@ export function Settings({
               onAnswer={onAnswerSamples}
             />
           )}
+
+        {/*
+          Named, because the panel is no longer only about models and every hint
+          the office prints says "Settings > Models". A heading somebody can
+          point at is what makes that sentence true.
+        */}
+        <h3 className="settings-heading">Models</h3>
 
         {PROVIDERS.map((provider) => (
           <Row
@@ -283,6 +299,15 @@ export function Settings({
 
         {/* Unattended work is the part of this that happens while nobody is
             looking, so it is listed where somebody can turn it off. */}
+        {staff !== undefined && staffActions !== undefined && (
+          <Staff
+            agents={staff.agents}
+            departments={staff.departments}
+            {...(staff.problem === undefined ? {} : { problem: staff.problem })}
+            actions={staffActions}
+          />
+        )}
+
         <h3 className="settings-heading">Routines</h3>
         <Routines routines={routines} {...routineActions} />
 

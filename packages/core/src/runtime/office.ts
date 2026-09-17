@@ -27,16 +27,40 @@ import { ToolRegistry } from "../tools/registry.js";
 import { FileWhitelist } from "../tools/whitelist.js";
 import type { RunStore } from "./events.js";
 import {
+  addAgent,
+  addDepartment,
   assignTool,
+  type EditResult,
   refreshAgents,
+  removeAgent,
+  removeDepartment,
   renameAgent,
+  renameDepartment,
   revealNote,
   setDefaultModel,
   setProviderKey,
+  updateAgent,
 } from "./office-edits.js";
 import { Runner } from "./runner.js";
 import { seedSampleRun } from "./seed.js";
 import { SqliteRunStore } from "./store.js";
+
+export interface NewAgent {
+  id: string;
+  department: string;
+  role: string;
+  does: string;
+  name?: string;
+  model?: string;
+}
+
+export interface AgentEdit {
+  role?: string;
+  does?: string;
+  department?: string;
+  /** null puts them back on the office default. */
+  model?: string | null;
+}
 
 export interface Office {
   runner: Runner;
@@ -57,6 +81,15 @@ export interface Office {
   toolFailures: LoadFailure[];
   /** Edits to the owner's own files, made through the document API. */
   renameAgent(agentId: string, name: string): boolean;
+  /** Hires, leavers and edits, all through the document-mode writer. */
+  addAgent(agent: NewAgent): EditResult;
+  removeAgent(agentId: string): EditResult;
+  updateAgent(agentId: string, fields: AgentEdit): EditResult;
+  addDepartment(id: string, label: string): EditResult;
+  renameDepartment(id: string, label: string): EditResult;
+  removeDepartment(id: string): EditResult;
+  /** Re-reads agents.yaml into the running office, hires and leavers included. */
+  reloadRoster(): boolean;
   assignTool(agentId: string, tool: string): boolean;
   setDefaultModel(model: string): boolean;
   setProviderKey(provider: string, key: string): boolean;
@@ -342,6 +375,11 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     mode,
   });
 
+  const applyRosterEdit = (result: EditResult): EditResult => {
+    if (result.ok) refreshAgents(officeDir, agentsFile, roster);
+    return result;
+  };
+
   return {
     runner,
     roster,
@@ -369,6 +407,24 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
       refreshAgents(officeDir, agentsFile);
       return true;
     },
+    /*
+     * Every roster edit is written and then read straight back in.
+     *
+     * Writing the file alone is what made the first version of this useless:
+     * agents.yaml gained a person and the office carried on with the staff it
+     * booted with. Reading it back through the roster is what makes an edit from
+     * Settings show up in the room.
+     */
+    addAgent: (agent: NewAgent) => applyRosterEdit(addAgent(officeDir, agent)),
+    removeAgent: (agentId: string) => applyRosterEdit(removeAgent(officeDir, agentId)),
+    updateAgent: (agentId: string, fields: AgentEdit) =>
+      applyRosterEdit(updateAgent(officeDir, agentId, fields)),
+    addDepartment: (id: string, label: string) =>
+      applyRosterEdit(addDepartment(officeDir, id, label)),
+    renameDepartment: (id: string, label: string) =>
+      applyRosterEdit(renameDepartment(officeDir, id, label)),
+    removeDepartment: (id: string) => applyRosterEdit(removeDepartment(officeDir, id)),
+    reloadRoster: () => refreshAgents(officeDir, agentsFile, roster),
     setProviderKey: (provider: string, key: string) => setProviderKey(officeDir, provider, key),
     revealNote: (noteId: string, app?: string) => revealNote(brainDir, noteId, app),
     warnings,
