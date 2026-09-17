@@ -1,5 +1,27 @@
 # @staffroom/web
 
+## 0.3.0
+
+### Patch Changes
+
+- [#8](https://github.com/staffroom-ai/staffroom/pull/8) [`f67ff29`](https://github.com/staffroom-ai/staffroom/commit/f67ff2990792d4534b1c0cbe1240e0d98a4135b8) Thanks [@amanchhabra](https://github.com/amanchhabra)! - The office costs the same to draw however many people work there. People and
+  desks are drawn as instanced meshes, so a room of thirty-five went from 821 draw
+  calls to 37 — the same number a room of four costs. Desks in an office with
+  other than six departments now face the Brain, which they did not.
+
+- [`96d44ae`](https://github.com/staffroom-ai/staffroom/commit/96d44ae2abd0c14cdeb2e12d1312593507cbbf42) Thanks [@amanchhabra](https://github.com/amanchhabra)! - Measures what the office costs to draw, so it cannot get slower without somebody
+  noticing.
+  
+  A perf test runs the real office with thirty-five people in it and holds it to
+  budgets for draw calls, triangles, frame pacing and time to first frame. It runs
+  on macOS in CI, where there is a GPU: a frame time from a software rasteriser
+  would be a number about the build machine rather than about the scene.
+  
+  No change to the office itself. The probe that reads the renderer's counters is
+  silent unless a test asks for numbers, and adds 0.15 kB to the scene chunk.
+- Updated dependencies [[`61a7ff5`](https://github.com/staffroom-ai/staffroom/commit/61a7ff5a9b7b32ed6d2bf4654fca31c9ca5ee354), [`7c7e8f5`](https://github.com/staffroom-ai/staffroom/commit/7c7e8f59c1556400aa3f2d800ea0a788fe68d22b), [`b65ed37`](https://github.com/staffroom-ai/staffroom/commit/b65ed370dd2ab87f74ba3a832d5bd68457d210c6), [`83dd5f6`](https://github.com/staffroom-ai/staffroom/commit/83dd5f607efc1f74162ad536bc3b536bdbbbf239), [`c536962`](https://github.com/staffroom-ai/staffroom/commit/c536962227de9cfb58481666d0844fc640bd1765), [`6e465a7`](https://github.com/staffroom-ai/staffroom/commit/6e465a73437b526087a69a35049bf138c4dd9b5b)]:
+  - @staffroom/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

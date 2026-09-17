@@ -1,5 +1,73 @@
 # @staffroom/server
 
+## 0.3.0
+
+### Minor Changes
+
+- [`1d06d00`](https://github.com/staffroom-ai/staffroom/commit/1d06d004a18761d6aa883eec12e4bcf34028cb78) Thanks [@amanchhabra](https://github.com/amanchhabra)! - Run the office in a container.
+  
+  ```bash
+  docker run -d --name staffroom \
+    -p 127.0.0.1:4242:4242 \
+    -v $PWD/office:/office \
+    -e ANTHROPIC_API_KEY \
+    ghcr.io/staffroom-ai/staffroom:latest
+  ```
+  
+  Your office stays on the host; the container is disposable. Without a mount it
+  still runs, makes an office inside itself and comes up in demo mode, which is a
+  quick way to look at it.
+  
+  Inside the container the office listens on all interfaces, because the published
+  port is the only way in. The startup warning now says that, instead of telling
+  you to put a bind address behind a VPN when the bind address is not the thing you
+  can change.
+
+- [`7c7e8f5`](https://github.com/staffroom-ai/staffroom/commit/7c7e8f59c1556400aa3f2d800ea0a788fe68d22b) Thanks [@amanchhabra](https://github.com/amanchhabra)! - Optional, checkable telemetry, and a once-a-day update check that shares its
+  switch.
+  
+  Both off unless `telemetry.enabled` is true in `office/config.yaml`, both off in
+  demo mode whatever the file says, and both off when `STAFFROOM_TELEMETRY=0`.
+  `STAFFROOM_NO_UPDATE_CHECK=1` turns the registry check off on its own.
+  
+  `npx staffroom doctor` prints the exact payload that would be sent — including
+  when telemetry is off, because the question people want answered before turning
+  it on is what it would say about them. It is two events, counts only, with no
+  free-text field anywhere in the shape for a task, a note, an agent's name or an
+  error message to travel in.
+  
+  The install id is a random UUID in `office/.staffroom/telemetry-id`. Delete the
+  file and the next one is different: it is not derived from anything about your
+  machine, so deleting it actually means something.
+
+- [`83dd5f6`](https://github.com/staffroom-ai/staffroom/commit/83dd5f607efc1f74162ad536bc3b536bdbbbf239) Thanks [@amanchhabra](https://github.com/amanchhabra)! - More from `npx staffroom doctor`, and a support bundle that is safe to send.
+  
+  Six new checks: one line per MCP server and whether its secrets resolved, whether
+  web search will actually work, standing permissions nobody has used in a month,
+  links pointing at notes that are not there, and how much runs unattended.
+  
+  And `brain.secrets`: a note containing something shaped like an API key or a card
+  number. Every agent reads your notes and a pinned one goes into every prompt, so
+  a key written into a note is a key sent to a model provider. Notes in
+  `brain/_private/` are skipped, because that is where such a note belongs.
+  
+  `npx staffroom doctor --bundle` writes a zip with the config, the doctor report
+  and the log, with every value from your `.env` replaced by the name it came from,
+  in every file. The `.env` itself is never included. It exists so nobody zips the
+  folder by hand, because the hand-made version is the one with the keys in it.
+
+### Patch Changes
+
+- [`61a7ff5`](https://github.com/staffroom-ai/staffroom/commit/61a7ff5a9b7b32ed6d2bf4654fca31c9ca5ee354) Thanks [@amanchhabra](https://github.com/amanchhabra)! - Fixes the version every package reports about itself.
+  
+  0.2.0 shipped reporting 0.1.1 from `npx staffroom --version`, from `/health` and
+  in the welcome frame. Changesets bumps package.json and knows nothing about a
+  constant in the source, so the two had drifted apart during the release itself.
+  The constants are now synced as part of `changeset version`, inside the Version
+  pull request, rather than left for a lint gate to catch after the fact.
+- Updated dependencies [[`61a7ff5`](https://github.com/staffroom-ai/staffroom/commit/61a7ff5a9b7b32ed6d2bf4654fca31c9ca5ee354), [`7c7e8f5`](https://github.com/staffroom-ai/staffroom/commit/7c7e8f59c1556400aa3f2d800ea0a788fe68d22b), [`b65ed37`](https://github.com/staffroom-ai/staffroom/commit/b65ed370dd2ab87f74ba3a832d5bd68457d210c6), [`83dd5f6`](https://github.com/staffroom-ai/staffroom/commit/83dd5f607efc1f74162ad536bc3b536bdbbbf239), [`c536962`](https://github.com/staffroom-ai/staffroom/commit/c536962227de9cfb58481666d0844fc640bd1765), [`6e465a7`](https://github.com/staffroom-ai/staffroom/commit/6e465a73437b526087a69a35049bf138c4dd9b5b)]:
+  - @staffroom/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

@@ -19,7 +19,7 @@ import { addTool, listExampleTools, newTool } from "./commands/tools.js";
 import { resolveOfficeDir } from "./office-dir.js";
 import { unknownCommand } from "./unknown-command.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 async function run(): Promise<void> {
   const nodeProblem = checkNodeVersion();

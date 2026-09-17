@@ -4,7 +4,7 @@
  * Zero UI, zero HTTP, zero file watchers. Everything here can run in a test.
  */
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 export type { Chunk, EmbedResult } from "./brain/embeddings.js";
 export {
