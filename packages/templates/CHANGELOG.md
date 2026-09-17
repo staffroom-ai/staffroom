@@ -1,5 +1,25 @@
 # @staffroom/templates
 
+## 0.3.0
+
+### Patch Changes
+
+- [`61a7ff5`](https://github.com/staffroom-ai/staffroom/commit/61a7ff5a9b7b32ed6d2bf4654fca31c9ca5ee354) Thanks [@amanchhabra](https://github.com/amanchhabra)! - Fixes the version every package reports about itself.
+  
+  0.2.0 shipped reporting 0.1.1 from `npx staffroom --version`, from `/health` and
+  in the welcome frame. Changesets bumps package.json and knows nothing about a
+  constant in the source, so the two had drifted apart during the release itself.
+  The constants are now synced as part of `changeset version`, inside the Version
+  pull request, rather than left for a lint gate to catch after the fact.
+
+- [#10](https://github.com/staffroom-ai/staffroom/pull/10) [`e51a874`](https://github.com/staffroom-ai/staffroom/commit/e51a8741d7bb011cb7d8216aa45c575588797b0b) Thanks [@amanchhabra](https://github.com/amanchhabra)! - Three things a new office got wrong on its first run. A brand-new office no
+  longer warns that your keys could end up in a commit — its own `.gitignore` was
+  missing SQLite's `-wal` and `-shm` files. A mistyped command says which word it
+  did not know instead of "too many arguments for 'start'". And pointing `--office` at a folder
+  that already has your files in it no longer claims there is nothing there — nor
+  writes over them: laying a template down now skips every file that already
+  exists and names the ones it left alone.
+
 ## 0.2.0
 
 ### Patch Changes

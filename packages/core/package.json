@@ -1,6 +1,6 @@
 {
   "name": "@staffroom/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Staffroom core: agent runtime, provider adapters, tool registry, brain index.",
   "type": "module",
   "license": "Apache-2.0",
