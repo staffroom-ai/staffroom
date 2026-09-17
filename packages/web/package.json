@@ -1,6 +1,6 @@
 {
   "name": "@staffroom/web",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Staffroom web: the 3D office and HUD.",
   "type": "module",
   "license": "Apache-2.0",
