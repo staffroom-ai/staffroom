@@ -50,7 +50,7 @@
     "open": "^11.0.4"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "execa": "^10.0.1",
     "yaml": "^2.9.1"
   }

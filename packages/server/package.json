@@ -46,7 +46,7 @@
   "devDependencies": {
     "@staffroom/templates": "workspace:*",
     "@staffroom/web": "workspace:*",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "@types/ws": "^8.18.1"
   }
 }
