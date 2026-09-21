@@ -166,6 +166,14 @@ export interface ProviderOptions {
   pending: PendingAuthorizations;
   /** Called with the URL the owner has to visit. */
   onAuthorizationUrl: (url: URL) => void;
+  /**
+   * A client the owner registered with the provider themselves.
+   *
+   * Given, the SDK uses it and skips dynamic registration. Providers that do
+   * not offer registration — Google's Gmail MCP server among them — cannot be
+   * signed in to any other way.
+   */
+  client?: { client_id: string; client_secret?: string | undefined } | undefined;
 }
 
 /**
@@ -199,7 +207,10 @@ export class OfficeOAuthProvider {
       redirect_uris: [this.options.redirectUrl],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      token_endpoint_auth_method: "none",
+      // A client the owner registered has a secret and is a confidential
+      // client; one we register dynamically is public and uses PKCE alone.
+      token_endpoint_auth_method:
+        this.options.client?.client_secret === undefined ? "none" : "client_secret_post",
     };
   }
 
@@ -208,7 +219,9 @@ export class OfficeOAuthProvider {
   }
 
   clientInformation(): unknown {
-    return this.clientInfo;
+    // The owner's own client wins: if they registered one, registering another
+    // dynamically would sign them in as somebody else's app.
+    return this.options.client ?? this.clientInfo;
   }
 
   saveClientInformation(information: unknown): void {

@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { PROVIDERS, RESTART_TO_USE } from "./Settings.js";
+import { idFrom } from "./SettingsSections.js";
 
 describe("what saving a key promises", () => {
   /*
@@ -48,5 +49,29 @@ describe("the provider rows", () => {
     const openai = PROVIDERS.find((p) => p.id === "openai");
     expect(openai?.note).toContain("Groq");
     expect(openai?.note).toContain("OpenRouter");
+  });
+});
+
+describe("the id suggested from a name", () => {
+  /*
+   * The form asks for a name and works the id out, because an id has rules
+   * (lower case, dashes, starts with a letter) that nobody should have to learn
+   * to hire somebody. The office refuses a bad one, so this has to produce a
+   * good one or the person is stuck with a refusal they cannot act on.
+   */
+  it("makes something the office will accept", () => {
+    expect(idFrom("Wendy")).toBe("wendy");
+    expect(idFrom("Marketing Lead")).toBe("marketing-lead");
+    expect(idFrom("  Ana-María  ")).toBe("ana-mar-a");
+  });
+
+  it("does not leave a dash at either end", () => {
+    // `-wendy` fails the office's own pattern, which starts with a letter.
+    expect(idFrom("!Wendy!")).toBe("wendy");
+    expect(idFrom("O'Brien & Co")).toBe("o-brien-co");
+  });
+
+  it("stays inside the length the office allows", () => {
+    expect(idFrom("a".repeat(80)).length).toBeLessThanOrEqual(40);
   });
 });

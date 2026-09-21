@@ -46,6 +46,20 @@ export const McpHttpSchema = z
     url: z.string().url(),
     auth: z.enum(["none", "oauth", "bearer"]).default("none"),
     token: EnvString.optional(),
+    /**
+     * An OAuth client the owner registered themselves.
+     *
+     * The sign-in flow prefers dynamic client registration, which is what a
+     * server built for MCP offers. Several large providers do not: Google's
+     * Gmail MCP server makes you create a client in the Cloud console and bring
+     * its id and secret. Without somewhere to put them, that server — and every
+     * other one like it — simply cannot be signed in to.
+     *
+     * `$NAME` like every other secret, so the value lives in office/.env and
+     * config.yaml carries only its name.
+     */
+    client_id: EnvString.optional(),
+    client_secret: EnvString.optional(),
     headers: z.record(z.string(), EnvString).default({}),
   })
   .strict();

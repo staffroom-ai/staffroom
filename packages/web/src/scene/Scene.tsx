@@ -118,6 +118,37 @@ function CameraRig({ target }: { target: CameraTarget }): ReactElement {
   return <OrthographicCamera ref={camera as never} makeDefault near={-100} far={200} />;
 }
 
+/**
+ * Who the pointer is over.
+ *
+ * Everybody in the room is the same neutral figure, so this is the only way to
+ * tell one from another without opening the staff list. It follows the cursor
+ * rather than hanging over the agent, because an agent can be mid-walk and a
+ * label pinned to where they were sitting points at the wrong desk.
+ *
+ * `pointer-events: none` in the stylesheet: a tooltip that can itself be hovered
+ * flickers as the pointer crosses onto it.
+ */
+function AgentTooltip({ state }: { state: OfficeState }): ReactElement | null {
+  const hovered = useOfficeStore((s) => s.hovered);
+  if (hovered === null) return null;
+
+  const agent = state.agents.find((a) => a.id === hovered.id);
+  if (agent === undefined) return null;
+
+  return (
+    <div
+      className="agent-tip"
+      style={{ left: hovered.x, top: hovered.y }}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="agent-tip-name">{agent.name ?? agent.id}</span>
+      <span className="agent-tip-role">{agent.role}</span>
+    </div>
+  );
+}
+
 export function Scene({ state }: { state: OfficeState }): ReactElement {
   const selectedAgentId = useOfficeStore((s) => s.selectedAgentId);
   const focusedPod = useOfficeStore((s) => s.focusedPod);
@@ -159,56 +190,59 @@ export function Scene({ state }: { state: OfficeState }): ReactElement {
   }, [selectedAgentId, focusedPod, state.agents, state.departments, stageBox]);
 
   return (
-    <Canvas
-      shadows="soft"
-      dpr={[1, 2]}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
-      style={{ position: "absolute", inset: 0 }}
-    >
-      <CameraRig target={target} />
+    <>
+      <AgentTooltip state={state} />
+      <Canvas
+        shadows="soft"
+        dpr={[1, 2]}
+        gl={{ antialias: true, powerPreference: "high-performance" }}
+        style={{ position: "absolute", inset: 0 }}
+      >
+        <CameraRig target={target} />
 
-      {/* Silent unless the perf test asked for numbers. See PerfProbe.tsx. */}
-      <PerfProbe />
+        {/* Silent unless the perf test asked for numbers. See PerfProbe.tsx. */}
+        <PerfProbe />
 
-      {/*
+        {/*
         One key light that actually casts, a cool fill so the shadow side is not
         dead, and a ground bounce. Dark is lit, not dimmed: the fill is stronger
         there than in light, because a dark room where the furniture disappears is
         an under-lit room, not a styled one.
       */}
-      <hemisphereLight
-        args={[dark ? "#5a6a80" : "#ffffff", dark ? "#0d1013" : "#c3ccd7", dark ? 1.1 : 0.7]}
-      />
-      <directionalLight
-        position={[11, 15, 8]}
-        intensity={dark ? 1.5 : 2.1}
-        color={dark ? "#dce6f5" : "#fffaf2"}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-16}
-        shadow-camera-right={16}
-        shadow-camera-top={16}
-        shadow-camera-bottom={-16}
-        shadow-bias={-0.0006}
-        shadow-normalBias={0.02}
-      />
-      <directionalLight
-        position={[-9, 7, -8]}
-        intensity={dark ? 0.75 : 0.45}
-        color={dark ? "#7f93ad" : "#dbe6f4"}
-      />
+        <hemisphereLight
+          args={[dark ? "#5a6a80" : "#ffffff", dark ? "#0d1013" : "#c3ccd7", dark ? 1.1 : 0.7]}
+        />
+        <directionalLight
+          position={[11, 15, 8]}
+          intensity={dark ? 1.5 : 2.1}
+          color={dark ? "#dce6f5" : "#fffaf2"}
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-left={-16}
+          shadow-camera-right={16}
+          shadow-camera-top={16}
+          shadow-camera-bottom={-16}
+          shadow-bias={-0.0006}
+          shadow-normalBias={0.02}
+        />
+        <directionalLight
+          position={[-9, 7, -8]}
+          intensity={dark ? 0.75 : 0.45}
+          color={dark ? "#7f93ad" : "#dbe6f4"}
+        />
 
-      <Ground dark={dark} />
-      <Brain dark={dark} />
-      {/*
+        <Ground dark={dark} />
+        <Brain dark={dark} />
+        {/*
         Pod labels are drawn in HTML over the canvas, which is full-bleed behind
         the panels. Close in on one desk and the other pods' labels slide out of
         the stage and sit on top of the left column, so they are dropped while the
         camera is somewhere other than the overview.
       */}
-      <Pods state={state} dark={dark} labels={selectedAgentId === null && focusedPod === null} />
-      <Desks state={state} dark={dark} />
-      <Agents state={state} reducedMotion={reducedMotion} dark={dark} />
-    </Canvas>
+        <Pods state={state} dark={dark} labels={selectedAgentId === null && focusedPod === null} />
+        <Desks state={state} dark={dark} />
+        <Agents state={state} reducedMotion={reducedMotion} dark={dark} />
+      </Canvas>
+    </>
   );
 }
