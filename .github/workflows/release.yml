@@ -42,7 +42,7 @@ jobs:
       # pending. Publishing is done below, not here.
       - name: Version
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           # One npm script, not a shell line: this input is passed to pnpm as
           # arguments, so `a && b` arrives as the literal argument `&&` and
