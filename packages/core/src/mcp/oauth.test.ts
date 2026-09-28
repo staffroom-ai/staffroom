@@ -198,6 +198,57 @@ describe("the provider the SDK drives", () => {
     expect(seen[0]?.host).toBe("notion.example");
   });
 
+  /*
+   * A client the owner registered themselves.
+   *
+   * The flow prefers dynamic registration, which is what a server built for MCP
+   * offers. Google's Gmail MCP server does not: you create a client in the Cloud
+   * console and bring its id and secret, and without somewhere to put them that
+   * server cannot be signed in to at all.
+   */
+  it("prefers the owner's own client over one registered dynamically", () => {
+    const provider = new OfficeOAuthProvider({
+      officeDir: office(),
+      server: "gmail",
+      redirectUrl: "http://127.0.0.1:4242/api/mcp/oauth/callback",
+      pending: new PendingAuthorizations(),
+      onAuthorizationUrl: () => {},
+      client: { client_id: "123.apps.googleusercontent.com", client_secret: "shh" },
+    });
+
+    // Even after the SDK registers one, theirs wins: signing in as somebody
+    // else's app is not a fallback worth having.
+    provider.saveClientInformation({ client_id: "dynamically-registered" });
+
+    expect(provider.clientInformation()).toEqual({
+      client_id: "123.apps.googleusercontent.com",
+      client_secret: "shh",
+    });
+  });
+
+  it("is a confidential client only when the owner gave it a secret", () => {
+    const withSecret = new OfficeOAuthProvider({
+      officeDir: office(),
+      server: "gmail",
+      redirectUrl: "http://127.0.0.1:4242/api/mcp/oauth/callback",
+      pending: new PendingAuthorizations(),
+      onAuthorizationUrl: () => {},
+      client: { client_id: "abc", client_secret: "shh" },
+    });
+    expect(withSecret.clientMetadata.token_endpoint_auth_method).toBe("client_secret_post");
+
+    // Without one it is a public client and PKCE alone carries the flow.
+    const without = new OfficeOAuthProvider({
+      officeDir: office(),
+      server: "notion",
+      redirectUrl: "http://127.0.0.1:4242/api/mcp/oauth/callback",
+      pending: new PendingAuthorizations(),
+      onAuthorizationUrl: () => {},
+    });
+    expect(without.clientMetadata.token_endpoint_auth_method).toBe("none");
+    expect(without.clientInformation()).toBeUndefined();
+  });
+
   it("registers its redirect as the only one it will accept", () => {
     const provider = new OfficeOAuthProvider({
       officeDir: office(),
