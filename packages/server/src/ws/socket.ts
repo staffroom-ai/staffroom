@@ -392,6 +392,11 @@ export class SocketHub {
 
   /** Coalesced, so a burst of events produces one snapshot rather than twenty. */
   /** Send the snapshot at once, and cancel any push already queued behind it. */
+  /** Something outside changed the office enough that the snapshot is stale. */
+  refresh(): void {
+    this.pushStateNow();
+  }
+
   private pushStateNow(): void {
     if (this.stateTimer !== undefined) {
       clearTimeout(this.stateTimer);

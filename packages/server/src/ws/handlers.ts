@@ -4,7 +4,7 @@
  * Every RunError becomes an `error` frame with the code, message and hint core
  * already wrote, so the office never invents its own wording for a failure.
  */
-import type { Office, RunError } from "@staffroom/core";
+import type { EditResult, Office, RunError } from "@staffroom/core";
 import { RunError as CoreRunError } from "@staffroom/core";
 import { leaveDemo } from "../demo/leave.js";
 import { idFromLabel, RoutineSchema, removeRoutine, upsertRoutine } from "../scheduler/routines.js";
@@ -74,6 +74,41 @@ export interface Handlers {
  * mean a network call on every save, and a provider that is briefly unreachable
  * would refuse a model the owner picked from its own list a second earlier.
  */
+/**
+ * Turns a roster edit's result into an answer for the browser.
+ *
+ * A refusal is an ack with the writer's own sentence, not a stack trace and not
+ * a generic "could not write". These are forms, and the person filling one in
+ * can do something about "there is already somebody with the id bookkeeper".
+ *
+ * `undefined` means an office that does not implement the edit — a test double,
+ * or a version that predates it — which is worth saying plainly rather than
+ * reading as success.
+ */
+function rosterEdit(result: EditResult | undefined, extra: Record<string, string>): HandlerResult {
+  if (result === undefined) {
+    return {
+      ok: false,
+      error: {
+        code: "INTERNAL",
+        message: "This office cannot edit its roster.",
+        hint: "Edit office/agents.yaml by hand.",
+      },
+    };
+  }
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: {
+        code: "AGENT_FIELD_MISSING",
+        message: result.reason,
+        hint: "Change it and try again.",
+      },
+    };
+  }
+  return { ok: true, result: extra };
+}
+
 function canRun(office: Office, model: string): boolean {
   const provider = model.split("/")[0] ?? "";
   return provider.length > 0 && office.providers.has(provider);
@@ -356,6 +391,57 @@ export async function handle(
        * stale tab or a hand-made message, and either way writing it would put a
        * model into agents.yaml that nothing can run.
        */
+      /*
+       * Hiring, editing and letting go.
+       *
+       * Every refusal comes back with the writer's own sentence rather than a
+       * generic failure, because these are forms: "there is already somebody
+       * with the id bookkeeper" is something the person can act on where
+       * "could not write agents.yaml" is not.
+       */
+      case "agent.create":
+        return rosterEdit(office.addAgent?.(message.agent), { agentId: message.agent.id });
+
+      case "agent.remove":
+        return rosterEdit(office.removeAgent?.(message.agentId), { agentId: message.agentId });
+
+      case "agent.update":
+        return rosterEdit(office.updateAgent?.(message.agentId, message.fields), {
+          agentId: message.agentId,
+        });
+
+      case "connector.add": {
+        // Secrets first: a config entry pointing at a variable that is not there
+        // yet is a connector that reads as broken for no reason.
+        for (const [name, value] of Object.entries(message.secrets ?? {})) {
+          const stored = office.setEnvValue?.(name, value);
+          if (stored !== undefined && !stored.ok) return rosterEdit(stored, {});
+        }
+        return rosterEdit(await office.setMcpServer?.(message.name, message.server), {
+          name: message.name,
+        });
+      }
+
+      case "connector.remove":
+        return rosterEdit(await office.removeMcpServer?.(message.name), { name: message.name });
+
+      case "connector.scope":
+        return rosterEdit(await office.setMcpDepartments?.(message.name, message.departments), {
+          name: message.name,
+        });
+
+      case "office.rename":
+        return rosterEdit(office.setOfficeName?.(message.name), { name: message.name });
+
+      case "department.create":
+        return rosterEdit(office.addDepartment?.(message.id, message.label), { id: message.id });
+
+      case "department.rename":
+        return rosterEdit(office.renameDepartment?.(message.id, message.label), { id: message.id });
+
+      case "department.remove":
+        return rosterEdit(office.removeDepartment?.(message.id), { id: message.id });
+
       case "agents.set_default_model": {
         if (!canRun(office, message.model)) {
           return {

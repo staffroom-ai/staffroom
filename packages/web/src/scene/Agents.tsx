@@ -88,6 +88,30 @@ export function Agents({
   /** The floor is divided by the number of departments, so seats move with it. */
   const podCount = state.departments.length;
 
+  /*
+   * Telling people apart.
+   *
+   * Everybody is drawn as the same neutral figure, which is what makes the room
+   * readable at a glance and also means you cannot tell Dana from Priya by
+   * looking. Hovering says who it is.
+   *
+   * Hit-testing is three's own raycast against the instanced mesh, which reports
+   * the instance index — the same order the matrices are written in below, so
+   * the index is the row in `placed`. picking.ts exists for the screen-rectangle
+   * approach and is still the version the tests exercise; this needs no
+   * projection maths of its own and so cannot drift from where the camera
+   * actually is.
+   */
+  const setHovered = useOfficeStore((s) => s.setHovered);
+  const hover = (event: { instanceId?: number; nativeEvent: PointerEvent }): void => {
+    const index = event.instanceId;
+    if (index === undefined) return;
+    const person = placed[index];
+    if (person === undefined) return;
+    setHovered({ id: person.id, x: event.nativeEvent.clientX, y: event.nativeEvent.clientY });
+  };
+  const unhover = (): void => setHovered(null);
+
   const placed: Placed[] = useMemo(
     () =>
       state.agents.map((agent) => ({
@@ -186,6 +210,20 @@ export function Agents({
     // mark in the office that means "this needs you".
     ring.count = ringCount;
 
+    /*
+     * Recomputed because hover raycasts against these.
+     *
+     * InstancedMesh.raycast tests its bounding sphere before it looks at any
+     * instance, and that sphere is worked out once — here, before the first
+     * frame had written a single matrix, so it was a sphere around the origin
+     * and every ray missed. Hovering anybody did nothing at all.
+     *
+     * Sixty-four instances is nothing to walk, and only the two meshes that
+     * answer the pointer need it: the beacon and the ring are not hit-tested.
+     */
+    body.computeBoundingSphere();
+    head.computeBoundingSphere();
+
     body.instanceMatrix.needsUpdate = true;
     head.instanceMatrix.needsUpdate = true;
     beacon.instanceMatrix.needsUpdate = true;
@@ -199,6 +237,8 @@ export function Agents({
       <instancedMesh
         ref={bodies}
         args={[undefined, undefined, MAX_AGENTS]}
+        onPointerMove={hover}
+        onPointerOut={unhover}
         castShadow
         receiveShadow
         /*
@@ -215,6 +255,8 @@ export function Agents({
       <instancedMesh
         ref={heads}
         args={[undefined, undefined, MAX_AGENTS]}
+        onPointerMove={hover}
+        onPointerOut={unhover}
         castShadow
         frustumCulled={false}
       >
