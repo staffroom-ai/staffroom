@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "execa": "^10.1.0",
+    "execa": "^10.1.1",
     "yaml": "^2.9.1"
   }
 }
