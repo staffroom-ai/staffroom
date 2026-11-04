@@ -13,7 +13,14 @@ import {
   DefaultModel,
   Doctor,
   type DoctorState,
+  Gmail,
+  type GmailActions,
+  type GmailState,
   type ModelsState,
+  Staff,
+  type StaffActions,
+  type StaffAgent,
+  type StaffDepartment,
   Whitelist,
 } from "./SettingsSections.js";
 
@@ -186,6 +193,10 @@ export function Settings({
   savingModel,
   onLoadModels,
   onChooseModel,
+  staff,
+  staffActions,
+  gmail,
+  gmailActions,
   onSave,
   onClose,
 }: {
@@ -209,6 +220,17 @@ export function Settings({
   savingModel?: boolean;
   onLoadModels?: () => void;
   onChooseModel?: (model: string) => void;
+  /** Who works here, and the edits Settings can make to them. */
+  staff?: {
+    agents: StaffAgent[];
+    departments: StaffDepartment[];
+    officeName: string;
+    problem?: string | null;
+  };
+  staffActions?: StaffActions;
+  /** The one connector Settings knows about by name. */
+  gmail?: GmailState;
+  gmailActions?: GmailActions;
   onSave: (providerId: string, value: string) => void;
   onClose: () => void;
 }): ReactElement {
@@ -223,7 +245,7 @@ export function Settings({
   return (
     <aside className="sheet" aria-label="Settings">
       <header className="sheet-head">
-        <h2 className="settings-title">Models</h2>
+        <h2 className="settings-title">Settings</h2>
         <button type="button" className="btn-quiet" onClick={onClose} aria-label="Close settings">
           Close
         </button>
@@ -248,6 +270,13 @@ export function Settings({
               onAnswer={onAnswerSamples}
             />
           )}
+
+        {/*
+          Named, because the panel is no longer only about models and every hint
+          the office prints says "Settings > Models". A heading somebody can
+          point at is what makes that sentence true.
+        */}
+        <h3 className="settings-heading">Models</h3>
 
         {PROVIDERS.map((provider) => (
           <Row
@@ -283,6 +312,25 @@ export function Settings({
 
         {/* Unattended work is the part of this that happens while nobody is
             looking, so it is listed where somebody can turn it off. */}
+        {staff !== undefined && staffActions !== undefined && (
+          <Staff
+            agents={staff.agents}
+            departments={staff.departments}
+            officeName={staff.officeName}
+            {...(staff.problem === undefined ? {} : { problem: staff.problem })}
+            actions={staffActions}
+          />
+        )}
+
+        {gmail !== undefined && gmailActions !== undefined && staff !== undefined && (
+          <Gmail
+            state={gmail}
+            agents={staff.agents}
+            departments={staff.departments}
+            actions={gmailActions}
+          />
+        )}
+
         <h3 className="settings-heading">Routines</h3>
         <Routines routines={routines} {...routineActions} />
 

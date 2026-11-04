@@ -113,6 +113,67 @@ export type ClientMessage =
   /** SR-067: what each configured provider says it can run today. */
   | { type: "models.list"; reqId: string }
   | { type: "agents.set_default_model"; reqId: string; model: string }
+  /*
+   * Hiring, editing and letting go, from Settings.
+   *
+   * Every one of these ends in a document-mode write to agents.yaml and a
+   * re-read into the running office, so the room changes while you watch. The
+   * file stays the source of truth: anything done here could have been done by
+   * editing it, which is the point of the office being a folder.
+   */
+  | {
+      type: "agent.create";
+      reqId: string;
+      agent: {
+        id: string;
+        department: string;
+        role: string;
+        does: string;
+        name?: string;
+        model?: string;
+        /** Opens the department in the same edit, when it is not there yet. */
+        departmentLabel?: string;
+      };
+    }
+  | { type: "agent.remove"; reqId: string; agentId: string }
+  | {
+      type: "agent.update";
+      reqId: string;
+      agentId: string;
+      /** Only the fields being changed. `model: null` means the office default. */
+      fields: {
+        role?: string;
+        does?: string;
+        department?: string;
+        model?: string | null;
+        tools?: string[];
+      };
+    }
+  | { type: "office.rename"; reqId: string; name: string }
+  /*
+   * Connectors, from Settings.
+   *
+   * `connector.add` carries the whole server entry so the browser never has to
+   * know config.yaml's shape; the office validates it by loading the file back.
+   */
+  | {
+      type: "connector.add";
+      reqId: string;
+      name: string;
+      server: Record<string, unknown>;
+      /**
+       * Values to store in office/.env, by variable name.
+       *
+       * The server entry above refers to them as `$NAME`, so a client secret
+       * never lands in config.yaml — the same rule as a model key.
+       */
+      secrets?: Record<string, string>;
+    }
+  | { type: "connector.remove"; reqId: string; name: string }
+  | { type: "connector.scope"; reqId: string; name: string; departments: string[] }
+  | { type: "department.create"; reqId: string; id: string; label: string }
+  | { type: "department.rename"; reqId: string; id: string; label: string }
+  | { type: "department.remove"; reqId: string; id: string }
   | { type: "office.reload"; reqId: string }
   | { type: "ping"; reqId: string };
 

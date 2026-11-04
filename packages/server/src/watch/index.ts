@@ -127,6 +127,17 @@ export class OfficeWatchers {
         // Permissions are read from the file on every check, so re-reading it is
         // all that taking one back requires.
         if (file === "approvals.yaml") this.options.office.whitelist.reload();
+        /*
+         * A hand-edited roster takes effect here.
+         *
+         * Without this the office noticed the file had changed, told the browser
+         * so, and carried on with the staff it booted with — so adding somebody
+         * to agents.yaml, which is what the documentation tells you to do, did
+         * nothing until a restart.
+         */
+        if (file === "agents.yaml") this.options.office.reloadRoster();
+        // Connectors added, removed or denied in config.yaml, without a restart.
+        if (file === "config.yaml") void this.options.office.reloadMcp();
         // Reloading is core's job; this only decides what to tell the office.
         this.options.onEvent({ type: "config.reloaded", file });
       } catch (error) {
