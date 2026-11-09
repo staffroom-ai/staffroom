@@ -112,6 +112,32 @@ interface Waiting {
   request: ApprovalRequest;
 }
 
+/**
+ * The JSON Schema a model is shown for a tool's input.
+ *
+ * An MCP tool's input is deliberately a `z.custom()`: the schema belongs to the
+ * server, and rebuilding it as a zod type is how you get somebody else's
+ * contract subtly wrong. zod refuses to convert a custom type — "Custom types
+ * cannot be represented in JSON Schema" — so every MCP tool threw here, and the
+ * office's registration catch swallowed it as a name collision.
+ *
+ * The result was an office that connected to a server, reported it ready with a
+ * tool count on the connector strip, and had not one MCP tool any agent could
+ * use. Nothing said so anywhere. Every MCP office, every time.
+ *
+ * The server's own schema is already on the tool, capped at 16 KB by the
+ * manager, so it is used as it is.
+ */
+function inputSchemaFor(tool: Tool): Record<string, unknown> {
+  if (tool.source.kind === "mcp") {
+    const schema = tool.source.schema;
+    if (typeof schema === "object" && schema !== null) return schema as Record<string, unknown>;
+    // A server that listed a tool with no schema still takes an object.
+    return { type: "object", properties: {}, additionalProperties: true };
+  }
+  return z.toJSONSchema(tool.input, { io: "input" }) as Record<string, unknown>;
+}
+
 export class ToolRegistry extends EventEmitter {
   private readonly tools = new Map<string, RegisteredTool>();
   private readonly waiting = new Map<string, Waiting>();
@@ -133,7 +159,7 @@ export class ToolRegistry extends EventEmitter {
 
   register(tool: Tool): void {
     if (this.tools.has(tool.name)) throw new ToolNameConflict(tool.name);
-    const inputSchema = z.toJSONSchema(tool.input, { io: "input" }) as Record<string, unknown>;
+    const inputSchema = inputSchemaFor(tool);
     const fingerprint = createHash("sha256")
       .update(tool.name + tool.description + JSON.stringify(inputSchema))
       .digest("hex");

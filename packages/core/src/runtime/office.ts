@@ -23,20 +23,53 @@ import { configureRedaction } from "../redact.js";
 import { brainTools } from "../tools/builtins/brain.js";
 import { webSearchTool } from "../tools/builtins/web-search.js";
 import { type LoadFailure, loadCustomTools } from "../tools/loader.js";
-import { ToolRegistry } from "../tools/registry.js";
+import { ToolNameConflict, ToolRegistry } from "../tools/registry.js";
 import { FileWhitelist } from "../tools/whitelist.js";
 import type { RunStore } from "./events.js";
 import {
+  addAgent,
+  addDepartment,
   assignTool,
+  type EditResult,
   refreshAgents,
+  removeAgent,
+  removeDepartment,
+  removeMcpServer,
   renameAgent,
+  renameDepartment,
   revealNote,
   setDefaultModel,
+  setEnvValue,
+  setMcpDepartments,
+  setMcpServer,
+  setOfficeName,
   setProviderKey,
+  updateAgent,
 } from "./office-edits.js";
 import { Runner } from "./runner.js";
 import { seedSampleRun } from "./seed.js";
 import { SqliteRunStore } from "./store.js";
+
+export interface NewAgent {
+  id: string;
+  department: string;
+  role: string;
+  does: string;
+  name?: string;
+  model?: string;
+  /** Opens the department as part of the hire, when it is not there yet. */
+  departmentLabel?: string;
+}
+
+export interface AgentEdit {
+  role?: string;
+  does?: string;
+  department?: string;
+  /** null puts them back on the office default. */
+  model?: string | null;
+  /** The whole list: this is how a connector is taken away as well as given. */
+  tools?: string[];
+}
 
 export interface Office {
   runner: Runner;
@@ -57,6 +90,24 @@ export interface Office {
   toolFailures: LoadFailure[];
   /** Edits to the owner's own files, made through the document API. */
   renameAgent(agentId: string, name: string): boolean;
+  /** Hires, leavers and edits, all through the document-mode writer. */
+  addAgent(agent: NewAgent): EditResult;
+  removeAgent(agentId: string): EditResult;
+  updateAgent(agentId: string, fields: AgentEdit): EditResult;
+  setOfficeName(name: string): EditResult;
+  /** Connectors, in config.yaml. The office re-reads the file after each. */
+  setMcpServer(name: string, server: Record<string, unknown>): Promise<EditResult>;
+  /** A secret in office/.env, referred to from config.yaml as `$NAME`. */
+  setEnvValue(name: string, value: string): EditResult;
+  removeMcpServer(name: string): Promise<EditResult>;
+  setMcpDepartments(name: string, departments: string[]): Promise<EditResult>;
+  addDepartment(id: string, label: string): EditResult;
+  renameDepartment(id: string, label: string): EditResult;
+  removeDepartment(id: string): EditResult;
+  /** Re-reads agents.yaml into the running office, hires and leavers included. */
+  reloadRoster(): boolean;
+  /** Re-reads config.yaml's mcp section: servers added, removed, denied. */
+  reloadMcp(): Promise<boolean>;
   assignTool(agentId: string, tool: string): boolean;
   setDefaultModel(model: string): boolean;
   setProviderKey(provider: string, key: string): boolean;
@@ -101,6 +152,16 @@ export interface CreateOfficeOptions {
    * itself as live and the owner would believe recorded work was real.
    */
   mode?: "live" | "demo";
+  /**
+   * Told whenever a connector's health or tool list changes.
+   *
+   * The manager has always reported this and nobody was listening, so the
+   * connector strip showed whatever was true at boot — which is "starting" for
+   * every server, because none of them have answered yet a millisecond in. A
+   * server that came up fifteen seconds later stayed grey on screen for the rest
+   * of the session.
+   */
+  onMcpChange?: () => void;
 }
 
 /** Builds an adapter per configured provider, skipping any that cannot work. */
@@ -289,6 +350,9 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
   const mcp = new McpManager({
     config: loaded.config.mcp,
     officeDir,
+    ...(options.onMcpChange === undefined
+      ? {}
+      : { onStatus: options.onMcpChange, onToolsChanged: options.onMcpChange }),
     // Filled in by the server once it knows its own port; without it a remote
     // server simply cannot be signed in to, which beginOAuth says plainly.
     ...(options.oauthRedirectUrl === undefined
@@ -299,9 +363,22 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     (tool) => {
       try {
         tools.register(tool);
-      } catch {
-        // A name that collides with something already registered. The connector
-        // strip reports the server; one tool is not worth refusing the rest.
+      } catch (error) {
+        /*
+         * A name that collides with something already registered is expected and
+         * survivable: the connector strip reports the server, and one tool is not
+         * worth refusing the rest.
+         *
+         * Anything else is not expected, and this used to swallow all of it. It
+         * hid the bug that made every MCP tool fail to register in every office
+         * — connected server, ready connector, no tools — with nothing said
+         * anywhere. A failure the owner cannot see is a failure nobody fixes.
+         */
+        if (error instanceof ToolNameConflict) return;
+        toolFailures.push({
+          file: tool.name,
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
     },
     (name) => tools.unregister(name),
@@ -342,6 +419,30 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     mode,
   });
 
+  /*
+   * Written, then read straight back into the running office.
+   *
+   * The same rule as the roster: writing config.yaml on its own left the office
+   * with the connectors it booted with, which is the bug this pairs with.
+   */
+  const applyMcpEdit = async (result: EditResult): Promise<EditResult> => {
+    if (!result.ok) return result;
+    let fresh: OfficeConfig;
+    try {
+      fresh = loadConfig(officeDir).config;
+    } catch {
+      return { ok: false, reason: "config.yaml no longer reads cleanly." };
+    }
+    loaded.config.mcp = fresh.mcp;
+    await mcp.applyConfig(fresh.mcp);
+    return { ok: true };
+  };
+
+  const applyRosterEdit = (result: EditResult): EditResult => {
+    if (result.ok) refreshAgents(officeDir, agentsFile, roster);
+    return result;
+  };
+
   return {
     runner,
     roster,
@@ -367,6 +468,52 @@ export async function createOffice(options: CreateOfficeOptions): Promise<Office
     setDefaultModel: (model: string) => {
       if (!setDefaultModel(officeDir, model)) return false;
       refreshAgents(officeDir, agentsFile);
+      return true;
+    },
+    /*
+     * Every roster edit is written and then read straight back in.
+     *
+     * Writing the file alone is what made the first version of this useless:
+     * agents.yaml gained a person and the office carried on with the staff it
+     * booted with. Reading it back through the roster is what makes an edit from
+     * Settings show up in the room.
+     */
+    addAgent: (agent: NewAgent) => applyRosterEdit(addAgent(officeDir, agent)),
+    removeAgent: (agentId: string) => applyRosterEdit(removeAgent(officeDir, agentId)),
+    updateAgent: (agentId: string, fields: AgentEdit) =>
+      applyRosterEdit(updateAgent(officeDir, agentId, fields)),
+    setOfficeName: (name: string) => applyRosterEdit(setOfficeName(officeDir, name)),
+    setEnvValue: (name: string, value: string) => setEnvValue(officeDir, name, value),
+    setMcpServer: async (name: string, server: Record<string, unknown>) =>
+      applyMcpEdit(setMcpServer(officeDir, name, server)),
+    removeMcpServer: async (name: string) => applyMcpEdit(removeMcpServer(officeDir, name)),
+    setMcpDepartments: async (name: string, departments: string[]) =>
+      applyMcpEdit(setMcpDepartments(officeDir, name, departments)),
+    addDepartment: (id: string, label: string) =>
+      applyRosterEdit(addDepartment(officeDir, id, label)),
+    renameDepartment: (id: string, label: string) =>
+      applyRosterEdit(renameDepartment(officeDir, id, label)),
+    removeDepartment: (id: string) => applyRosterEdit(removeDepartment(officeDir, id)),
+    reloadRoster: () => refreshAgents(officeDir, agentsFile, roster),
+    /*
+     * Adding a server to config.yaml takes effect here.
+     *
+     * The manager has always had applyConfig and nothing ever called it, so a
+     * connector added to the file did not exist until the office was restarted
+     * — and nothing said so. The office reads the file again rather than being
+     * handed a config, so this is the same path whether the edit came from an
+     * editor or from Settings.
+     */
+    reloadMcp: async () => {
+      let fresh: OfficeConfig;
+      try {
+        fresh = loadConfig(officeDir).config;
+      } catch {
+        // Half-edited on disk. The office keeps the servers it has.
+        return false;
+      }
+      loaded.config.mcp = fresh.mcp;
+      await mcp.applyConfig(fresh.mcp);
       return true;
     },
     setProviderKey: (provider: string, key: string) => setProviderKey(officeDir, provider, key),

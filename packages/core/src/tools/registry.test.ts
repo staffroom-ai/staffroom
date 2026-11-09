@@ -571,3 +571,56 @@ describe("approve and always allow", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
+
+describe("registering an MCP tool", () => {
+  /*
+   * The bug that made every MCP tool vanish.
+   *
+   * An MCP tool's input is a `z.custom()` on purpose — the schema belongs to the
+   * server, and rebuilding it as a zod type is how you get somebody else's
+   * contract subtly wrong. zod refuses to convert a custom type, so registering
+   * one threw, and the office's catch swallowed it as a name collision.
+   *
+   * The office then connected to the server, reported it ready with a tool count
+   * on the connector strip, and offered not one of its tools to anybody. Every
+   * MCP office, every time, with nothing said anywhere.
+   */
+  const asMcp = (name: string, schema?: unknown) =>
+    ({
+      name,
+      description: "Sends an email.",
+      // What the manager builds: opaque JSON, validated as an object and no more.
+      input: z.custom<Record<string, unknown>>((v) => typeof v === "object" && v !== null),
+      scope: "write",
+      egress: true,
+      source:
+        schema === undefined
+          ? ({ kind: "mcp", server: "gmail" } as ToolSource)
+          : ({ kind: "mcp", server: "gmail", schema } as ToolSource),
+      run: async () => "sent",
+    }) as never;
+
+  it("uses the server's own schema rather than converting the zod type", () => {
+    const registry = new ToolRegistry({ config: ConfigSchema.parse({ version: 1 }) });
+    const schema = {
+      type: "object",
+      properties: { to: { type: "string" }, body: { type: "string" } },
+      required: ["to"],
+    };
+
+    registry.register(asMcp("gmail.send_email", schema));
+
+    expect(registry.get("gmail.send_email")?.inputSchema).toEqual(schema);
+  });
+
+  it("still gives a model something to fill in when a server sends no schema", () => {
+    const registry = new ToolRegistry({ config: ConfigSchema.parse({ version: 1 }) });
+    registry.register(asMcp("gmail.ping"));
+
+    expect(registry.get("gmail.ping")?.inputSchema).toEqual({
+      type: "object",
+      properties: {},
+      additionalProperties: true,
+    });
+  });
+});
