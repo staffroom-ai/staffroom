@@ -35,6 +35,14 @@ export interface BootResult {
   notices: string[];
   /** Off unless the office asked for it. Close it to flush what is queued. */
   telemetry: Telemetry;
+  /**
+   * Points the office's connector-change callback at something.
+   *
+   * The office is built before the socket hub exists, so the caller wires this
+   * once it has one. Without it the connector strip kept the snapshot it had at
+   * boot, where nothing has answered yet and every server reads "starting".
+   */
+  whenMcpChanges: (fn: () => void) => void;
 }
 
 export const MINIMUM_NODE = 22;
@@ -76,9 +84,18 @@ export async function boot(options: BootOptions): Promise<BootResult> {
 
   // Demo is decided before the office is built, because it changes what providers
   // the office gets. A configured-but-broken provider never lands here.
+  /*
+   * The office is built before the socket hub exists, so what it calls when a
+   * connector's health changes is filled in afterwards. Without it the strip
+   * showed whatever was true at boot — "starting" for everything, because
+   * nothing has answered a millisecond in — for the rest of the session.
+   */
+  let onMcpChange: () => void = () => {};
+  const mcpChanged = (): void => onMcpChange();
+
   let office: Office;
   try {
-    office = await createOffice({ officeDir: options.officeDir });
+    office = await createOffice({ officeDir: options.officeDir, onMcpChange: mcpChanged });
   } catch (error) {
     if (error instanceof ConfigInvalid) {
       log(printConfigErrors(error.errors));
@@ -99,7 +116,12 @@ export async function boot(options: BootOptions): Promise<BootResult> {
       ...(options.demoRunsDir === undefined ? {} : { demoRunsDir: options.demoRunsDir }),
     });
     office.close();
-    office = await createOffice({ officeDir: options.officeDir, adapters, mode: "demo" });
+    office = await createOffice({
+      officeDir: options.officeDir,
+      adapters,
+      mode: "demo",
+      onMcpChange: mcpChanged,
+    });
   }
 
   for (const warning of office.warnings) {
@@ -188,5 +210,13 @@ export async function boot(options: BootOptions): Promise<BootResult> {
   if (update !== undefined) notices.push(update);
 
   for (const notice of notices) log(notice);
-  return { office, notices, telemetry };
+  // Handed back so the caller can point it at the hub once there is one.
+  return {
+    office,
+    notices,
+    telemetry,
+    whenMcpChanges: (fn: () => void) => {
+      onMcpChange = fn;
+    },
+  };
 }
