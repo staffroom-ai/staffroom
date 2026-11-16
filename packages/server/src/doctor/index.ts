@@ -32,10 +32,12 @@ import {
 
 /**
  * Repeated rather than imported from the package index, which imports this
- * module: a cycle for one string would be a poor trade. The version-constants
- * lint gate keeps it honest.
+ * module: a cycle for one string would be a poor trade. `scripts/sync-versions.mjs`
+ * writes it at release time and the version-constants gate fails if it drifts —
+ * both of which had to be widened to see this file at all, which is why 0.3.0
+ * shipped with the doctor printing 0.2.0 here.
  */
-const SERVER_VERSION = "0.2.0";
+const SERVER_VERSION = "0.3.0";
 
 export type DoctorStatus = "ok" | "warn" | "fail";
 
