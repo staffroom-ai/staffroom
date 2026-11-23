@@ -331,6 +331,166 @@ describe("Roster", () => {
   });
 });
 
+describe("hiring, editing and letting go", () => {
+  /*
+   * The file is the source of truth, so every one of these has to survive a
+   * round trip: written by the writer, read back by the loader. A writer that
+   * produced YAML the loader rejects would leave somebody with an office that
+   * will not boot and no idea which edit did it.
+   */
+  const roundTrip = (writer: RosterWriter) =>
+    loadRoster(office({ "agents.yaml": writer.toString() }));
+
+  it("adds somebody who is there when the file is read back", () => {
+    const writer = new RosterWriter(agentsYaml);
+    expect(
+      writer.addAgent({
+        id: "support-lead",
+        department: "marketing",
+        role: "Support lead",
+        does: "Answers questions from customers about their orders.",
+        name: "Wendy",
+      }),
+    ).toEqual({ ok: true });
+
+    const added = roundTrip(writer).agent("support-lead");
+    expect(added?.role).toBe("Support lead");
+    expect(added?.name).toBe("Wendy");
+  });
+
+  it("keeps every comment in the file while doing it", () => {
+    // A hire is the commonest edit there is. If it flattens the file the owner
+    // reads, they stop trusting the office with the file.
+    const writer = new RosterWriter(agentsYaml);
+    writer.addAgent({
+      id: "support-lead",
+      department: "marketing",
+      role: "Support lead",
+      does: "Answers questions from customers about their orders.",
+    });
+    const out = writer.toString();
+    expect(out).toContain("# office/agents.yaml");
+    expect(out).toContain("# brain tools are always available");
+  });
+
+  it("refuses an id that is taken, malformed, or in no department", () => {
+    const writer = new RosterWriter(agentsYaml);
+    const does = "Answers questions from customers about their orders.";
+
+    expect(writer.addAgent({ id: "bookkeeper", department: "finance", role: "r", does })).toEqual({
+      ok: false,
+      reason: "There is already somebody with the id bookkeeper.",
+    });
+    expect(writer.addAgent({ id: "Not An Id", department: "finance", role: "r", does }).ok).toBe(
+      false,
+    );
+    expect(writer.addAgent({ id: "ghost", department: "nowhere", role: "r", does })).toEqual({
+      ok: false,
+      reason: "There is no department called nowhere.",
+    });
+  });
+
+  it("removes somebody, and never the last one", () => {
+    // An office with no staff will not load, and the owner would be left with a
+    // file they have to hand-edit to recover.
+    const writer = new RosterWriter(agentsYaml);
+    expect(writer.removeAgent("bookkeeper")).toEqual({ ok: true });
+    expect(roundTrip(writer).agent("bookkeeper")).toBeUndefined();
+
+    for (const id of writer.agentIds().slice(1)) writer.removeAgent(id);
+    expect(writer.removeAgent(writer.agentIds()[0] as string)).toEqual({
+      ok: false,
+      reason: "An office needs at least one member of staff.",
+    });
+  });
+
+  it("changes only the fields it was given", () => {
+    // An undefined field is one the form did not touch, which is not the same as
+    // one the owner cleared. Treating them alike is how editing a role silently
+    // empties somebody's tools.
+    const writer = new RosterWriter(agentsYaml);
+    const before = loadRoster(office({ "agents.yaml": agentsYaml })).agent("copywriter");
+
+    expect(writer.updateAgent("copywriter", { role: "Senior copywriter" })).toEqual({ ok: true });
+    const after = roundTrip(writer).agent("copywriter");
+
+    expect(after?.role).toBe("Senior copywriter");
+    expect(after?.does).toBe(before?.does);
+    expect(after?.tools).toEqual(before?.tools);
+  });
+
+  it("puts somebody back on the office default with a null model", () => {
+    const writer = new RosterWriter(agentsYaml);
+    writer.updateAgent("copywriter", { model: "anthropic/claude-opus-5" });
+    expect(roundTrip(writer).agent("copywriter")?.model).toBe("anthropic/claude-opus-5");
+
+    writer.updateAgent("copywriter", { model: null });
+    expect(roundTrip(writer).agent("copywriter")?.model).toBeUndefined();
+  });
+
+  it("refuses to close a department with people in it, and closes an empty one", () => {
+    const writer = new RosterWriter(agentsYaml);
+    writer.addAgent({
+      id: "helper",
+      department: "support",
+      role: "Support agent",
+      does: "Answers questions from customers about their orders.",
+    });
+
+    // Named, and in a sentence that parses for one person as well as several.
+    expect(writer.removeDepartment("support")).toEqual({
+      ok: false,
+      reason: "helper still works in support. Move them first.",
+    });
+
+    writer.removeAgent("helper");
+    expect(writer.removeDepartment("support")).toEqual({ ok: true });
+    expect(roundTrip(writer).department("support")).toBeUndefined();
+  });
+
+  it("opens a department, which takes a pod once somebody works in it", () => {
+    /*
+     * A department is a wedge of the floor, and the floor is drawn from where
+     * people sit — so one with nobody in it is in the file and not yet in the
+     * room. That is the design, not an oversight: an empty wedge would be a
+     * department the owner cannot point at anything in.
+     *
+     * The fixture already holds six, which is the cap, so this makes room first
+     * rather than passing because the add was refused for a different reason.
+     */
+    const writer = new RosterWriter(agentsYaml);
+    expect(writer.removeDepartment("product")).toEqual({ ok: true });
+    expect(writer.addDepartment("legal", "Legal")).toEqual({ ok: true });
+    expect(roundTrip(writer).department("legal")).toBeUndefined();
+
+    writer.addAgent({
+      id: "counsel",
+      department: "legal",
+      role: "Counsel",
+      does: "Reads contracts before anybody signs them.",
+    });
+    expect(roundTrip(writer).department("legal")?.label).toBe("Legal");
+  });
+
+  it("holds the office to six departments, because the floor is a ring of six", () => {
+    const writer = new RosterWriter(agentsYaml);
+    // Asserted, not assumed: this test is only meaningful if the fixture is full.
+    expect(writer.departmentIds()).toHaveLength(6);
+    expect(writer.addDepartment("legal", "Legal")).toEqual({
+      ok: false,
+      reason: "An office holds at most 6 departments.",
+    });
+  });
+
+  it("renames a department without touching who is in it", () => {
+    const writer = new RosterWriter(agentsYaml);
+    expect(writer.renameDepartment("finance", "Finance and payroll")).toEqual({ ok: true });
+    const roster = roundTrip(writer);
+    expect(roster.department("finance")?.label).toBe("Finance and payroll");
+    expect(roster.agent("bookkeeper")?.department).toBe("finance");
+  });
+});
+
 describe("RosterWriter keeps the file the owner's", () => {
   it("sets a name without disturbing a single comment", () => {
     const writer = new RosterWriter(agentsYaml);

@@ -6,7 +6,7 @@
  * wrong, and which model does everybody use.
  */
 import type { WhitelistRow } from "@staffroom/core";
-import type { ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 import type { DoctorCheck } from "../protocol.js";
 
 /**
@@ -224,5 +224,579 @@ export function DefaultModel({
         </p>
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------------- *
+ * Staff
+ *
+ * Who works here, editable. Before this the only way to hire somebody was to
+ * open agents.yaml in an editor, and the only way to see it take effect was to
+ * restart the office — which the documentation did not mention, because the
+ * person who wrote it assumed the watcher already handled it.
+ *
+ * The file is still the source of truth. Everything here is a document-mode
+ * write to agents.yaml, so an office edited from this panel and an office
+ * edited in vim end up with the same file, comments and all.
+ * ------------------------------------------------------------------------- */
+
+export interface StaffAgent {
+  id: string;
+  name?: string;
+  role: string;
+  does: string;
+  departmentId: string;
+}
+
+export interface StaffDepartment {
+  id: string;
+  label: string;
+}
+
+export interface StaffActions {
+  onRenameOffice: (name: string) => void;
+  onAddAgent: (agent: {
+    id: string;
+    department: string;
+    role: string;
+    does: string;
+    name?: string;
+    departmentLabel?: string;
+  }) => void;
+  onUpdateAgent: (
+    agentId: string,
+    fields: { role?: string; does?: string; department?: string },
+  ) => void;
+  onRemoveAgent: (agentId: string) => void;
+}
+
+/** An id the office will accept, suggested from what they typed as a name. */
+export function idFrom(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function AgentRow({
+  agent,
+  departments,
+  onUpdateAgent,
+  onRemoveAgent,
+}: {
+  agent: StaffAgent;
+  departments: StaffDepartment[];
+  onUpdateAgent: StaffActions["onUpdateAgent"];
+  onRemoveAgent: StaffActions["onRemoveAgent"];
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState(agent.role);
+  const [does, setDoes] = useState(agent.does);
+  const [department, setDepartment] = useState(agent.departmentId);
+  const [confirming, setConfirming] = useState(false);
+  const changed =
+    role.trim() !== agent.role || does.trim() !== agent.does || department !== agent.departmentId;
+
+  return (
+    <li className="staff-row">
+      <button type="button" className="staff-summary" onClick={() => setOpen(!open)}>
+        <span className="staff-name">{agent.name ?? agent.id}</span>
+        <span className="staff-role">{agent.role}</span>
+      </button>
+
+      {open && (
+        <div className="staff-edit">
+          <label className="setting-field">
+            <span className="setting-note">Role</span>
+            <input
+              className="setting-input"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+            />
+          </label>
+          <label className="setting-field">
+            <span className="setting-note">What they do</span>
+            <textarea
+              className="setting-input"
+              rows={2}
+              value={does}
+              onChange={(event) => setDoes(event.target.value)}
+            />
+          </label>
+
+          {/*
+            Moving somebody is also how a department closes: the wedges are drawn
+            from where people sit, so the last person to leave one takes it with
+            them. There is no separate "close" for that reason.
+          */}
+          <label className="setting-field">
+            <span className="setting-note">Department</span>
+            <select
+              className="setting-input"
+              value={department}
+              onChange={(event) => setDepartment(event.target.value)}
+            >
+              {departments.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="staff-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={!changed}
+              onClick={() =>
+                onUpdateAgent(agent.id, {
+                  role: role.trim(),
+                  does: does.trim(),
+                  department,
+                })
+              }
+            >
+              Save
+            </button>
+
+            {/*
+              Asked once before it happens. Letting somebody go is not
+              destructive — their filed work stays in the brain, and the office
+              says so — but it is not a thing to do on a mis-click either.
+            */}
+            {confirming ? (
+              <span className="staff-confirm">
+                <span className="setting-note">
+                  Remove {agent.name ?? agent.id}? Their filed work stays in the brain.
+                </span>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => onRemoveAgent(agent.id)}
+                >
+                  Remove
+                </button>
+                <button type="button" className="btn-quiet" onClick={() => setConfirming(false)}>
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button type="button" className="btn-quiet" onClick={() => setConfirming(true)}>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function AddAgent({
+  departments,
+  onAddAgent,
+}: {
+  departments: StaffDepartment[];
+  onAddAgent: StaffActions["onAddAgent"];
+}): ReactElement {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [does, setDoes] = useState("");
+  const [department, setDepartment] = useState(departments[0]?.id ?? "");
+  const [newDepartment, setNewDepartment] = useState("");
+
+  const NEW = "\u2014new";
+  const opening = department === NEW;
+  const id = idFrom(name);
+  const departmentId = opening ? idFrom(newDepartment) : department;
+  // `does` has a minimum length in the schema, so the button says no before the
+  // server has to: a refusal you could have predicted is a refusal worth avoiding.
+  const ready =
+    id.length > 1 && role.trim().length > 0 && does.trim().length >= 10 && department !== "";
+
+  return (
+    <div className="staff-add">
+      <h4 className="settings-heading">Hire somebody</h4>
+
+      <label className="setting-field">
+        <span className="setting-note">Name{id === "" ? "" : ` — id will be ${id}`}</span>
+        <input
+          className="setting-input"
+          value={name}
+          placeholder="Wendy"
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+
+      <label className="setting-field">
+        <span className="setting-note">Role</span>
+        <input
+          className="setting-input"
+          value={role}
+          placeholder="Bookkeeper"
+          onChange={(event) => setRole(event.target.value)}
+        />
+      </label>
+
+      <label className="setting-field">
+        <span className="setting-note">What they do, in a sentence</span>
+        <textarea
+          className="setting-input"
+          rows={2}
+          value={does}
+          placeholder="Reconciles the bank feed every morning."
+          onChange={(event) => setDoes(event.target.value)}
+        />
+      </label>
+
+      {/*
+        A new department is opened here rather than on its own.
+        `departments:` in agents.yaml is a map of display names, not a list, so a
+        department exists because somebody works in it. A separate "open a
+        department" button wrote a label that nothing could use and nothing
+        showed — including this very list, so you could not then hire into it.
+      */}
+      <label className="setting-field">
+        <span className="setting-note">Department</span>
+        <select
+          className="setting-input"
+          value={department}
+          onChange={(event) => setDepartment(event.target.value)}
+        >
+          {departments.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.label}
+            </option>
+          ))}
+          <option value={NEW}>New department…</option>
+        </select>
+      </label>
+
+      {opening && (
+        <label className="setting-field">
+          <span className="setting-note">New department's name</span>
+          <input
+            className="setting-input"
+            value={newDepartment}
+            placeholder="Support"
+            onChange={(event) => setNewDepartment(event.target.value)}
+          />
+        </label>
+      )}
+
+      <button
+        type="button"
+        className="btn"
+        disabled={!ready}
+        onClick={() => {
+          onAddAgent({
+            id,
+            department: departmentId,
+            role: role.trim(),
+            does: does.trim(),
+            ...(name.trim() === "" ? {} : { name: name.trim() }),
+            ...(opening ? { departmentLabel: newDepartment.trim() } : {}),
+          });
+          setName("");
+          setRole("");
+          setDoes("");
+          setNewDepartment("");
+          setDepartment(departments[0]?.id ?? "");
+        }}
+      >
+        Hire
+      </button>
+    </div>
+  );
+}
+
+/** The name on the top bar, and what the staff call the place in a prompt. */
+function OfficeName({
+  name,
+  onRename,
+}: {
+  name: string;
+  onRename: (name: string) => void;
+}): ReactElement {
+  const [value, setValue] = useState(name);
+
+  return (
+    <div className="staff-add">
+      <label className="setting-field">
+        <span className="setting-note">Office name</span>
+        <input
+          className="setting-input"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        className="btn"
+        disabled={value.trim() === name || value.trim().length === 0}
+        onClick={() => onRename(value.trim())}
+      >
+        Rename
+      </button>
+    </div>
+  );
+}
+
+export function Staff({
+  agents,
+  departments,
+  officeName,
+  problem,
+  actions,
+}: {
+  agents: StaffAgent[];
+  departments: StaffDepartment[];
+  officeName: string;
+  /** The office's own sentence when it refused the last edit. */
+  problem?: string | null;
+  actions: StaffActions;
+}): ReactElement {
+  return (
+    <section className="setting-row" aria-label="Staff">
+      <h3 className="settings-heading">This office</h3>
+      <OfficeName name={officeName} onRename={actions.onRenameOffice} />
+
+      <h3 className="settings-heading">Staff</h3>
+      <p className="setting-note">
+        Everything here is written to office/agents.yaml, which you can also edit by hand.
+      </p>
+
+      {problem != null && (
+        <p className="setting-bad" role="alert">
+          {problem}
+        </p>
+      )}
+
+      {departments.map((department) => (
+        <div key={department.id} className="staff-department">
+          <h4 className="settings-heading">{department.label}</h4>
+          <ul className="staff-list">
+            {agents
+              .filter((agent) => agent.departmentId === department.id)
+              .map((agent) => (
+                <AgentRow
+                  key={agent.id}
+                  agent={agent}
+                  departments={departments}
+                  onUpdateAgent={actions.onUpdateAgent}
+                  onRemoveAgent={actions.onRemoveAgent}
+                />
+              ))}
+          </ul>
+        </div>
+      ))}
+
+      <AddAgent departments={departments} onAddAgent={actions.onAddAgent} />
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------- *
+ * Gmail
+ *
+ * One connector, not a catalogue. Adding a Gmail server to config.yaml by hand
+ * is four lines of YAML in a file most people will never open, and the two
+ * questions that actually matter — is it connected, and who can use it — had no
+ * answer anywhere in the office.
+ *
+ * Deliberately Gmail-shaped. The writers underneath take any server, so a
+ * second connector is a second panel rather than a second protocol.
+ * ------------------------------------------------------------------------- */
+
+export interface GmailState {
+  /** From the connector strip: absent when it is not in config.yaml at all. */
+  health?: "ok" | "starting" | "unavailable" | "denied" | "grey" | "needs_auth" | undefined;
+  message?: string | null | undefined;
+  toolCount?: number | undefined;
+  /** Empty means every department, which is what the office does with no wiring. */
+  departments: string[];
+  /** Agents whose own tools list names the server. */
+  agentIds: string[];
+  /**
+   * The address Google has to be told to send the browser back to.
+   *
+   * Carries the office's real port, so it is shown rather than described: the
+   * provider matches it exactly and a guessed port fails at the last step.
+   */
+  redirectUri: string;
+}
+
+export interface GmailActions {
+  onAdd: (server: { url: string; clientId: string; clientSecret: string }) => void;
+  onRemove: () => void;
+  onScope: (departments: string[]) => void;
+  onSetAgents: (agentIds: string[]) => void;
+  onConnect: () => void;
+}
+
+/** What the strip's health means to somebody who has not read the code. */
+export function gmailStatusLine(state: GmailState): string {
+  if (state.health === undefined) return "Not connected.";
+  if (state.health === "denied") return "Denied in config.yaml, so nobody can use it.";
+  if (state.health === "starting") return "Connecting…";
+  if (state.health === "needs_auth") return "Needs you to sign in.";
+  if (state.health === "unavailable") return state.message ?? "Not answering.";
+  return `Connected, ${state.toolCount ?? 0} tool(s).`;
+}
+
+export function Gmail({
+  state,
+  agents,
+  departments,
+  actions,
+}: {
+  state: GmailState;
+  agents: StaffAgent[];
+  departments: StaffDepartment[];
+  actions: GmailActions;
+}): ReactElement {
+  const [url, setUrl] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+
+  if (state.health === undefined) {
+    return (
+      <section className="setting-row" aria-label="Gmail">
+        <h3 className="settings-heading">Gmail</h3>
+        <p className="setting-note">
+          Google hosts the Gmail MCP server; there is nothing to deploy. You create an OAuth client
+          in the Google Cloud console once, and paste its id and secret here. The secret goes to
+          office/.env, and config.yaml gets only its name.
+        </p>
+        <p className="setting-note">
+          Google's address is <code>https://gmailmcp.googleapis.com/mcp/v1</code>, and the redirect
+          URI to allow on your client is <code>{state.redirectUri}</code>.
+        </p>
+
+        <label className="setting-field">
+          <span className="setting-note">Server address</span>
+          <input
+            className="setting-input"
+            value={url}
+            placeholder="https://gmailmcp.googleapis.com/mcp/v1"
+            onChange={(event) => setUrl(event.target.value)}
+          />
+        </label>
+
+        <label className="setting-field">
+          <span className="setting-note">OAuth client ID</span>
+          <input
+            className="setting-input"
+            value={clientId}
+            onChange={(event) => setClientId(event.target.value)}
+          />
+        </label>
+
+        <label className="setting-field">
+          <span className="setting-note">OAuth client secret</span>
+          <input
+            className="setting-input"
+            type="password"
+            value={clientSecret}
+            onChange={(event) => setClientSecret(event.target.value)}
+          />
+        </label>
+
+        <button
+          type="button"
+          className="btn"
+          disabled={!/^https?:\/\/\S+$/.test(url.trim()) || clientId.trim() === ""}
+          onClick={() => {
+            actions.onAdd({
+              url: url.trim(),
+              clientId: clientId.trim(),
+              clientSecret: clientSecret.trim(),
+            });
+            setUrl("");
+            setClientId("");
+            setClientSecret("");
+          }}
+        >
+          Add Gmail
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="setting-row" aria-label="Gmail">
+      <div className="staff-department-head">
+        <h3 className="settings-heading">Gmail</h3>
+        <button type="button" className="btn-quiet" onClick={actions.onRemove}>
+          Remove
+        </button>
+      </div>
+      <p className="setting-note">{gmailStatusLine(state)}</p>
+
+      {state.health === "needs_auth" && (
+        <button type="button" className="btn" onClick={actions.onConnect}>
+          Sign in to Gmail
+        </button>
+      )}
+
+      {/*
+        Two fences, and both are here because they answer different questions.
+        A department list is "nobody outside Support, whatever their row says";
+        the agent list is "and within Support, only these people".
+      */}
+      <div className="staff-add">
+        <h4 className="settings-heading">Which departments may use it</h4>
+        <p className="setting-note">None ticked means every department.</p>
+        {departments.map((department) => (
+          <label key={department.id} className="setting-check">
+            <input
+              type="checkbox"
+              checked={state.departments.includes(department.id)}
+              onChange={(event) =>
+                actions.onScope(
+                  event.target.checked
+                    ? [...state.departments, department.id]
+                    : state.departments.filter((id) => id !== department.id),
+                )
+              }
+            />
+            <span>{department.label}</span>
+          </label>
+        ))}
+      </div>
+
+      <div className="staff-add">
+        <h4 className="settings-heading">Who may use it</h4>
+        <p className="setting-note">Nobody, until you say so here.</p>
+        {agents.map((agent) => (
+          <label key={agent.id} className="setting-check">
+            <input
+              type="checkbox"
+              checked={state.agentIds.includes(agent.id)}
+              onChange={(event) =>
+                actions.onSetAgents(
+                  event.target.checked
+                    ? [...state.agentIds, agent.id]
+                    : state.agentIds.filter((id) => id !== agent.id),
+                )
+              }
+            />
+            <span>
+              {agent.name ?? agent.id} — {agent.role}
+              {/*
+                The department fence wins over the agent's own list, so ticking
+                somebody outside it does nothing. Said here rather than left as
+                a connector that is switched on and still refuses.
+              */}
+              {state.departments.length > 0 && !state.departments.includes(agent.departmentId) && (
+                <span className="setting-note"> — their department is not ticked above</span>
+              )}
+            </span>
+          </label>
+        ))}
+      </div>
+    </section>
   );
 }

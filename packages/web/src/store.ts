@@ -65,6 +65,16 @@ export interface OfficeStore {
   editors: { id: string; label: string }[];
 
   selectedAgentId: string | null;
+  /**
+   * Who the pointer is over in the room, and where the pointer is.
+   *
+   * The room draws everybody as the same neutral figure on purpose — the
+   * silhouette is the strongest thing on the plate and nobody carries a
+   * department colour. That makes it a room you can read at a glance and a room
+   * in which you cannot tell Dana from Priya, which is fine until you want to
+   * click on somebody in particular.
+   */
+  hovered: { id: string; x: number; y: number } | null;
   focusedPod: number | null;
   rail: "closed" | "chat" | "activity" | "approvals";
   overlay: "none" | "brain" | "help" | "settings";
@@ -91,6 +101,7 @@ export interface OfficeStore {
   applyEvent: (envelope: RunEventEnvelope, reducedMotion?: boolean) => void;
   applyError: (error: { code: string; message: string; hint: string }) => void;
   selectAgent: (agentId: string | null) => void;
+  setHovered: (hovered: { id: string; x: number; y: number } | null) => void;
   focusPod: (pod: number | null) => void;
   openRail: (rail: OfficeStore["rail"]) => void;
   openOverlay: (overlay: OfficeStore["overlay"]) => void;
@@ -110,6 +121,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   editors: [],
 
   selectedAgentId: null,
+  hovered: null,
   focusedPod: null,
   rail: "closed",
   overlay: "none",
@@ -210,6 +222,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
     set({ toolNotices: get().toolNotices.filter((notice) => notice.id !== id) }),
 
   selectAgent: (selectedAgentId) => set({ selectedAgentId }),
+  setHovered: (hovered) => set({ hovered }),
   focusPod: (focusedPod) => set({ focusedPod }),
   openRail: (rail) => set({ rail }),
   openOverlay: (overlay) => set({ overlay }),

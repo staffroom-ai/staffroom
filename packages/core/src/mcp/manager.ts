@@ -66,7 +66,7 @@ export interface McpManagerOptions {
   /** Where OAuth tokens are kept. Without it a server cannot be signed in to. */
   officeDir?: string;
   /** The loopback URL an OAuth provider sends the browser back to. */
-  oauthRedirectUrl?: string;
+  oauthRedirectUrl?: string | undefined;
 }
 
 const CONNECT_TIMEOUT_MS = 15_000;
@@ -158,6 +158,18 @@ export class McpManager {
   constructor(options: McpManagerOptions) {
     this.options = options;
     this.config = options.config;
+  }
+
+  /**
+   * Where an OAuth provider sends the owner's browser back.
+   *
+   * Set after the fact because it contains the port, and the office is built
+   * before anything has listened. Until this was called, beginOAuth answered
+   * "This office cannot sign in to servers." for every remote server — which it
+   * did for every office ever started, because nothing called it.
+   */
+  setOauthRedirectUrl(url: string): void {
+    this.options.oauthRedirectUrl = url;
   }
 
   /** The registry hands itself over here rather than being imported. */
@@ -253,11 +265,29 @@ export class McpManager {
     }
 
     let authorizationUrl: URL | undefined;
+    /*
+     * A client the owner registered, when the provider does not do registration.
+     *
+     * Read from the server's own entry rather than from anywhere global: two
+     * connectors can each have their own, and a client id is per provider.
+     */
+    const configured = server as { client_id?: string; client_secret?: string };
+    const client =
+      configured.client_id === undefined
+        ? undefined
+        : {
+            client_id: configured.client_id,
+            ...(configured.client_secret === undefined
+              ? {}
+              : { client_secret: configured.client_secret }),
+          };
+
     const provider = new OfficeOAuthProvider({
       officeDir,
       server: name,
       redirectUrl,
       pending: this.pending,
+      ...(client === undefined ? {} : { client }),
       onAuthorizationUrl: (url) => {
         authorizationUrl = url;
       },
